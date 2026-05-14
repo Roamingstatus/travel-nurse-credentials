@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · skillDock{% endblock %}
+{% block content %}
+<div class="dash-hero">
+  <p class="dash-kicker">Document vault</p>
+  <a class="dash-upload-cta" href="/documents/upload">
+    <span class="dash-upload-icon" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </span>
+    <span class="dash-upload-label">Upload document</span>
+  </a>
+</div>
+
+<div class="dash-footer-actions dash-top-actions">
+  <a class="btn ghost" href="/calendar/expiring.ics">Expiration reminders (.ics)</a>
+  {% if ai_features_enabled %}
+  <span class="pill good">Advanced AI parsing on</span>
+  {% else %}
+  <a class="btn ghost" href="/premium">Premium features</a>
+  {% endif %}
+</div>
+
+<section class="dash-section">
+  <h2 class="dash-section-title">Expiring soon</h2>
+  {% if summary.expiring %}
+  <ul class="dash-list">
+    {% for d in summary.expiring %}
+    <li class="dash-row">
+      <div>
+        <span class="dash-row-title">{{ d.title }}</span>
+        <span class="dash-row-meta">{{ d.category }} · expires {{ d.expires_at|dt }}</span>
+      </div>
+      <span class="pill warn">Expiring soon</span>
+      <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="dash-empty">Nothing expiring in the next 60 days.</p>
+  {% endif %}
+</section>
+
+<section class="dash-section">
+  <h2 class="dash-section-title">Recently uploaded</h2>
+  {% if summary.recent %}
+  <ul class="dash-list">
+    {% for d in summary.recent %}
+    <li class="dash-row">
+      <div>
+        <span class="dash-row-title">{{ d.title }}</span>
+        <span class="dash-row-meta">{{ d.category }} · {{ d.created_at|dt }}</span>
+      </div>
+      {% set us = ui_status_label(d) %}
+      {% if us == 'expired' %}<span class="pill bad">Expired</span>
+      {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring soon</span>
+      {% else %}<span class="pill good">Valid</span>{% endif %}
+      <a class="btn small ghost" href="/documents">Open vault</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="dash-empty">No uploads yet. Use the button above to add your first file.</p>
+  {% endif %}
+</section>
+
+<section class="dash-section">
+  <div class="dash-section-head">
+    <h2 class="dash-section-title">Shared packets</h2>
+    <a class="btn small ghost" href="/share">Manage</a>
+  </div>
+  {% if share_links %}
+  <ul class="dash-list">
+    {% for l in share_links %}
+    <li class="dash-row">
+      <span class="dash-row-title">{{ l.label or 'Shared link' }}</span>
+      <span class="dash-row-meta">Created {{ l.created_at|dt }}</span>
+      <span class="pill good">Active</span>
+      <button type="button" class="btn small ghost" onclick="navigator.clipboard.writeText('{{ request.base_url }}s/{{ l.token }}'); this.textContent='Copied';">Copy link</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="dash-empty">No active share links. Create one when you need a read-only packet.</p>
+  {% endif %}
+</section>
+
+<div class="dash-footer-actions">
+  <a class="btn ghost" href="/packet">Download packet (.zip)</a>
+  <a class="btn ghost" href="/packet/pdf">Download manifest (.pdf)</a>
+  <a class="btn ghost" href="/documents">Browse all documents</a>
+</div>
+{% endblock %}

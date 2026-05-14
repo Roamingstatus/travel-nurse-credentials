@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{% block title %}skillDock{% endblock %}</title>
+<link rel="icon" type="image/png" href="/static/skilldock-logo.png" />
+<script src="/static/theme.js?v=1"></script>
+<link rel="stylesheet" href="/static/style.css?v=4" />
+</head>
+<body>
+{% if not public_view %}
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a href="/" class="brand">
+      <img class="brand-logo" src="/static/skilldock-logo.png" alt="" />
+      <span class="brand-name">skillDock</span>
+    </a>
+    {% if user %}
+    <nav class="nav">
+      <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="/documents" class="{% if request.url.path.startswith('/documents') %}active{% endif %}">Documents</a>
+      <a href="/share" class="{% if request.url.path.startswith('/share') %}active{% endif %}">Share</a>
+      <a href="/premium" class="{% if request.url.path == '/premium' %}active{% endif %}">Premium</a>
+      <span class="who">{{ user.email }}</span>
+      <button type="button" class="btn small ghost theme-hit" data-theme-toggle title="Theme">◐</button>
+      <form method="post" action="/logout" class="logout-form">
+        <button type="submit" class="btn small ghost">Sign out</button>
+      </form>
+    </nav>
+    {% else %}
+    <button type="button" class="btn small ghost theme-hit" data-theme-toggle title="Theme">◐</button>
+    {% endif %}
+  </div>
+</header>
+{% endif %}
+
+<main class="container main-pad">
+  {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

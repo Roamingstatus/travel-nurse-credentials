@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Documents · skillDock{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <h1>Documents</h1>
+  <a class="btn primary" href="/documents/upload">Upload</a>
+</div>
+
+<form class="vault-search" method="get" action="/documents" role="search">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search vault…" autocomplete="off" />
+  {% if q %}<a class="btn small ghost" href="/documents">Clear</a>{% endif %}
+</form>
+
+{% if not docs %}
+<div class="empty-card vault-empty-banner">
+  <p class="empty-card-title">{% if q %}No matches{% else %}Your vault is empty{% endif %}</p>
+  <p class="empty-card-text">{% if q %}Try another search or {% endif %}Upload files and assign a category, or use auto-detect from the file name.</p>
+  {% if not q %}<a class="btn primary" href="/documents/upload">Upload document</a>{% endif %}
+</div>
+{% endif %}
+
+<div class="vault-tab-shell" data-vault-tabs>
+  <div class="vault-tabs-scroll">
+    <div class="vault-tabs" role="tablist" aria-label="Document categories">
+      {% for cat in vault_tabs %}
+      {% set n = docs_by_category[cat]|length %}
+      <button
+        type="button"
+        class="vault-tab"
+        role="tab"
+        id="vault-tab-{{ loop.index0 }}"
+        aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+        aria-controls="vault-panel-{{ loop.index0 }}"
+        tabindex="{% if loop.first %}0{% else %}-1{% endif %}"
+        data-tab-index="{{ loop.index0 }}"
+      >
+        <span class="vault-tab-label">{{ cat }}</span>
+        <span class="vault-tab-count">{{ n }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% for cat in vault_tabs %}
+  <div
+    class="vault-tabpanel"
+    role="tabpanel"
+    id="vault-panel-{{ loop.index0 }}"
+    aria-labelledby="vault-tab-{{ loop.index0 }}"
+    {% if not loop.first %}hidden{% endif %}
+  >
+    {% set rows = docs_by_category[cat] %}
+    {% if rows %}
+    <div class="vault-cards">
+      {% for d in rows %}
+      {% set cat_label = d.category if cat == 'Other' else cat %}
+      <article class="doc-card">
+        <div class="doc-card-main">
+          <h3 class="doc-card-name">{{ d.title }}</h3>
+          <dl class="doc-card-meta">
+            <div><dt>Category</dt><dd>{{ cat_label }}</dd></div>
+            <div><dt>Upload date</dt><dd>{{ d.created_at|dt }}</dd></div>
+            <div><dt>Expiration date</dt><dd>{{ d.expires_at|dt }}</dd></div>
+            <div><dt>Status</dt><dd>
+              {% set us = ui_status_label(d) %}
+              {% if us == 'expired' %}<span class="pill bad">Expired</span>
+              {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring soon</span>
+              {% else %}<span class="pill good">Valid</span>{% endif %}
+            </dd></div>
+          </dl>
+        </div>
+        <div class="doc-card-foot">
+          <div class="doc-card-actions">
+            <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
+            <form method="post" action="/documents/{{ d.id }}/delete" onsubmit="return confirm('Remove this document?');">
+              <button class="btn small danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="vault-panel-empty">No documents in this category{% if q %} for your search{% endif %}.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+(function () {
+  var root = document.querySelector("[data-vault-tabs]");
+  if (!root) return;
+  var tabs = root.querySelectorAll('.vault-tab');
+  var panels = root.querySelectorAll('.vault-tabpanel');
+  function activate(i) {
+    tabs.forEach(function (t, j) {
+      var on = j === i;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach(function (p, j) {
+      if (j === i) p.removeAttribute('hidden');
+      else p.setAttribute('hidden', '');
+    });
+  }
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener('click', function () { activate(i); });
+    tab.addEventListener('keydown', function (e) {
+      var next = null;
+      if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = tabs.length - 1;
+      if (next !== null) {
+        e.preventDefault();
+        tabs[next].focus();
+        activate(next);
+      }
+    });
+  });
+  var firstWithDocs = -1;
+  panels.forEach(function (p, i) {
+    if (p.querySelector('.doc-card') && firstWithDocs < 0) firstWithDocs = i;
+  });
+  if (firstWithDocs >= 0) activate(firstWithDocs);
+})();
+</script>
+
+<div class="page-actions-bar">
+  <a class="btn ghost" href="/packet">Download packet (.zip)</a>
+  <a class="btn ghost" href="/packet/pdf">Manifest (.pdf)</a>
+</div>
+{% endblock %}

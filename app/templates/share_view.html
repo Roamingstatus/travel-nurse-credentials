@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ owner.name or owner.email }} · skillDock{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <div>
+    <h1>{{ owner.name or owner.email }}</h1>
+    <p class="subnote">Shared via {{ link.label or 'private link' }} · {{ link.created_at|dt }}</p>
+  </div>
+  <div class="share-actions">
+    <a class="btn primary" href="/s/{{ link.token }}/packet">Packet (.zip)</a>
+    <a class="btn ghost" href="/s/{{ link.token }}/packet/pdf">Manifest (.pdf)</a>
+  </div>
+</div>
+
+<section class="panel panel-min">
+  <header><h2>Documents</h2></header>
+  <div class="body tight">
+  {% if docs %}
+    <table class="table-min">
+      <thead><tr><th>Name</th><th>Category</th><th>Uploaded</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for d in docs %}
+        <tr>
+          <td><strong>{{ d.title }}</strong>{% if d.notes %}<div class="subnote">{{ d.notes }}</div>{% endif %}</td>
+          <td>{{ d.category }}</td>
+          <td>{{ d.created_at|dt }}</td>
+          <td>{{ d.expires_at|dt }}</td>
+          <td>
+            {% set us = ui_status_label(d) %}
+            {% if us == 'expired' %}<span class="pill bad">Expired</span>
+            {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring soon</span>
+            {% else %}<span class="pill good">Valid</span>{% endif %}
+          </td>
+          <td class="right"><a class="btn small ghost" href="/s/{{ link.token }}/download/{{ d.id }}">Download</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-card"><p class="empty-card-text">No documents in this share.</p></div>
+  {% endif %}
+  </div>
+</section>
+
+<p class="share-foot muted">Private link — the owner can revoke access anytime.</p>
+{% endblock %}

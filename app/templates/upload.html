@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Upload · skillDock{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <h1>Upload</h1>
+  <a class="btn ghost" href="/documents">Back</a>
+</div>
+
+<section class="panel panel-min">
+  <div class="body">
+    <form id="upload-form" method="post" action="/documents/upload" enctype="multipart/form-data">
+      <div class="dropzone" id="dropzone">
+        <input
+          class="dropzone-input"
+          id="file"
+          name="file"
+          type="file"
+          required
+          accept=".pdf,.png,.jpg,.jpeg,.gif,.heic,.webp,.doc,.docx"
+          aria-label="Choose file or drop here"
+        />
+        <div class="dropzone-inner">
+          <span class="dropzone-icon" aria-hidden="true">+</span>
+          <p class="dropzone-title">Drop a file here</p>
+          <p class="dropzone-sub">or click to browse · up to 25 MB</p>
+          <p class="dropzone-file" id="file-label" hidden></p>
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="title">Name</label>
+          <input id="title" name="title" type="text" placeholder="e.g. State ID — renewal" required />
+        </div>
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" name="category" required>
+            <option value="__auto__" {% if not preset_category %}selected{% endif %}>Auto-detect (suggested)</option>
+            {% for c in categories %}
+              <option value="{{ c }}" {% if preset_category == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="issued_at">Issued</label>
+          <input id="issued_at" name="issued_at" type="date" />
+        </div>
+        <div class="field">
+          <label for="expires_at">Expires</label>
+          <input id="expires_at" name="expires_at" type="date" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="notes">Notes <span class="optional">optional</span></label>
+        <textarea id="notes" name="notes" rows="3" placeholder="Reference numbers, issuer, or context."></textarea>
+      </div>
+
+      <p class="premium-note">
+        Basic auto-detect and storage are free. Advanced AI parsing is a premium feature{% if advanced_ai_available %} and is active for this upload{% endif %}.
+        Duplicates are blocked by file contents.
+      </p>
+
+      <button type="submit" class="btn primary wide">Save to vault</button>
+    </form>
+  </div>
+</section>
+
+<script>
+(function () {
+  var dz = document.getElementById("dropzone");
+  var input = document.getElementById("file");
+  var label = document.getElementById("file-label");
+  if (!dz || !input) return;
+
+  function showName() {
+    if (!input.files || !input.files.length) {
+      label.hidden = true;
+      return;
+    }
+    label.textContent = input.files[0].name;
+    label.hidden = false;
+  }
+
+  input.addEventListener("change", showName);
+
+  ["dragenter", "dragover"].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dz.classList.add("is-drag");
+    });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      dz.classList.remove("is-drag");
+    });
+  });
+  dz.addEventListener("drop", function (e) {
+    var dt = e.dataTransfer;
+    if (!dt || !dt.files || !dt.files.length) return;
+    input.files = dt.files;
+    showName();
+  });
+})();
+</script>
+{% endblock %}

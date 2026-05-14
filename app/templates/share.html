@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Share · skillDock{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <h1>Share</h1>
+</div>
+
+<section class="panel panel-min">
+  <header><h2>New link</h2></header>
+  <div class="body">
+    <p class="muted tight-top">Read-only access to your vault for hiring teams — no account required on their side. Revoke anytime.</p>
+    {% if not is_premium %}
+    <p class="premium-note tight-top">Branded share pages and recruiter analytics are premium features.</p>
+    {% endif %}
+    <form method="post" action="/share/create">
+      <div class="field-grid">
+        <div class="field">
+          <label for="label">Label</label>
+          <input id="label" name="label" type="text" placeholder="e.g. Acme Corp — recruiter Jane" />
+        </div>
+        <div class="field">
+          <label for="expires_days">Link expires</label>
+          <select id="expires_days" name="expires_days">
+            <option value="">Never</option>
+            <option value="7">In 7 days</option>
+            <option value="30">In 30 days</option>
+            <option value="90">In 90 days</option>
+          </select>
+        </div>
+        <div class="field field-align-end">
+          <button type="submit" class="btn primary">Create link</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="panel panel-min">
+  <header><h2>Your links</h2></header>
+  <div class="body tight">
+  {% if links %}
+    <table class="table-min">
+        <thead><tr><th>Label</th><th>Created</th><th>Expires</th><th>Status</th><th>URL</th><th></th></tr></thead>
+      <tbody>
+        {% for l in links %}
+        <tr>
+          <td><strong>{{ l.label or 'Shared packet' }}</strong></td>
+          <td>{{ l.created_at|dt }}</td>
+          <td>{% if l.expires_at %}{{ l.expires_at|dt }}{% else %}—{% endif %}</td>
+          <td>
+            {% if l.revoked_at %}
+              <span class="pill bad">Revoked</span>
+            {% else %}
+              <span class="pill good">Active</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not l.revoked_at %}
+              <div class="share-link-box">
+                <input readonly value="{{ base_url }}/s/{{ l.token }}" onclick="this.select()" />
+                <button type="button" class="btn small ghost" onclick="navigator.clipboard.writeText('{{ base_url }}/s/{{ l.token }}'); this.textContent='Copied';">Copy</button>
+              </div>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td class="right">
+            {% if not l.revoked_at %}
+            <form method="post" action="/share/{{ l.id }}/revoke" onsubmit="return confirm('Revoke this link?');">
+              <button class="btn small danger" type="submit">Revoke</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-card">
+      <p class="empty-card-title">No links yet</p>
+      <p class="empty-card-text">Create one when you need a secure packet for an application or interview loop.</p>
+    </div>
+  {% endif %}
+  </div>
+</section>
+{% endblock %}

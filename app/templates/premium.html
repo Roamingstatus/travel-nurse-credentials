@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Premium · skillDock{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <h1>Premium</h1>
+  {% if is_premium %}
+  <span class="pill good">Active</span>
+  {% else %}
+  <span class="pill neutral">Free plan</span>
+  {% endif %}
+</div>
+
+<section class="panel panel-min">
+  <header><h2>Included for everyone</h2></header>
+  <div class="body">
+    <ul class="premium-list">
+      <li>Upload and store credential documents</li>
+      <li>Basic category and expiration hints</li>
+      <li>Download ZIP packets and PDF manifests</li>
+      <li>Create standard recruiter share links</li>
+      <li>Export calendar reminders</li>
+    </ul>
+  </div>
+</section>
+
+<section class="panel panel-min">
+  <header><h2>Premium features</h2></header>
+  <div class="body">
+    <div class="premium-grid">
+      {% for feature in premium_features %}
+      <article class="premium-feature">
+        <div>
+          <h3>{{ feature.name }}</h3>
+          <p>{{ feature.description }}</p>
+        </div>
+        {% if is_premium %}
+        <span class="pill good">Unlocked</span>
+        {% else %}
+        <span class="pill neutral">Premium</span>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
