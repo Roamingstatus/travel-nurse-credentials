@@ -8,3 +8,14 @@ python-multipart>=0.0.9
 itsdangerous>=2.2
 pypdf>=4.0
 fpdf2>=2.7
+authlib
+fastapi
+fpdf2
+httpx
+itsdangerous
+jinja2
+pypdf
+python-multipart
+sqlalchemy
+uvicorn[standard]
+gunicorn
