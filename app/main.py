@@ -126,6 +126,8 @@ async def google_start(request: Request):
     redirect_uri = str(request.url_for("google_callback"))
     if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
         redirect_uri = "https://" + redirect_uri[len("http://") :]
+    import logging
+    logging.warning(f"[OAuth] redirect_uri being sent to Google: {redirect_uri}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -134,7 +136,10 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
-        raise HTTPException(400, f"Google sign-in failed: {e}")
+        import logging
+        logging.warning(f"[OAuth] callback error: {e}")
+        request.session["flash"] = f"Google sign-in failed: {e}"
+        return RedirectResponse("/login", status_code=302)
     info = token.get("userinfo") or {}
     sub = info.get("sub")
     email = info.get("email")
