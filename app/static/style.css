@@ -580,6 +580,36 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: relative;
+}
+.drag-handle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 20px;
+  color: var(--muted);
+  cursor: grab;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+  touch-action: none;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.drag-handle:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.doc-card-ghost {
+  opacity: 0.4;
+  background: var(--accent-soft);
+  border: 2px dashed var(--accent);
+}
+.doc-card-chosen {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  transform: scale(1.01);
 }
 .doc-card-name {
   margin: 0 0 4px;

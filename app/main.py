@@ -15,7 +15,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -210,7 +210,7 @@ def documents_list(
     docs = (
         db.query(Document)
         .filter_by(user_id=user.id)
-        .order_by(Document.category.asc(), Document.title.asc())
+        .order_by(Document.sort_order.asc(), Document.category.asc(), Document.title.asc())
         .all()
     )
     if q and q.strip():
@@ -338,6 +338,19 @@ async def upload_submit(
     db.commit()
     request.session["flash"] = f"Saved “{doc.title}”."
     return RedirectResponse("/documents", status_code=302)
+
+
+@app.post("/documents/reorder")
+async def reorder_documents(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    data = await request.json()
+    ids = data.get("ids", [])
+    for position, doc_id in enumerate(ids):
+        doc = db.get(Document, int(doc_id))
+        if doc and doc.user_id == user.id:
+            doc.sort_order = position
+    db.commit()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/documents/{doc_id}/delete")
