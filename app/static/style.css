@@ -234,6 +234,12 @@ a:hover {
   padding: 6px 10px;
   font-size: 13px;
 }
+.theme-hit {
+  padding: 10px 14px;
+  font-size: 20px;
+  min-width: 44px;
+  min-height: 44px;
+}
 .btn.wide {
   width: 100%;
 }
