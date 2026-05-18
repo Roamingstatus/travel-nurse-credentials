@@ -56,6 +56,7 @@ class Document(Base):
     size_bytes = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     content_hash = Column(String(64), nullable=True, index=True)
+    sort_order = Column(Integer, nullable=True, default=0)
 
     user = relationship("User", back_populates="documents")
 
@@ -90,6 +91,11 @@ def _ensure_sqlite_columns() -> None:
                     conn.execute(text("ALTER TABLE documents ADD COLUMN content_hash VARCHAR(64)"))
                 if "profile_id" not in cols:
                     conn.execute(text("ALTER TABLE documents ADD COLUMN profile_id INTEGER"))
+        if "documents" in tables:
+            cols = {c["name"] for c in insp.get_columns("documents")}
+            with engine.begin() as conn:
+                if "sort_order" not in cols:
+                    conn.execute(text("ALTER TABLE documents ADD COLUMN sort_order INTEGER DEFAULT 0"))
         if "share_links" in tables:
             cols = {c["name"] for c in insp.get_columns("share_links")}
             with engine.begin() as conn:
