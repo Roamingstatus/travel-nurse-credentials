@@ -61,7 +61,12 @@
         Duplicates are blocked by file contents.
       </p>
 
-      <button type="submit" class="btn primary wide">Save to vault</button>
+      <div class="upload-progress-wrap" id="upload-progress-wrap" hidden>
+        <div class="upload-progress-bar" id="upload-progress-bar"></div>
+        <p class="upload-progress-label" id="upload-progress-label">Uploading…</p>
+      </div>
+
+      <button type="submit" class="btn primary wide" id="upload-submit-btn">Save to vault</button>
     </form>
   </div>
 </section>
@@ -104,6 +109,58 @@
     input.files = dt.files;
     showName();
   });
+
+  // Upload progress
+  var form = document.getElementById("upload-form");
+  var progressWrap = document.getElementById("upload-progress-wrap");
+  var progressBar = document.getElementById("upload-progress-bar");
+  var progressLabel = document.getElementById("upload-progress-label");
+  var submitBtn = document.getElementById("upload-submit-btn");
+
+  if (form) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var data = new FormData(form);
+      var xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener("progress", function (ev) {
+        if (!ev.lengthComputable) return;
+        var pct = Math.round((ev.loaded / ev.total) * 100);
+        progressBar.style.width = pct + "%";
+        progressLabel.textContent = pct < 100 ? "Uploading… " + pct + "%" : "Processing…";
+      });
+
+      xhr.addEventListener("load", function () {
+        if (xhr.status >= 200 && xhr.status < 400) {
+          progressBar.style.width = "100%";
+          progressLabel.textContent = "Saved!";
+          setTimeout(function () {
+            window.location.href = "/documents";
+          }, 400);
+        } else {
+          progressLabel.textContent = "Upload failed. Please try again.";
+          progressBar.style.background = "var(--bad)";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Save to vault";
+        }
+      });
+
+      xhr.addEventListener("error", function () {
+        progressLabel.textContent = "Network error. Please try again.";
+        progressBar.style.background = "var(--bad)";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Save to vault";
+      });
+
+      progressWrap.hidden = false;
+      progressBar.style.width = "0%";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Uploading…";
+
+      xhr.open("POST", form.action);
+      xhr.send(data);
+    });
+  }
 })();
 </script>
 {% endblock %}

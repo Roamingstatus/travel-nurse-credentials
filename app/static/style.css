@@ -885,6 +885,22 @@ textarea:focus {
   margin: 0 0 18px;
 }
 
+.upload-progress-wrap {
+  margin: 0 0 16px;
+}
+.upload-progress-bar {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.2s ease;
+}
+.upload-progress-label {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .premium-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
