@@ -340,6 +340,25 @@ async def upload_submit(
     return RedirectResponse("/documents", status_code=302)
 
 
+@app.get("/documents/{doc_id}/thumb")
+def document_thumb(doc_id: int, request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    doc = db.get(Document, doc_id)
+    if not doc or doc.user_id != user.id:
+        raise HTTPException(404)
+    mime = doc.mime_type or ""
+    if not mime.startswith("image/"):
+        raise HTTPException(404, "No thumbnail for this file type.")
+    p = file_path(user.id, doc.stored_filename)
+    if not p.exists():
+        raise HTTPException(404, "File missing.")
+    return Response(
+        content=p.read_bytes(),
+        media_type=mime,
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
 @app.post("/documents/reorder")
 async def reorder_documents(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)

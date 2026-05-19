@@ -611,6 +611,51 @@ a:hover {
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   transform: scale(1.01);
 }
+.doc-thumb-wrap {
+  width: 100%;
+  height: 140px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.doc-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.doc-thumb-icon {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+.doc-thumb-pdf {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+[data-theme="dark"] .doc-thumb-pdf {
+  background: rgba(185,28,28,0.2);
+  color: #fca5a5;
+}
+.doc-thumb-doc {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+[data-theme="dark"] .doc-thumb-doc {
+  background: rgba(29,78,216,0.2);
+  color: #93c5fd;
+}
+.doc-thumb-file {
+  background: var(--surface-2);
+  color: var(--muted);
+}
 .doc-card-name {
   margin: 0 0 4px;
   font-size: 15px;
