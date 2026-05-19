@@ -56,6 +56,18 @@
       {% set cat_label = d.category if cat == 'Other' else cat %}
       <article class="doc-card" data-doc-id="{{ d.id }}">
         <div class="drag-handle" title="Drag to reorder">⠿</div>
+        {% set mime = d.mime_type or '' %}
+        <div class="doc-thumb-wrap">
+          {% if mime.startswith('image/') %}
+            <img class="doc-thumb-img" src="/documents/{{ d.id }}/thumb" alt="{{ d.title }}" loading="lazy" />
+          {% elif 'pdf' in mime %}
+            <div class="doc-thumb-icon doc-thumb-pdf">PDF</div>
+          {% elif 'word' in mime or 'document' in mime or d.original_filename.endswith('.doc') or d.original_filename.endswith('.docx') %}
+            <div class="doc-thumb-icon doc-thumb-doc">DOC</div>
+          {% else %}
+            <div class="doc-thumb-icon doc-thumb-file">FILE</div>
+          {% endif %}
+        </div>
         <div class="doc-card-main">
           <h3 class="doc-card-name">{{ d.title }}</h3>
           <dl class="doc-card-meta">
