@@ -1,5 +1,5 @@
 (function () {
-  var key = "creddock-theme";
+  var key = "credanta-theme";
   function apply(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     try {

@@ -45,7 +45,7 @@ AUTO_CATEGORY = "__auto__"
 
 BASE_DIR = Path(__file__).parent
 
-app = FastAPI(title="CredDock")
+app = FastAPI(title="Credanta")
 
 app.add_middleware(
     SessionMiddleware,

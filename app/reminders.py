@@ -20,7 +20,7 @@ def build_expiring_ics(
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//CredDock//EN",
+        "PRODID:-//Credanta//EN",
         "CALSCALE:GREGORIAN",
         f"X-WR-CALNAME:{_escape_ics_text(calendar_name)}",
     ]
