@@ -121,17 +121,17 @@ a:hover {
   font-size: 17px;
 }
 .brand-logo {
-  height: 28px;
+  height: 44px;
   width: auto;
-  max-width: 100px;
+  max-width: 160px;
   object-fit: contain;
   border-radius: 6px;
   display: block;
 }
 .brand-logo--hero {
   height: auto;
-  width: min(200px, 70vw);
-  max-width: 200px;
+  width: min(300px, 80vw);
+  max-width: 300px;
   max-height: none;
   margin: 0 auto 16px;
   border-radius: 12px;
