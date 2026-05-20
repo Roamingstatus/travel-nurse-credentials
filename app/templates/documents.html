@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Documents · skillDock{% endblock %}
+{% block title %}Credentials · skillDock{% endblock %}
 {% block content %}
 <div class="page-head-min">
-  <h1>Documents</h1>
+  <h1>Credentials</h1>
   <a class="btn primary" href="/documents/upload">Upload</a>
 </div>
 
@@ -21,7 +21,7 @@
 
 <div class="vault-tab-shell" data-vault-tabs>
   <div class="vault-tabs-scroll">
-    <div class="vault-tabs" role="tablist" aria-label="Document categories">
+    <div class="vault-tabs" role="tablist" aria-label="Credential categories">
       {% for cat in vault_tabs %}
       {% set n = docs_by_category[cat]|length %}
       <button
