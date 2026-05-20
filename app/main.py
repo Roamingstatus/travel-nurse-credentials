@@ -38,7 +38,7 @@ from .packet import build_zip
 from .packet_pdf import build_manifest_pdf
 from .premium import PREMIUM_FEATURES, user_has_premium
 from .reminders import build_expiring_ics
-from .smart_categorize import infer_category, infer_expiry_from_text
+from .smart_categorize import extract_document_metadata, infer_category, infer_expiry_from_text
 from .storage import delete_file, file_path, save_upload
 
 AUTO_CATEGORY = "__auto__"
@@ -240,6 +240,17 @@ def documents_list(
         days_until=days_until,
         ui_status_label=ui_status_label,
     )
+
+
+@app.post("/documents/analyze")
+async def analyze_document(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    require_user(request)
+    raw = await file.read(5 * 1024 * 1024)
+    meta = extract_document_metadata(raw, file.content_type, file.filename or "")
+    return JSONResponse(meta)
 
 
 @app.get("/documents/upload", response_class=HTMLResponse)

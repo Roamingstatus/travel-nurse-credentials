@@ -27,13 +27,15 @@
         </div>
       </div>
 
+      <p class="analyze-hint" id="analyze-hint" hidden></p>
+
       <div class="field-grid">
         <div class="field">
-          <label for="title">Name</label>
+          <label for="title">Name <span class="auto-badge" id="badge-title" hidden>✦ Auto-detected</span></label>
           <input id="title" name="title" type="text" placeholder="e.g. State ID — renewal" required />
         </div>
         <div class="field">
-          <label for="category">Category</label>
+          <label for="category">Category <span class="auto-badge" id="badge-category" hidden>✦ Auto-detected</span></label>
           <select id="category" name="category" required>
             <option value="__auto__" {% if not preset_category %}selected{% endif %}>Auto-detect (suggested)</option>
             {% for c in categories %}
@@ -42,11 +44,11 @@
           </select>
         </div>
         <div class="field">
-          <label for="issued_at">Issued</label>
+          <label for="issued_at">Issued <span class="auto-badge" id="badge-issued" hidden>✦ Auto-detected</span></label>
           <input id="issued_at" name="issued_at" type="date" />
         </div>
         <div class="field">
-          <label for="expires_at">Expires</label>
+          <label for="expires_at">Expires <span class="auto-badge" id="badge-expires" hidden>✦ Auto-detected</span></label>
           <input id="expires_at" name="expires_at" type="date" />
         </div>
       </div>
@@ -87,7 +89,10 @@
     label.hidden = false;
   }
 
-  input.addEventListener("change", showName);
+  input.addEventListener("change", function () {
+    showName();
+    if (input.files && input.files.length) analyzeFile(input.files[0]);
+  });
 
   ["dragenter", "dragover"].forEach(function (ev) {
     dz.addEventListener(ev, function (e) {
@@ -108,7 +113,44 @@
     if (!dt || !dt.files || !dt.files.length) return;
     input.files = dt.files;
     showName();
+    analyzeFile(dt.files[0]);
   });
+
+  function setAutoField(id, value, labelId) {
+    var el = document.getElementById(id);
+    var badge = document.getElementById(labelId);
+    if (!el || !value) return;
+    if (el.tagName === 'SELECT') {
+      for (var i = 0; i < el.options.length; i++) {
+        if (el.options[i].value === value) {
+          el.value = value;
+          if (badge) badge.hidden = false;
+          return;
+        }
+      }
+    } else {
+      el.value = value;
+      if (badge) badge.hidden = false;
+    }
+  }
+
+  function analyzeFile(file) {
+    var hint = document.getElementById('analyze-hint');
+    if (hint) { hint.hidden = false; hint.textContent = 'Reading document…'; }
+    var fd = new FormData();
+    fd.append('file', file);
+    fetch('/documents/analyze', { method: 'POST', body: fd })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        if (hint) hint.hidden = true;
+        setAutoField('title', data.title, 'badge-title');
+        setAutoField('category', data.category, 'badge-category');
+        setAutoField('issued_at', data.issued_at, 'badge-issued');
+        setAutoField('expires_at', data.expires_at, 'badge-expires');
+      })
+      .catch(function () { if (hint) hint.hidden = true; });
+  }
 
   // Upload progress
   var form = document.getElementById("upload-form");
