@@ -121,9 +121,9 @@ a:hover {
   font-size: 17px;
 }
 .brand-logo {
-  height: 52px;
+  height: 110px;
   width: auto;
-  max-width: 360px;
+  max-width: 600px;
   object-fit: contain;
   display: block;
 }
