@@ -38,3 +38,8 @@ externalPort = 80
 [deployment]
 deploymentTarget = "vm"
 run = ["python", "run.py"]
+
+[userenv]
+
+[userenv.shared]
+GITHUB_TOKEN = "REDACTED_GITHUB_PAT_REMOVED_FROM_HISTORY_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
