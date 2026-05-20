@@ -164,6 +164,17 @@ def _extract_text(raw: bytes, mime_type: str, filename: str) -> str:
             return '\n'.join(parts)[:15000]
         except Exception:
             return ''
+    if mt.startswith('image/') or fn.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.bmp', '.tiff')):
+        try:
+            import pytesseract
+            from PIL import Image
+            img = Image.open(io.BytesIO(raw))
+            if img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+            text = pytesseract.image_to_string(img)
+            return text[:15000]
+        except Exception:
+            return ''
     return ''
 
 
