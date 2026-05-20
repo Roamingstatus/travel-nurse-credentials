@@ -45,7 +45,7 @@ AUTO_CATEGORY = "__auto__"
 
 BASE_DIR = Path(__file__).parent
 
-app = FastAPI(title="skillDock")
+app = FastAPI(title="CredDock")
 
 app.add_middleware(
     SessionMiddleware,

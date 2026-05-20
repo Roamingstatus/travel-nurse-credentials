@@ -1,5 +1,5 @@
 (function () {
-  var key = "skilldock-theme";
+  var key = "creddock-theme";
   function apply(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     try {

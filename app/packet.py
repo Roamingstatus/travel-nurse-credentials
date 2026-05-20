@@ -15,7 +15,7 @@ def build_zip(user: User, documents: list[Document]) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         manifest_lines = [
-            f"skillDock packet for {user.name or user.email}",
+            f"CredDock packet for {user.name or user.email}",
             f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
             f"Email: {user.email}",
             "",

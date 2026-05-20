@@ -47,7 +47,7 @@ def build_manifest_pdf(user: User, documents: list[Document]) -> bytes:
     pdf.multi_cell(
         0,
         5,
-        "This PDF lists filenames and dates only. Download the ZIP packet from skillDock for original files.",
+        "This PDF lists filenames and dates only. Download the ZIP packet from CredDock for original files.",
     )
     out = pdf.output(dest="S")
     if isinstance(out, str):
