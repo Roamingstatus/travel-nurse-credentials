@@ -23,7 +23,18 @@
   </p>
 </div>
 
-<div class="dash-stats anim-fade-up d1">
+<a class="dash-upload-cta anim-fade-up d1" href="/documents/upload">
+  <span class="dash-upload-icon" aria-hidden="true">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+  </span>
+  <span class="dash-upload-text">
+    <span class="dash-upload-label">Upload a credential</span>
+    <span class="dash-upload-sub">Licenses, certifications, IDs &amp; more</span>
+  </span>
+  <span class="dash-upload-arrow" aria-hidden="true">→</span>
+</a>
+
+<div class="dash-stats anim-fade-up d2">
   <div class="stat-card stat-card--good">
     <div class="stat-card-value">{{ valid_count }}</div>
     <div class="stat-card-label">Valid</div>
@@ -39,25 +50,16 @@
 </div>
 
 {% if summary.expired %}
-<div class="dash-alert dash-alert--bad anim-fade-up d2">
+<div class="dash-alert dash-alert--bad anim-fade-up d3">
   <span class="dash-alert-msg">⛔ {{ summary.expired|length }} credential{% if summary.expired|length != 1 %}s{% endif %} expired</span>
   <a class="dash-alert-link" href="/documents">View →</a>
 </div>
 {% elif summary.expiring %}
-<div class="dash-alert dash-alert--warn anim-fade-up d2">
+<div class="dash-alert dash-alert--warn anim-fade-up d3">
   <span class="dash-alert-msg">⚠ {{ summary.expiring|length }} credential{% if summary.expiring|length != 1 %}s{% endif %} expiring soon</span>
   <a class="dash-alert-link" href="/documents">Review →</a>
 </div>
 {% endif %}
-
-<div style="text-align:center;margin-bottom:24px;" class="anim-fade-up d2">
-  <a class="dash-upload-cta" href="/documents/upload">
-    <span class="dash-upload-icon" aria-hidden="true">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-    </span>
-    <span class="dash-upload-label">Upload document</span>
-  </a>
-</div>
 
 <div class="dash-footer-actions dash-top-actions" style="margin-bottom:24px;">
   <a class="btn ghost" href="/calendar/expiring.ics">Reminders (.ics)</a>
