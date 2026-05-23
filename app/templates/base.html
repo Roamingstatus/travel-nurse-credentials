@@ -19,7 +19,6 @@
     <nav class="nav">
       <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}">Dashboard</a>
       <a href="/documents" class="{% if request.url.path.startswith('/documents') %}active{% endif %}">Credentials</a>
-      <a href="/share" class="{% if request.url.path.startswith('/share') %}active{% endif %}">Share</a>
       <a href="/premium" class="{% if request.url.path == '/premium' %}active{% endif %}">Premium</a>
       <span class="who">{{ user.email }}</span>
       <button type="button" class="btn small ghost theme-hit" data-theme-toggle title="Theme">◐</button>

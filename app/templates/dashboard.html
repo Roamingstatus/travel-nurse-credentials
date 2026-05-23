@@ -63,6 +63,7 @@
   {% endif %}
 </section>
 
+{% if is_premium_plus %}
 <section class="dash-section">
   <div class="dash-section-head">
     <h2 class="dash-section-title">Shared packets</h2>
@@ -83,6 +84,7 @@
   <p class="dash-empty">No active share links. Create one when you need a read-only packet.</p>
   {% endif %}
 </section>
+{% endif %}
 
 <div class="dash-footer-actions">
   <a class="btn ghost" href="/packet">Download packet (.zip)</a>
