@@ -1,0 +1,38 @@
+.credanta-shadow {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.credanta-shadow:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.credanta-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.credanta-card {
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e4e4e7; /* zinc-200 */
+}
+
+@keyframes progress-fill {
+  from { width: 0%; }
+  to { width: 85%; }
+}
+
+.animate-progress {
+  animation: progress-fill 1s ease-out forwards;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
