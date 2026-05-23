@@ -54,7 +54,8 @@
     <div class="vault-cards sortable-list" data-sortable>
       {% for d in rows %}
       {% set cat_label = d.category if cat == 'Other' else cat %}
-      <article class="doc-card" data-doc-id="{{ d.id }}">
+      {% set us = ui_status_label(d) %}
+      <article class="doc-card {% if us == 'expired' %}doc-card--bad{% elif us == 'expiring_soon' %}doc-card--warn{% else %}doc-card--good{% endif %}" data-doc-id="{{ d.id }}">
         <div class="drag-handle" title="Drag to reorder">⠿</div>
         {% set mime = d.mime_type or '' %}
         <div class="doc-thumb-wrap">

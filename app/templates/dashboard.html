@@ -1,8 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · Credanta{% endblock %}
 {% block content %}
-<div class="dash-hero">
-  <p class="dash-kicker">Credentials vault</p>
+
+{% set valid_count = summary.current|length + summary.no_expiry|length %}
+{% set pct = ((valid_count / summary.total * 100)|int) if summary.total > 0 else 100 %}
+{% set username = user.email.split('@')[0] %}
+
+<div class="dash-greeting anim-fade-up">
+  <h1 class="dash-greeting-title">Hi, {{ username }} 👋</h1>
+  <p class="dash-greeting-sub">
+    {% if summary.total > 0 %}
+      {{ valid_count }} of {{ summary.total }} credentials up to date
+      <span class="dash-progress-wrap">
+        <span class="dash-progress-track">
+          <span class="dash-progress-fill" style="width:{{ pct }}%"></span>
+        </span>
+        <span>{{ pct }}%</span>
+      </span>
+    {% else %}
+      Your credential vault is empty — add your first document below.
+    {% endif %}
+  </p>
+</div>
+
+<div class="dash-stats anim-fade-up d1">
+  <div class="stat-card stat-card--good">
+    <div class="stat-card-value">{{ valid_count }}</div>
+    <div class="stat-card-label">Valid</div>
+  </div>
+  <div class="stat-card stat-card--warn">
+    <div class="stat-card-value">{{ summary.expiring|length }}</div>
+    <div class="stat-card-label">Expiring</div>
+  </div>
+  <div class="stat-card stat-card--bad">
+    <div class="stat-card-value">{{ summary.expired|length }}</div>
+    <div class="stat-card-label">Expired</div>
+  </div>
+</div>
+
+{% if summary.expired %}
+<div class="dash-alert dash-alert--bad anim-fade-up d2">
+  <span class="dash-alert-msg">⛔ {{ summary.expired|length }} credential{% if summary.expired|length != 1 %}s{% endif %} expired</span>
+  <a class="dash-alert-link" href="/documents">View →</a>
+</div>
+{% elif summary.expiring %}
+<div class="dash-alert dash-alert--warn anim-fade-up d2">
+  <span class="dash-alert-msg">⚠ {{ summary.expiring|length }} credential{% if summary.expiring|length != 1 %}s{% endif %} expiring soon</span>
+  <a class="dash-alert-link" href="/documents">Review →</a>
+</div>
+{% endif %}
+
+<div style="text-align:center;margin-bottom:24px;" class="anim-fade-up d2">
   <a class="dash-upload-cta" href="/documents/upload">
     <span class="dash-upload-icon" aria-hidden="true">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -11,21 +59,21 @@
   </a>
 </div>
 
-<div class="dash-footer-actions dash-top-actions">
-  <a class="btn ghost" href="/calendar/expiring.ics">Expiration reminders (.ics)</a>
+<div class="dash-footer-actions dash-top-actions" style="margin-bottom:24px;">
+  <a class="btn ghost" href="/calendar/expiring.ics">Reminders (.ics)</a>
   {% if ai_features_enabled %}
-  <span class="pill good">Advanced AI parsing on</span>
+  <span class="pill good">AI parsing on</span>
   {% else %}
   <a class="btn ghost" href="/premium">Premium features</a>
   {% endif %}
 </div>
 
-<section class="dash-section">
+<section class="dash-section anim-fade-up d2">
   <h2 class="dash-section-title">Expiring soon</h2>
   {% if summary.expiring %}
   <ul class="dash-list">
     {% for d in summary.expiring %}
-    <li class="dash-row">
+    <li class="dash-row row-warn">
       <div>
         <span class="dash-row-title">{{ d.title }}</span>
         <span class="dash-row-meta">{{ d.category }} · expires {{ d.expires_at|dt }}</span>
@@ -40,17 +88,17 @@
   {% endif %}
 </section>
 
-<section class="dash-section">
+<section class="dash-section anim-fade-up d3">
   <h2 class="dash-section-title">Recently uploaded</h2>
   {% if summary.recent %}
   <ul class="dash-list">
     {% for d in summary.recent %}
-    <li class="dash-row">
+    {% set us = ui_status_label(d) %}
+    <li class="dash-row {% if us == 'expired' %}row-bad{% elif us == 'expiring_soon' %}row-warn{% else %}row-good{% endif %}">
       <div>
         <span class="dash-row-title">{{ d.title }}</span>
         <span class="dash-row-meta">{{ d.category }} · {{ d.created_at|dt }}</span>
       </div>
-      {% set us = ui_status_label(d) %}
       {% if us == 'expired' %}<span class="pill bad">Expired</span>
       {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring soon</span>
       {% else %}<span class="pill good">Valid</span>{% endif %}
@@ -72,7 +120,7 @@
   {% if share_links %}
   <ul class="dash-list">
     {% for l in share_links %}
-    <li class="dash-row">
+    <li class="dash-row row-good">
       <span class="dash-row-title">{{ l.label or 'Shared link' }}</span>
       <span class="dash-row-meta">Created {{ l.created_at|dt }}</span>
       <span class="pill good">Active</span>
