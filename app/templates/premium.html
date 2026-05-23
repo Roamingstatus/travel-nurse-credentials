@@ -1,30 +1,213 @@
 {% extends "base.html" %}
 {% block title %}Premium · Credanta{% endblock %}
 {% block content %}
-<div class="page-head-min">
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <h1 style="margin:0;">Premium</h1>
-    {% if is_premium_plus %}
-    <span class="pill good">Premium+</span>
-    {% elif is_premium %}
-    <span class="pill good">Premium</span>
-    {% else %}
-    <span class="tier-badge tier-free">Free plan</span>
-    {% endif %}
-  </div>
-  <p style="margin:8px 0 0;color:var(--muted);font-size:14px;">Unlock powerful features to manage and share your credentials.</p>
+
+<!-- ── Pricing hero ─────────────────────────────── -->
+<div class="premium-pricing-hero anim-fade-up">
+  <span class="eyebrow">Upgrade your practice</span>
+  <h1>Simple, transparent pricing</h1>
+  <p>Everything you need to manage credentials, share packets with recruiters, and stay compliant — across every assignment.</p>
 </div>
 
+<!-- ── Pricing cards ────────────────────────────── -->
+<div class="pricing-cards anim-fade-up d1">
+
+  <!-- Free -->
+  <div class="pricing-card">
+    <div class="pricing-card-name">Free</div>
+    <div class="pricing-card-tagline">Everything you need to get started</div>
+    <div class="pricing-card-price">
+      <span class="pricing-amount">$0</span>
+      <span class="pricing-period">/ mo</span>
+    </div>
+    {% if not is_premium and not is_premium_plus %}
+    <span class="pricing-cta pricing-cta--current">Your current plan</span>
+    {% else %}
+    <span class="pricing-cta pricing-cta--current" style="opacity:0.6;">Included</span>
+    {% endif %}
+    <ul class="pricing-feats">
+      <li>Upload &amp; store credential documents</li>
+      <li>Automatic expiration detection</li>
+      <li>Expiration dashboard</li>
+      <li>Search &amp; organize by category</li>
+      <li class="muted-feat">Email reminders</li>
+      <li class="muted-feat">Recruiter share links</li>
+    </ul>
+  </div>
+
+  <!-- Premium (featured) -->
+  <div class="pricing-card pricing-card--featured">
+    <span class="pricing-badge">Most popular</span>
+    <div class="pricing-card-name">Premium</div>
+    <div class="pricing-card-tagline">For nurses actively on assignment</div>
+    <div class="pricing-card-price">
+      <span class="pricing-amount">$9</span>
+      <span class="pricing-period">/ mo</span>
+    </div>
+    {% if is_premium and not is_premium_plus %}
+    <span class="pricing-cta pricing-cta--current">Your current plan</span>
+    {% elif is_premium_plus %}
+    <span class="pricing-cta pricing-cta--current" style="opacity:0.6;">Included</span>
+    {% else %}
+    <a href="/dev/set-tier" class="pricing-cta pricing-cta--blue">Upgrade to Premium</a>
+    {% endif %}
+    <ul class="pricing-feats">
+      <li>Everything in Free</li>
+      <li>Email expiration reminders</li>
+      <li>Calendar sync (.ics feed)</li>
+      <li>AI-powered document parsing</li>
+      <li>Checklist readiness score</li>
+      <li class="muted-feat">Recruiter share links</li>
+    </ul>
+  </div>
+
+  <!-- Premium+ -->
+  <div class="pricing-card">
+    <div class="pricing-card-name">Premium+</div>
+    <div class="pricing-card-tagline">For nurses managing multiple agencies</div>
+    <div class="pricing-card-price">
+      <span class="pricing-amount">$19</span>
+      <span class="pricing-period">/ mo</span>
+    </div>
+    {% if is_premium_plus %}
+    <span class="pricing-cta pricing-cta--current">Your current plan</span>
+    {% elif is_premium %}
+    <a href="/dev/set-tier" class="pricing-cta pricing-cta--dark">Upgrade to Premium+</a>
+    {% else %}
+    <a href="/dev/set-tier" class="pricing-cta pricing-cta--dark">Upgrade to Premium+</a>
+    {% endif %}
+    <ul class="pricing-feats">
+      <li>Everything in Premium</li>
+      <li>Recruiter-ready share links</li>
+      <li>One-click credential packet (.zip)</li>
+      <li>PDF manifest generation</li>
+      <li>Multiple share link management</li>
+      <li>Priority support</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ── Current tier badge ────────────────────────── -->
 {% if not is_premium and not is_premium_plus %}
-<div class="notice" style="margin-bottom:24px;">
+<div class="notice" style="margin-bottom:32px;text-align:center;">
   You're on the <strong>Free</strong> plan. Features below are locked — upgrade to unlock them.
-  {% if subscription_tier == 'free' and not loop %}
-  <a href="/dev/set-tier" style="margin-left:8px;font-size:13px;">Test tiers ↗</a>
-  {% endif %}
 </div>
 {% endif %}
 
-<!-- ── Free features ─────────────────────────────── -->
+<!-- ── Comparison table ──────────────────────────── -->
+<div class="pricing-compare anim-fade-up d2">
+  <h2>Full feature comparison</h2>
+  <div style="overflow-x:auto;" class="hide-scrollbar">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Free</th>
+          <th class="col-feat">Premium</th>
+          <th>Premium+</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Document upload &amp; storage</td>
+          <td><span class="ct-yes">✓</span></td>
+          <td class="col-feat"><span class="ct-yes">✓</span></td>
+          <td><span class="ct-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Expiration dashboard</td>
+          <td><span class="ct-yes">✓</span></td>
+          <td class="col-feat"><span class="ct-yes">✓</span></td>
+          <td><span class="ct-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Category search &amp; organize</td>
+          <td><span class="ct-yes">✓</span></td>
+          <td class="col-feat"><span class="ct-yes">✓</span></td>
+          <td><span class="ct-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Email expiration reminders</td>
+          <td><span class="ct-no">—</span></td>
+          <td class="col-feat"><span class="ct-yes">✓</span></td>
+          <td><span class="ct-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Calendar sync (.ics)</td>
+          <td><span class="ct-no">—</span></td>
+          <td class="col-feat"><span class="ct-yes">✓</span></td>
+          <td><span class="ct-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>AI document parsing</td>
+          <td><span class="ct-no">—</span></td>
+          <td class="col-feat"><span class="ct-yes">✓</span></td>
+          <td><span class="ct-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Readiness checklist &amp; score</td>
+          <td><span class="ct-no">—</span></td>
+          <td class="col-feat"><span class="ct-yes">✓</span></td>
+          <td><span class="ct-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Recruiter share links</td>
+          <td><span class="ct-no">—</span></td>
+          <td class="col-feat"><span class="ct-no">—</span></td>
+          <td><span class="ct-yes-dark">✓</span></td>
+        </tr>
+        <tr>
+          <td>Credential packet (.zip + PDF)</td>
+          <td><span class="ct-no">—</span></td>
+          <td class="col-feat"><span class="ct-no">—</span></td>
+          <td><span class="ct-yes-dark">✓</span></td>
+        </tr>
+        <tr>
+          <td>Priority support</td>
+          <td><span class="ct-no">—</span></td>
+          <td class="col-feat"><span class="ct-no">—</span></td>
+          <td><span class="ct-yes-dark">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── FAQ ──────────────────────────────────────── -->
+<div class="pricing-faq anim-fade-up d3">
+  <h2>Common questions</h2>
+  <div class="faq-grid">
+    <div class="faq-item">
+      <h4>Can I cancel anytime?</h4>
+      <p>Yes — you can downgrade or cancel your plan at any time. Your documents and data are always yours.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Is my data secure?</h4>
+      <p>All documents are stored encrypted and are only accessible to you (and recruiter links you explicitly create). We never share your data.</p>
+    </div>
+    <div class="faq-item">
+      <h4>What happens when a credential expires?</h4>
+      <p>Premium users get email reminders 30 and 7 days before expiry. Expired credentials are flagged on your dashboard so nothing slips through.</p>
+    </div>
+    <div class="faq-item">
+      <h4>What is a share link?</h4>
+      <p>A Premium+ share link gives recruiters a read-only view of your current credential packet — they can download individual files or the whole zip without needing an account.</p>
+    </div>
+    <div class="faq-item">
+      <h4>How does AI parsing work?</h4>
+      <p>When you upload a document, Credanta uses OCR and AI to automatically detect the credential category and expiration date, saving you from typing it manually.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Is there a file size limit?</h4>
+      <p>Each file can be up to 25 MB. That's plenty for high-quality scans of licenses, certifications, and ID documents.</p>
+    </div>
+  </div>
+</div>
+
+<hr class="section-divider" />
+
+<!-- ── Feature sections (per-tier, with lock/unlock logic) ── -->
 <section class="panel panel-min" style="margin-bottom:24px;">
   <header><h2>Included for everyone</h2></header>
   <div class="body">
@@ -37,7 +220,6 @@
   </div>
 </section>
 
-<!-- ── Premium features ──────────────────────────── -->
 <section class="panel panel-min" style="margin-bottom:24px;">
   <header>
     <div style="display:flex;align-items:center;gap:10px;">
@@ -70,8 +252,7 @@
   </div>
 </section>
 
-<!-- ── Premium+ features ─────────────────────────── -->
-<section class="panel panel-min">
+<section class="panel panel-min" style="margin-bottom:24px;">
   <header>
     <div style="display:flex;align-items:center;gap:10px;">
       <h2 style="margin:0;">Premium+ Features</h2>
@@ -95,8 +276,6 @@
             <span class="btn small" style="opacity:0.5;cursor:not-allowed;">Coming Soon</span>
           {% elif is_premium_plus %}
             <a href="{{ f.action_url }}" class="btn primary small">{{ f.action_label }}</a>
-          {% elif is_premium %}
-            <span class="feature-locked-msg">🔒 Upgrade to Premium+</span>
           {% else %}
             <span class="feature-locked-msg">🔒 Upgrade to Premium+</span>
           {% endif %}
@@ -108,9 +287,10 @@
 </section>
 
 {% if subscription_tier != 'premium_plus' %}
-<div style="margin-top:32px;text-align:center;">
+<div style="margin-top:24px;text-align:center;">
   <p style="color:var(--muted);font-size:14px;margin:0 0 12px;">Want to test features while in development?</p>
   <a href="/dev/set-tier" class="btn small ghost">🛠 Developer tier toggle</a>
 </div>
 {% endif %}
+
 {% endblock %}
