@@ -1096,3 +1096,207 @@ textarea:focus {
     display: none;
   }
 }
+
+/* ── Tier badges ────────────────────────────────── */
+.tier-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.tier-free {
+  background: var(--line);
+  color: var(--muted);
+}
+.tier-premium {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+[data-theme="dark"] .tier-premium {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+.tier-premium-plus {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+[data-theme="dark"] .tier-premium-plus {
+  background: #2e1065;
+  color: #c4b5fd;
+}
+
+/* ── Feature cards ──────────────────────────────── */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.feature-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.feature-card:not(.feature-card--locked):hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.feature-card--locked {
+  opacity: 0.75;
+  filter: saturate(0.5);
+}
+.feature-card--coming-soon {
+  opacity: 0.6;
+}
+
+.feature-card__body {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.feature-card__icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+.feature-card h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.feature-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.feature-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.feature-locked-msg {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ── Readiness score ────────────────────────────── */
+.readiness-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 800;
+  border: 3px solid;
+}
+.readiness-score--full {
+  border-color: var(--good);
+  color: var(--good);
+  background: var(--good-bg);
+}
+.readiness-score--mid {
+  border-color: var(--warn);
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+.readiness-score--low {
+  border-color: var(--bad);
+  color: var(--bad);
+  background: var(--bad-bg);
+}
+
+/* ── Checklist ──────────────────────────────────── */
+.checklist-section-head {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}
+.checklist-section-head--good { color: var(--good); }
+.checklist-section-head--warn { color: var(--warn); }
+.checklist-section-head--bad  { color: var(--bad);  }
+
+.checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.checklist-item--good {
+  background: var(--good-bg);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--good) 30%, transparent);
+}
+.checklist-item--warn {
+  background: var(--warn-bg);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+}
+.checklist-item--bad {
+  background: var(--bad-bg);
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+}
+
+/* ── Form inputs (used in premium sub-pages) ────── */
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.form-input {
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.form-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+.form-hint {
+  font-size: 12px;
+  color: var(--muted);
+}

@@ -1,0 +1,384 @@
+Update the existing Credanta app. Do NOT rebuild the app from scratch.
+
+Goal:
+Add premium gating and create a dedicated Premium tab where premium-only features appear. These features should be visible in the Premium tab, but only usable by users with the correct subscription tier.
+
+Create two paid tiers:
+
+1. Premium
+2. Premium+
+
+Keep the current free document upload/storage functionality free.
+
+────────────────────────
+SUBSCRIPTION TIERS
+────────────────────────
+
+Free users can:
+- upload documents
+- view documents
+- organize documents
+- basic expiration tracking
+- basic search
+
+Premium users can access:
+1. Text/email reminders for document expiration
+2. Calendar sync for expiration dates
+3. Packet generation
+4. Resume enhancer
+
+Premium+ users can access everything in Premium, plus:
+1. Shareable recruiter link
+2. Auto-fill agency packet
+3. Smart checklist tracker with missing document suggestions
+
+Future placeholder:
+- One-click submission
+
+Do not fully build one-click submission yet. Add it as a disabled “Coming Soon” Premium+ card.
+
+────────────────────────
+PREMIUM TAB UI
+────────────────────────
+
+Create or update a “Premium” tab/page.
+
+The page should show two clean sections:
+
+Section 1: Premium Features
+Cards:
+- Expiration Reminders
+- Calendar Sync
+- Packet Generator
+- Resume Enhancer
+
+Section 2: Premium+ Features
+Cards:
+- Recruiter Share Link
+- Agency Packet Auto-Fill
+- Smart Checklist Tracker
+- One-Click Submission Coming Soon
+
+Each card should show:
+- feature title
+- short description
+- required tier badge
+- button:
+  - “Use Feature” if user has access
+  - “Upgrade to Premium” if locked
+  - “Upgrade to Premium+” if Premium+ locked
+  - “Coming Soon” if not available yet
+
+Use clean SaaS styling consistent with the current app.
+
+────────────────────────
+BACKEND GATING
+────────────────────────
+
+Add a subscription_tier field to the user model/database if it does not already exist.
+
+Allowed values:
+- free
+- premium
+- premium_plus
+
+Default every new user to:
+free
+
+Create helper functions:
+
+has_premium(user)
+has_premium_plus(user)
+require_premium(user)
+require_premium_plus(user)
+
+Important:
+Do NOT rely only on frontend hiding.
+Backend routes must also block unauthorized access.
+
+If unauthorized:
+Return 403 with message:
+“Upgrade required to access this feature.”
+
+────────────────────────
+FEATURE IMPLEMENTATION
+────────────────────────
+
+Build missing features if they do not exist.
+
+1. EXPIRATION REMINDERS — PREMIUM
+
+Build:
+- email reminder support
+- text/SMS reminder support as placeholder if SMS provider is not configured
+- reminder settings page or modal
+
+Fields:
+- reminder_email_enabled
+- reminder_sms_enabled
+- reminder_days_before_expiration
+- phone_number optional
+- email optional
+
+Default reminder intervals:
+- 30 days before expiration
+- 14 days before expiration
+- 7 days before expiration
+- day of expiration
+
+If email/SMS provider is missing:
+- create clean placeholder service
+- do not crash
+- show “Reminder provider not configured” in logs only
+
+Create backend service:
+reminders.py
+
+Add route:
+POST /premium/reminders/settings
+GET /premium/reminders/settings
+
+Protect with:
+require_premium
+
+2. CALENDAR SYNC — PREMIUM
+
+Build an “Add to Calendar” feature for expiration dates.
+
+Minimum viable version:
+- generate downloadable .ics calendar file for document expiration dates
+
+Do not require Google Calendar API yet.
+
+Create route:
+GET /premium/calendar/export
+
+Protect with:
+require_premium
+
+Output:
+- .ics file containing expiration events for user documents
+
+3. PACKET GENERATION — PREMIUM
+
+Build packet generation if missing.
+
+Feature:
+User selects documents and generates:
+- ZIP packet preferred
+- PDF cover sheet optional if easy
+
+Create route:
+POST /premium/packet/generate
+
+Protect with:
+require_premium
+
+Packet should include:
+- selected documents
+- simple cover sheet if supported
+- document names
+- categories
+- expiration dates
+
+4. RESUME ENHANCER — PREMIUM
+
+Build a basic resume enhancer workflow.
+
+Feature:
+- user uploads/selects resume
+- app analyzes resume text if possible
+- produces improved bullet suggestions and cleaner summary suggestions
+
+If OpenAI/API key is not configured:
+- return mock suggestions
+- do not crash
+
+Create route:
+POST /premium/resume/enhance
+
+Protect with:
+require_premium
+
+Do not overwrite original resume automatically.
+Show suggestions for user review.
+
+5. SHAREABLE RECRUITER LINK — PREMIUM+
+
+Build secure share link feature if missing.
+
+Feature:
+- user selects documents
+- app creates secure share link
+- link has expiration date
+- link can be revoked
+
+Create routes:
+POST /premium-plus/share-link/create
+GET /share/{token}
+POST /premium-plus/share-link/revoke
+
+Protect creation/revoke with:
+require_premium_plus
+
+Public share route should only show selected shared documents and should expire automatically.
+
+6. AUTO-FILL AGENCY PACKET — PREMIUM+
+
+Build MVP placeholder/first version.
+
+Feature:
+- user selects agency template
+- app maps available documents into required categories
+- shows missing required documents
+
+Create route:
+POST /premium-plus/agency-packet/autofill
+
+Protect with:
+require_premium_plus
+
+Start with generic templates:
+- General Employment
+- Healthcare Credentialing
+- Contractor Onboarding
+- Education/Teaching
+- Transportation/CDL
+
+7. SMART CHECKLIST TRACKER — PREMIUM+
+
+Build checklist tracker.
+
+Feature:
+User chooses profession/profile type:
+- General Professional
+- Healthcare
+- Education
+- IT/Tech
+- Transportation
+- Trades/Construction
+- Legal
+
+App compares uploaded docs against required/recommended documents.
+
+Return:
+- complete items
+- missing items
+- expired items
+- expiring soon items
+- readiness score
+
+Create route:
+GET /premium-plus/checklist
+POST /premium-plus/checklist/generate
+
+Protect with:
+require_premium_plus
+
+────────────────────────
+DATABASE / MODELS
+────────────────────────
+
+Add or update database models/tables as needed:
+
+User:
+- id
+- email
+- subscription_tier
+
+Document:
+- id
+- user_id
+- name
+- category
+- file_url/path
+- expiration_date
+- upload_date
+
+ReminderSettings:
+- id
+- user_id
+- email_enabled
+- sms_enabled
+- reminder_days
+- phone_number
+
+ShareLink:
+- id
+- user_id
+- token
+- document_ids
+- expires_at
+- revoked
+- created_at
+
+ChecklistResult:
+- id
+- user_id
+- profile_type
+- missing_items
+- completed_items
+- readiness_score
+- created_at
+
+If database migrations are already used, create a migration.
+If not, update the existing schema carefully.
+
+────────────────────────
+FRONTEND RULES
+────────────────────────
+
+Add locked feature UI states.
+
+If user is free:
+- Premium features show locked
+- Premium+ features show locked
+
+If user is premium:
+- Premium features usable
+- Premium+ features locked
+
+If user is premium_plus:
+- all Premium and Premium+ features usable
+
+Add a temporary developer/admin toggle only if no payment system exists yet:
+- allow setting current user tier to free, premium, or premium_plus for testing
+- label this clearly as “Development Only”
+- do not expose publicly in production if app has environment variable ENV=production
+
+────────────────────────
+TESTING
+────────────────────────
+
+Add pytest tests for:
+- free user blocked from Premium routes
+- free user blocked from Premium+ routes
+- premium user allowed Premium routes
+- premium user blocked from Premium+ routes
+- premium_plus user allowed all routes
+- share link expiration
+- packet generation route
+- checklist missing document logic
+
+Do not skip backend tests.
+
+────────────────────────
+SECURITY
+────────────────────────
+
+Do not expose private files publicly.
+Do not generate permanent public document URLs.
+Use secure tokens for share links.
+Share links must expire.
+Share links must be revocable.
+Backend must verify user owns documents before packet/share/checklist actions.
+
+────────────────────────
+IMPORTANT
+────────────────────────
+
+Do not rewrite unrelated app files.
+Do not remove existing working upload/dashboard/document features.
+Implement premium gating cleanly.
+Commit changes in logical chunks.
+After implementation, run tests and fix errors.

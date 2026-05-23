@@ -1,54 +1,96 @@
 import os
 
+from fastapi import HTTPException
 from .db import User
 
 PREMIUM_FEATURES = [
     {
-        "key": "advanced_ai_parsing",
-        "name": "Advanced AI parsing",
-        "description": "OpenAI-backed category and expiration extraction from document text.",
+        "key": "expiration_reminders",
+        "name": "Expiration Reminders",
+        "description": "Get email and SMS alerts before credentials expire — 30, 14, 7 days out and on the day.",
+        "action_url": "/premium/reminders/settings",
+        "action_label": "Manage Reminders",
     },
     {
-        "key": "sms_reminders",
-        "name": "SMS reminders",
-        "description": "Text alerts before important credentials expire.",
+        "key": "calendar_sync",
+        "name": "Calendar Sync",
+        "description": "Export all expiration dates as a .ics file and sync with Google Calendar, Outlook, or Apple Calendar.",
+        "action_url": "/premium/calendar/export",
+        "action_label": "Export Calendar",
     },
     {
-        "key": "branded_share_pages",
-        "name": "Branded share pages",
-        "description": "Custom presentation for recruiter-facing packet links.",
+        "key": "packet_generation",
+        "name": "Packet Generator",
+        "description": "Bundle all your credentials into a clean ZIP file or PDF cover sheet for agency submissions.",
+        "action_url": "/premium/packet/generate",
+        "action_label": "Generate Packet",
     },
     {
-        "key": "unlimited_storage",
-        "name": "Unlimited storage",
-        "description": "Expanded vault capacity for long-running credential history.",
+        "key": "resume_enhancer",
+        "name": "Resume Enhancer",
+        "description": "Upload your resume and get AI-powered bullet improvements and summary rewrites.",
+        "action_url": "/premium/resume/enhance",
+        "action_label": "Enhance Resume",
+    },
+]
+
+PREMIUM_PLUS_FEATURES = [
+    {
+        "key": "recruiter_share_link",
+        "name": "Recruiter Share Link",
+        "description": "Create secure, time-limited links so recruiters can view your credentials without logging in.",
+        "action_url": "/share",
+        "action_label": "Manage Share Links",
     },
     {
-        "key": "custom_folders_tags",
-        "name": "Custom folders/tags",
-        "description": "Organize documents beyond the default credential categories.",
+        "key": "agency_packet_autofill",
+        "name": "Agency Packet Auto-Fill",
+        "description": "Select an agency template and see exactly which documents are ready, missing, or expired.",
+        "action_url": "/premium-plus/agency-packet/autofill",
+        "action_label": "Auto-Fill Packet",
     },
     {
-        "key": "recruiter_analytics",
-        "name": "Recruiter analytics",
-        "description": "Visibility into packet views and document downloads.",
+        "key": "smart_checklist",
+        "name": "Smart Checklist Tracker",
+        "description": "Choose your profession and get a readiness score showing complete, missing, and expiring credentials.",
+        "action_url": "/premium-plus/checklist",
+        "action_label": "View Checklist",
     },
     {
-        "key": "advanced_packet_templates",
-        "name": "Advanced packet templates",
-        "description": "Configurable recruiter packet layouts and exports.",
+        "key": "one_click_submission",
+        "name": "One-Click Submission",
+        "description": "Submit your full credential packet directly to partner agencies in one click.",
+        "action_url": None,
+        "action_label": "Coming Soon",
+        "coming_soon": True,
     },
 ]
 
 
-def user_has_premium(user: User | None) -> bool:
+def has_premium(user: "User | None") -> bool:
     if not user:
         return False
-    if os.environ.get("SKILLDOCK_PREMIUM", "").lower() in {"1", "true", "yes", "on"}:
-        return True
-    premium_users = {
-        email.strip().lower()
-        for email in os.environ.get("SKILLDOCK_PREMIUM_USERS", "").split(",")
-        if email.strip()
-    }
-    return user.email.lower() in premium_users
+    tier = getattr(user, "subscription_tier", "free") or "free"
+    return tier in ("premium", "premium_plus")
+
+
+def has_premium_plus(user: "User | None") -> bool:
+    if not user:
+        return False
+    tier = getattr(user, "subscription_tier", "free") or "free"
+    return tier == "premium_plus"
+
+
+def require_premium(user: "User | None") -> None:
+    if not has_premium(user):
+        raise HTTPException(403, "Upgrade required to access this feature.")
+
+
+def require_premium_plus(user: "User | None") -> None:
+    if not has_premium_plus(user):
+        raise HTTPException(403, "Upgrade required to access this feature.")
+
+
+def user_has_premium(user: "User | None") -> bool:
+    """Backward-compatible alias for has_premium()."""
+    return has_premium(user)

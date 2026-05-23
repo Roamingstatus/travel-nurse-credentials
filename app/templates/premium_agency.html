@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Agency Packet Auto-Fill · Credanta{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <a href="/premium" class="nav-small">← Premium</a>
+  <h1>Agency Packet Auto-Fill</h1>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Select an agency template and see which credentials are ready, missing, or expired.</p>
+</div>
+
+<section class="panel panel-min">
+  <header><h2>Choose a template</h2></header>
+  <div class="body">
+    <form method="post" action="/premium-plus/agency-packet/autofill" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="form-row" style="flex:1;min-width:220px;margin:0;">
+        <label class="form-label" for="template_name">Agency / role type</label>
+        <select class="form-input" id="template_name" name="template_name">
+          {% for name in template_names %}
+          <option value="{{ name }}" {% if selected_template == name %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn primary">Auto-Fill</button>
+    </form>
+  </div>
+</section>
+
+{% if result %}
+<section class="panel panel-min" style="margin-top:16px;">
+  <header>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 style="margin:0;">{{ result.template_name }}</h2>
+        <p style="color:var(--muted);font-size:13px;margin:4px 0 0;">{{ result.description }}</p>
+      </div>
+      <div class="readiness-score {% if result.readiness_pct == 100 %}readiness-score--full{% elif result.readiness_pct >= 60 %}readiness-score--mid{% else %}readiness-score--low{% endif %}">
+        {{ result.readiness_pct }}%
+      </div>
+    </div>
+  </header>
+  <div class="body" style="display:flex;flex-direction:column;gap:20px;">
+
+    {% if result.matched %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--good">✓ Ready</h3>
+      <ul class="checklist-list">
+        {% for cat in result.matched %}
+        <li class="checklist-item checklist-item--good">
+          <strong>{{ cat }}</strong>
+          {% if result.doc_mapping.get(cat) %}
+          — {{ result.doc_mapping[cat] | join(', ') }}
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result.expiring %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--warn">⚠ Expiring Soon</h3>
+      <ul class="checklist-list">
+        {% for cat in result.expiring %}
+        <li class="checklist-item checklist-item--warn">
+          <strong>{{ cat }}</strong>
+          {% if result.doc_mapping.get(cat) %}— {{ result.doc_mapping[cat] | join(', ') }}{% endif %}
+          — <a href="/documents">renew</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result.expired %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--bad">✗ Expired</h3>
+      <ul class="checklist-list">
+        {% for cat in result.expired %}
+        <li class="checklist-item checklist-item--bad">
+          <strong>{{ cat }}</strong> — expired, upload a new version
+          <a href="/documents/upload" style="margin-left:6px;">↗</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result.missing %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--bad">✗ Missing</h3>
+      <ul class="checklist-list">
+        {% for cat in result.missing %}
+        <li class="checklist-item checklist-item--bad">
+          <strong>{{ cat }}</strong> — not found in vault
+          <a href="/documents/upload" style="margin-left:6px;">Upload now ↗</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if not result.missing and not result.expired %}
+    <div class="notice" style="background:var(--good-bg);border-color:var(--good);">
+      🎉 All required documents are ready for <strong>{{ result.template_name }}</strong>!
+    </div>
+    {% endif %}
+
+  </div>
+</section>
+{% endif %}
+{% endblock %}

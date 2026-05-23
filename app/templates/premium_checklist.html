@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Smart Checklist · Credanta{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <a href="/premium" class="nav-small">← Premium</a>
+  <h1>Smart Checklist Tracker</h1>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Check your credential readiness against profession-specific requirements.</p>
+</div>
+
+<section class="panel panel-min">
+  <header><h2>Select your profession</h2></header>
+  <div class="body">
+    <form method="post" action="/premium-plus/checklist/generate" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="form-row" style="flex:1;min-width:200px;margin:0;">
+        <label class="form-label" for="profile_type">Profession profile</label>
+        <select class="form-input" id="profile_type" name="profile_type">
+          {% for name in profile_names %}
+          <option value="{{ name }}" {% if result and result.profile_type == name %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn primary">Generate Checklist</button>
+    </form>
+  </div>
+</section>
+
+{% if result_data %}
+<section class="panel panel-min" style="margin-top:16px;">
+  <header>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <h2 style="margin:0;">{{ result_data.profile_type }} — Readiness Report</h2>
+      <div class="readiness-score {% if result_data.readiness_score == 100 %}readiness-score--full{% elif result_data.readiness_score >= 60 %}readiness-score--mid{% else %}readiness-score--low{% endif %}">
+        {{ result_data.readiness_score }}%
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:13px;margin:8px 0 0;">{{ result_data.doc_count }} document(s) in vault.</p>
+  </header>
+  <div class="body" style="display:flex;flex-direction:column;gap:20px;">
+
+    {% if result_data.completed %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--good">✓ Complete</h3>
+      <ul class="checklist-list">
+        {% for cat in result_data.completed %}
+        <li class="checklist-item checklist-item--good">{{ cat }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result_data.expiring %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--warn">⚠ Expiring Soon</h3>
+      <ul class="checklist-list">
+        {% for cat in result_data.expiring %}
+        <li class="checklist-item checklist-item--warn">{{ cat }} — <a href="/documents">renew now</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result_data.expired %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--bad">✗ Expired</h3>
+      <ul class="checklist-list">
+        {% for cat in result_data.expired %}
+        <li class="checklist-item checklist-item--bad">{{ cat }} — <a href="/documents/upload">upload new version</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result_data.missing %}
+    <div>
+      <h3 class="checklist-section-head checklist-section-head--bad">✗ Missing</h3>
+      <ul class="checklist-list">
+        {% for cat in result_data.missing %}
+        <li class="checklist-item checklist-item--bad">{{ cat }} — <a href="/documents/upload?category={{ cat|urlencode }}">upload now</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if not result_data.missing and not result_data.expired %}
+    <div class="notice" style="background:var(--good-bg);border-color:var(--good);">
+      🎉 All required categories are covered for <strong>{{ result_data.profile_type }}</strong>!
+    </div>
+    {% endif %}
+
+  </div>
+</section>
+{% elif result %}
+<div class="notice" style="margin-top:16px;">Last run: {{ result.profile_type }} — score {{ result.readiness_score }}%. Re-run above to refresh.</div>
+{% endif %}
+{% endblock %}

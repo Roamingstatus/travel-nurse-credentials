@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -35,9 +36,12 @@ class User(Base):
     name = Column(String, nullable=True)
     picture = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    subscription_tier = Column(String, default="free", nullable=False)
 
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     share_links = relationship("ShareLink", back_populates="user", cascade="all, delete-orphan")
+    reminder_settings = relationship("ReminderSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    checklist_results = relationship("ChecklistResult", back_populates="user", cascade="all, delete-orphan")
 
 
 class Document(Base):
@@ -75,6 +79,64 @@ class ShareLink(Base):
     user = relationship("User", back_populates="share_links")
 
 
+class ReminderSettings(Base):
+    __tablename__ = "reminder_settings"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    email_enabled = Column(Integer, default=0)
+    sms_enabled = Column(Integer, default=0)
+    reminder_email = Column(String, nullable=True)
+    phone_number = Column(String, nullable=True)
+    reminder_days = Column(String, default="30,14,7,0")
+
+    user = relationship("User", back_populates="reminder_settings")
+
+    def get_days_list(self) -> list[int]:
+        try:
+            return [int(d.strip()) for d in (self.reminder_days or "30,14,7,0").split(",") if d.strip().isdigit()]
+        except Exception:
+            return [30, 14, 7, 0]
+
+
+class ChecklistResult(Base):
+    __tablename__ = "checklist_results"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    profile_type = Column(String, nullable=False)
+    missing_items = Column(Text, nullable=True)
+    completed_items = Column(Text, nullable=True)
+    expiring_items = Column(Text, nullable=True)
+    expired_items = Column(Text, nullable=True)
+    readiness_score = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="checklist_results")
+
+    def get_missing(self) -> list[str]:
+        try:
+            return json.loads(self.missing_items or "[]")
+        except Exception:
+            return []
+
+    def get_completed(self) -> list[str]:
+        try:
+            return json.loads(self.completed_items or "[]")
+        except Exception:
+            return []
+
+    def get_expiring(self) -> list[str]:
+        try:
+            return json.loads(self.expiring_items or "[]")
+        except Exception:
+            return []
+
+    def get_expired(self) -> list[str]:
+        try:
+            return json.loads(self.expired_items or "[]")
+        except Exception:
+            return []
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
     _ensure_sqlite_columns()
@@ -84,6 +146,13 @@ def _ensure_sqlite_columns() -> None:
     try:
         insp = inspect(engine)
         tables = insp.get_table_names()
+
+        if "users" in tables:
+            cols = {c["name"] for c in insp.get_columns("users")}
+            with engine.begin() as conn:
+                if "subscription_tier" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN subscription_tier VARCHAR DEFAULT 'free'"))
+
         if "documents" in tables:
             cols = {c["name"] for c in insp.get_columns("documents")}
             with engine.begin() as conn:
@@ -91,11 +160,9 @@ def _ensure_sqlite_columns() -> None:
                     conn.execute(text("ALTER TABLE documents ADD COLUMN content_hash VARCHAR(64)"))
                 if "profile_id" not in cols:
                     conn.execute(text("ALTER TABLE documents ADD COLUMN profile_id INTEGER"))
-        if "documents" in tables:
-            cols = {c["name"] for c in insp.get_columns("documents")}
-            with engine.begin() as conn:
                 if "sort_order" not in cols:
                     conn.execute(text("ALTER TABLE documents ADD COLUMN sort_order INTEGER DEFAULT 0"))
+
         if "share_links" in tables:
             cols = {c["name"] for c in insp.get_columns("share_links")}
             with engine.begin() as conn:

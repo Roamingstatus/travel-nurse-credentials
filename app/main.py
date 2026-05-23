@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -28,7 +29,9 @@ from .auth import current_user, google_configured, oauth, require_user
 from .categories import CATEGORY_ORDER, CREDENTIAL_CATEGORIES, normalized_effective_category
 from .dashboard import days_until, status_for, summarize, ui_status_label
 from .db import (
+    ChecklistResult,
     Document,
+    ReminderSettings,
     ShareLink,
     User,
     get_session,
@@ -36,7 +39,15 @@ from .db import (
 )
 from .packet import build_zip
 from .packet_pdf import build_manifest_pdf
-from .premium import PREMIUM_FEATURES, user_has_premium
+from .premium import (
+    PREMIUM_FEATURES,
+    PREMIUM_PLUS_FEATURES,
+    has_premium,
+    has_premium_plus,
+    require_premium,
+    require_premium_plus,
+    user_has_premium,
+)
 from .reminders import build_expiring_ics
 from .smart_categorize import extract_document_metadata, infer_category, infer_expiry_from_text
 from .storage import delete_file, file_path, save_upload
@@ -91,15 +102,23 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
     ctx.setdefault("user", current_user(request))
     ctx.setdefault("flash", request.session.pop("flash", None))
     u = ctx.get("user")
-    is_premium = user_has_premium(u)
-    ctx.setdefault("is_premium", is_premium)
+    is_prem = has_premium(u)
+    is_prem_plus = has_premium_plus(u)
+    ctx.setdefault("is_premium", is_prem)
+    ctx.setdefault("is_premium_plus", is_prem_plus)
+    ctx.setdefault("subscription_tier", getattr(u, "subscription_tier", "free") if u else "free")
     ctx.setdefault("premium_features", PREMIUM_FEATURES)
+    ctx.setdefault("premium_plus_features", PREMIUM_PLUS_FEATURES)
     if u is not None:
-        ctx.setdefault("ai_features_enabled", is_premium and ai_enabled())
+        ctx.setdefault("ai_features_enabled", is_prem and ai_enabled())
     else:
         ctx.setdefault("ai_features_enabled", False)
     return templates.TemplateResponse(request, template, ctx)
 
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
@@ -125,7 +144,7 @@ async def google_start(request: Request):
         raise HTTPException(503, "Google sign-in is not configured yet.")
     redirect_uri = str(request.url_for("google_callback"))
     if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
-        redirect_uri = "https://" + redirect_uri[len("http://") :]
+        redirect_uri = "https://" + redirect_uri[len("http://"):]
     import logging
     logging.warning(f"[OAuth] redirect_uri being sent to Google: {redirect_uri}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -152,6 +171,7 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
             email=email,
             name=info.get("name"),
             picture=info.get("picture"),
+            subscription_tier="free",
         )
         db.add(user)
     else:
@@ -169,6 +189,10 @@ def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
 
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_session)):
@@ -199,6 +223,10 @@ def dashboard(request: Request, db: Session = Depends(get_session)):
         ui_status_label=ui_status_label,
     )
 
+
+# ---------------------------------------------------------------------------
+# Documents
+# ---------------------------------------------------------------------------
 
 @app.get("/documents", response_class=HTMLResponse)
 def documents_list(
@@ -347,7 +375,7 @@ async def upload_submit(
     )
     db.add(doc)
     db.commit()
-    request.session["flash"] = f"Saved “{doc.title}”."
+    request.session["flash"] = f"Saved \"{doc.title}\"."
     return RedirectResponse("/documents", status_code=302)
 
 
@@ -412,9 +440,14 @@ def download_document(doc_id: int, request: Request, db: Session = Depends(get_s
     )
 
 
+# ---------------------------------------------------------------------------
+# Packet (Premium)
+# ---------------------------------------------------------------------------
+
 @app.get("/packet")
 def packet(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    require_premium(user)
     docs = db.query(Document).filter_by(user_id=user.id).all()
     if not docs:
         request.session["flash"] = "Upload at least one document before building a packet."
@@ -431,6 +464,7 @@ def packet(request: Request, db: Session = Depends(get_session)):
 @app.get("/packet/pdf")
 def packet_pdf(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    require_premium(user)
     docs = db.query(Document).filter_by(user_id=user.id).order_by(Document.category.asc(), Document.title.asc()).all()
     if not docs:
         request.session["flash"] = "Upload at least one document before building a packet."
@@ -444,9 +478,14 @@ def packet_pdf(request: Request, db: Session = Depends(get_session)):
     )
 
 
+# ---------------------------------------------------------------------------
+# Calendar (Premium)
+# ---------------------------------------------------------------------------
+
 @app.get("/calendar/expiring.ics")
 def calendar_expiring_ics(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    require_premium(user)
     docs = db.query(Document).filter_by(user_id=user.id).all()
     body = build_expiring_ics(docs, calendar_name="Expiring credentials")
     return Response(
@@ -456,9 +495,14 @@ def calendar_expiring_ics(request: Request, db: Session = Depends(get_session)):
     )
 
 
+# ---------------------------------------------------------------------------
+# Share links (Premium+)
+# ---------------------------------------------------------------------------
+
 @app.get("/share", response_class=HTMLResponse)
 def share_index(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    require_premium_plus(user)
     links = (
         db.query(ShareLink)
         .filter_by(user_id=user.id)
@@ -469,12 +513,6 @@ def share_index(request: Request, db: Session = Depends(get_session)):
     return render(request, "share.html", links=links, base_url=base)
 
 
-@app.get("/premium", response_class=HTMLResponse)
-def premium_page(request: Request):
-    require_user(request)
-    return render(request, "premium.html")
-
-
 @app.post("/share/create")
 def share_create(
     request: Request,
@@ -483,6 +521,7 @@ def share_create(
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
+    require_premium_plus(user)
     exp: datetime | None = None
     if expires_days and expires_days.strip().isdigit():
         exp = datetime.utcnow() + timedelta(days=int(expires_days.strip()))
@@ -502,6 +541,7 @@ def share_create(
 @app.post("/share/{link_id}/revoke")
 def share_revoke(link_id: int, request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    require_premium_plus(user)
     link = db.get(ShareLink, link_id)
     if not link or link.user_id != user.id:
         raise HTTPException(404)
@@ -588,6 +628,229 @@ def share_packet_pdf(token: str, db: Session = Depends(get_session)):
     )
 
 
+# ---------------------------------------------------------------------------
+# Premium page
+# ---------------------------------------------------------------------------
+
+@app.get("/premium", response_class=HTMLResponse)
+def premium_page(request: Request):
+    require_user(request)
+    return render(request, "premium.html")
+
+
+# ---------------------------------------------------------------------------
+# Premium routes
+# ---------------------------------------------------------------------------
+
+@app.get("/premium/reminders/settings", response_class=HTMLResponse)
+def reminders_settings_get(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium(user)
+    settings = db.query(ReminderSettings).filter_by(user_id=user.id).first()
+    return render(request, "premium_reminders.html", settings=settings)
+
+
+@app.post("/premium/reminders/settings")
+def reminders_settings_post(
+    request: Request,
+    email_enabled: str = Form("0"),
+    sms_enabled: str = Form("0"),
+    reminder_email: str = Form(""),
+    phone_number: str = Form(""),
+    reminder_days: str = Form("30,14,7,0"),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    require_premium(user)
+    settings = db.query(ReminderSettings).filter_by(user_id=user.id).first()
+    if not settings:
+        settings = ReminderSettings(user_id=user.id)
+        db.add(settings)
+    settings.email_enabled = 1 if email_enabled in ("1", "on", "true") else 0
+    settings.sms_enabled = 1 if sms_enabled in ("1", "on", "true") else 0
+    settings.reminder_email = reminder_email.strip() or user.email
+    settings.phone_number = phone_number.strip() or None
+    settings.reminder_days = reminder_days.strip() or "30,14,7,0"
+    db.commit()
+    import logging
+    if settings.sms_enabled and not os.environ.get("TWILIO_ACCOUNT_SID"):
+        logging.info("[Reminders] SMS reminder provider not configured — skipping SMS setup.")
+    request.session["flash"] = "Reminder settings saved."
+    return RedirectResponse("/premium/reminders/settings", status_code=302)
+
+
+@app.get("/premium/calendar/export")
+def premium_calendar_export(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium(user)
+    docs = db.query(Document).filter_by(user_id=user.id).all()
+    body = build_expiring_ics(docs, calendar_name="Credanta — Expiring Credentials")
+    return Response(
+        content=body,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="credential-expirations.ics"'},
+    )
+
+
+@app.get("/premium/packet/generate")
+def premium_packet_generate(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium(user)
+    docs = db.query(Document).filter_by(user_id=user.id).all()
+    if not docs:
+        request.session["flash"] = "Upload at least one document before building a packet."
+        return RedirectResponse("/premium", status_code=302)
+    blob = build_zip(user, docs)
+    fname = f"credentials-packet-{datetime.utcnow().strftime('%Y%m%d')}.zip"
+    return Response(
+        content=blob,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@app.get("/premium/resume/enhance", response_class=HTMLResponse)
+def resume_enhance_get(request: Request):
+    user = require_user(request)
+    require_premium(user)
+    return render(request, "premium_resume.html", suggestions=None, filename=None)
+
+
+@app.post("/premium/resume/enhance", response_class=HTMLResponse)
+async def resume_enhance_post(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    require_premium(user)
+    raw = await file.read()
+    if not raw:
+        request.session["flash"] = "Please choose a resume file to upload."
+        return RedirectResponse("/premium/resume/enhance", status_code=302)
+    if len(raw) > 10 * 1024 * 1024:
+        request.session["flash"] = "Resume file must be 10 MB or smaller."
+        return RedirectResponse("/premium/resume/enhance", status_code=302)
+
+    from .resume_enhancer import enhance_resume
+    suggestions = enhance_resume(raw, file.content_type or "", file.filename or "resume")
+    return render(
+        request,
+        "premium_resume.html",
+        suggestions=suggestions,
+        filename=file.filename,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Premium+ routes
+# ---------------------------------------------------------------------------
+
+@app.get("/premium-plus/checklist", response_class=HTMLResponse)
+def checklist_get(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium_plus(user)
+    from .checklist import PROFILE_NAMES
+    last = db.query(ChecklistResult).filter_by(user_id=user.id).order_by(ChecklistResult.created_at.desc()).first()
+    return render(request, "premium_checklist.html", profile_names=PROFILE_NAMES, result=last)
+
+
+@app.post("/premium-plus/checklist/generate", response_class=HTMLResponse)
+def checklist_generate(
+    request: Request,
+    profile_type: str = Form(...),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    require_premium_plus(user)
+    from .checklist import PROFILE_NAMES, generate_checklist
+    docs = db.query(Document).filter_by(user_id=user.id).all()
+    result_data = generate_checklist(profile_type, docs)
+
+    result = ChecklistResult(
+        user_id=user.id,
+        profile_type=profile_type,
+        missing_items=json.dumps(result_data["missing"]),
+        completed_items=json.dumps(result_data["completed"]),
+        expiring_items=json.dumps(result_data["expiring"]),
+        expired_items=json.dumps(result_data["expired"]),
+        readiness_score=result_data["readiness_score"],
+    )
+    db.add(result)
+    db.commit()
+
+    return render(
+        request,
+        "premium_checklist.html",
+        profile_names=PROFILE_NAMES,
+        result=result,
+        result_data=result_data,
+    )
+
+
+@app.get("/premium-plus/agency-packet/autofill", response_class=HTMLResponse)
+def agency_packet_get(request: Request):
+    user = require_user(request)
+    require_premium_plus(user)
+    from .agency_packet import TEMPLATE_NAMES
+    return render(request, "premium_agency.html", template_names=TEMPLATE_NAMES, result=None)
+
+
+@app.post("/premium-plus/agency-packet/autofill", response_class=HTMLResponse)
+def agency_packet_post(
+    request: Request,
+    template_name: str = Form(...),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    require_premium_plus(user)
+    from .agency_packet import TEMPLATE_NAMES, autofill_agency_packet
+    docs = db.query(Document).filter_by(user_id=user.id).all()
+    result = autofill_agency_packet(template_name, docs)
+    return render(
+        request,
+        "premium_agency.html",
+        template_names=TEMPLATE_NAMES,
+        result=result,
+        selected_template=template_name,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Dev-only tier toggle (disabled in ENV=production)
+# ---------------------------------------------------------------------------
+
+@app.get("/dev/set-tier", response_class=HTMLResponse)
+def dev_tier_get(request: Request):
+    if os.environ.get("ENV", "").lower() == "production":
+        raise HTTPException(404)
+    require_user(request)
+    return render(request, "dev_tier.html")
+
+
+@app.post("/dev/set-tier")
+def dev_tier_post(
+    request: Request,
+    tier: str = Form(...),
+    db: Session = Depends(get_session),
+):
+    if os.environ.get("ENV", "").lower() == "production":
+        raise HTTPException(404)
+    user = require_user(request)
+    allowed = ("free", "premium", "premium_plus")
+    if tier not in allowed:
+        raise HTTPException(400, "Invalid tier.")
+    db_user = db.get(User, user.id)
+    db_user.subscription_tier = tier
+    db.commit()
+    request.session["flash"] = f"[Dev] Tier set to '{tier}'."
+    return RedirectResponse("/premium", status_code=302)
+
+
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"status": "ok"}
