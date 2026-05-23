@@ -2,45 +2,115 @@
 {% block title %}Premium · Credanta{% endblock %}
 {% block content %}
 <div class="page-head-min">
-  <h1>Premium</h1>
-  {% if is_premium %}
-  <span class="pill good">Active</span>
-  {% else %}
-  <span class="pill neutral">Free plan</span>
-  {% endif %}
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h1 style="margin:0;">Premium</h1>
+    {% if is_premium_plus %}
+    <span class="pill good">Premium+</span>
+    {% elif is_premium %}
+    <span class="pill good">Premium</span>
+    {% else %}
+    <span class="tier-badge tier-free">Free plan</span>
+    {% endif %}
+  </div>
+  <p style="margin:8px 0 0;color:var(--muted);font-size:14px;">Unlock powerful features to manage and share your credentials.</p>
 </div>
 
-<section class="panel panel-min">
+{% if not is_premium and not is_premium_plus %}
+<div class="notice" style="margin-bottom:24px;">
+  You're on the <strong>Free</strong> plan. Features below are locked — upgrade to unlock them.
+  {% if subscription_tier == 'free' and not loop %}
+  <a href="/dev/set-tier" style="margin-left:8px;font-size:13px;">Test tiers ↗</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── Free features ─────────────────────────────── -->
+<section class="panel panel-min" style="margin-bottom:24px;">
   <header><h2>Included for everyone</h2></header>
   <div class="body">
     <ul class="premium-list">
-      <li>Upload and store credential documents</li>
-      <li>Basic category and expiration hints</li>
-      <li>Download ZIP packets and PDF manifests</li>
-      <li>Create standard recruiter share links</li>
-      <li>Export calendar reminders</li>
+      <li>Upload and store credential documents (up to 25 MB each)</li>
+      <li>Automatic category and expiration detection via OCR</li>
+      <li>Expiration dashboard with status tracking</li>
+      <li>Search and organize documents by category</li>
     </ul>
   </div>
 </section>
 
-<section class="panel panel-min">
-  <header><h2>Premium features</h2></header>
+<!-- ── Premium features ──────────────────────────── -->
+<section class="panel panel-min" style="margin-bottom:24px;">
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <h2 style="margin:0;">Premium Features</h2>
+      <span class="tier-badge tier-premium">Premium</span>
+    </div>
+  </header>
   <div class="body">
-    <div class="premium-grid">
-      {% for feature in premium_features %}
-      <article class="premium-feature">
-        <div>
-          <h3>{{ feature.name }}</h3>
-          <p>{{ feature.description }}</p>
+    <div class="feature-grid">
+      {% for f in premium_features %}
+      <article class="feature-card {% if not is_premium and not is_premium_plus %}feature-card--locked{% endif %}">
+        <div class="feature-card__body">
+          <div class="feature-card__icon">{{ loop.index }}</div>
+          <div>
+            <h3>{{ f.name }}</h3>
+            <p>{{ f.description }}</p>
+          </div>
         </div>
-        {% if is_premium %}
-        <span class="pill good">Unlocked</span>
-        {% else %}
-        <span class="pill neutral">Premium</span>
-        {% endif %}
+        <div class="feature-card__footer">
+          <span class="tier-badge tier-premium">Premium</span>
+          {% if is_premium or is_premium_plus %}
+            <a href="{{ f.action_url }}" class="btn primary small">{{ f.action_label }}</a>
+          {% else %}
+            <span class="feature-locked-msg">🔒 Upgrade to Premium</span>
+          {% endif %}
+        </div>
       </article>
       {% endfor %}
     </div>
   </div>
 </section>
+
+<!-- ── Premium+ features ─────────────────────────── -->
+<section class="panel panel-min">
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <h2 style="margin:0;">Premium+ Features</h2>
+      <span class="tier-badge tier-premium-plus">Premium+</span>
+    </div>
+  </header>
+  <div class="body">
+    <div class="feature-grid">
+      {% for f in premium_plus_features %}
+      <article class="feature-card {% if not is_premium_plus %}feature-card--locked{% endif %} {% if f.coming_soon %}feature-card--coming-soon{% endif %}">
+        <div class="feature-card__body">
+          <div class="feature-card__icon">{{ loop.index }}</div>
+          <div>
+            <h3>{{ f.name }}</h3>
+            <p>{{ f.description }}</p>
+          </div>
+        </div>
+        <div class="feature-card__footer">
+          <span class="tier-badge tier-premium-plus">Premium+</span>
+          {% if f.coming_soon %}
+            <span class="btn small" style="opacity:0.5;cursor:not-allowed;">Coming Soon</span>
+          {% elif is_premium_plus %}
+            <a href="{{ f.action_url }}" class="btn primary small">{{ f.action_label }}</a>
+          {% elif is_premium %}
+            <span class="feature-locked-msg">🔒 Upgrade to Premium+</span>
+          {% else %}
+            <span class="feature-locked-msg">🔒 Upgrade to Premium+</span>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% if subscription_tier != 'premium_plus' %}
+<div style="margin-top:32px;text-align:center;">
+  <p style="color:var(--muted);font-size:14px;margin:0 0 12px;">Want to test features while in development?</p>
+  <a href="/dev/set-tier" class="btn small ghost">🛠 Developer tier toggle</a>
+</div>
+{% endif %}
 {% endblock %}

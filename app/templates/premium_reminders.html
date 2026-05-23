@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Expiration Reminders · Credanta{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <a href="/premium" class="nav-small">← Premium</a>
+  <h1>Expiration Reminders</h1>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Get notified before credentials expire so you never miss a renewal.</p>
+</div>
+
+<section class="panel panel-min">
+  <header><h2>Reminder settings</h2></header>
+  <div class="body">
+    <form method="post" action="/premium/reminders/settings" style="display:flex;flex-direction:column;gap:20px;max-width:520px;">
+
+      <div class="form-row">
+        <label class="form-label">Email reminders</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" name="email_enabled" value="1" {% if settings and settings.email_enabled %}checked{% endif %} />
+          <span>Send me email reminders before expiration dates</span>
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="reminder_email">Reminder email address</label>
+        <input class="form-input" type="email" id="reminder_email" name="reminder_email"
+          value="{{ settings.reminder_email if settings and settings.reminder_email else (user.email if user else '') }}"
+          placeholder="{{ user.email if user else 'your@email.com' }}" />
+        <span class="form-hint">Leave blank to use your account email.</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">SMS reminders</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" name="sms_enabled" value="1" {% if settings and settings.sms_enabled %}checked{% endif %} />
+          <span>Send me text message reminders <span style="color:var(--muted);font-size:13px;">(requires SMS provider)</span></span>
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="phone_number">Phone number</label>
+        <input class="form-input" type="tel" id="phone_number" name="phone_number"
+          value="{{ settings.phone_number if settings and settings.phone_number else '' }}"
+          placeholder="+1 555 000 0000" />
+        <span class="form-hint">Include country code. SMS delivery requires provider configuration.</span>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Reminder intervals</label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          {% set current_days = (settings.get_days_list() if settings else [30,14,7,0]) %}
+          {% for d in [30, 14, 7, 3, 1, 0] %}
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" name="reminder_days_{{ d }}" value="{{ d }}"
+              {% if d in current_days %}checked{% endif %} />
+            <span>{% if d == 0 %}Day of expiration{% else %}{{ d }} days before{% endif %}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="reminder_days" id="reminder_days_hidden"
+          value="{{ settings.reminder_days if settings else '30,14,7,0' }}" />
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="submit" class="btn primary">Save settings</button>
+        <a href="/premium" class="btn ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="panel panel-min" style="margin-top:16px;">
+  <header><h2>Default reminder schedule</h2></header>
+  <div class="body">
+    <ul class="premium-list">
+      <li>30 days before expiration</li>
+      <li>14 days before expiration</li>
+      <li>7 days before expiration</li>
+      <li>Day of expiration</li>
+    </ul>
+    <p style="color:var(--muted);font-size:13px;margin-top:12px;">
+      Email reminders are sent to the address on file. SMS requires a configured provider (Twilio).
+      If no provider is configured, email-only reminders will be used.
+    </p>
+  </div>
+</section>
+
+<script>
+(function() {
+  const checkboxes = document.querySelectorAll('[name^="reminder_days_"]');
+  const hidden = document.getElementById('reminder_days_hidden');
+  function update() {
+    const vals = [];
+    checkboxes.forEach(cb => { if (cb.checked) vals.push(cb.value); });
+    hidden.value = vals.join(',') || '0';
+  }
+  checkboxes.forEach(cb => cb.addEventListener('change', update));
+})();
+</script>
+{% endblock %}

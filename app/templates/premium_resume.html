@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Resume Enhancer · Credanta{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <a href="/premium" class="nav-small">← Premium</a>
+  <h1>Resume Enhancer</h1>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Upload your resume for AI-powered improvement suggestions.</p>
+</div>
+
+<section class="panel panel-min">
+  <header><h2>Upload your resume</h2></header>
+  <div class="body">
+    <form method="post" action="/premium/resume/enhance" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:16px;max-width:480px;">
+      <div class="form-row">
+        <label class="form-label" for="resume_file">Resume file</label>
+        <input class="form-input" type="file" id="resume_file" name="file"
+          accept=".pdf,.doc,.docx,.txt,.rtf" required />
+        <span class="form-hint">Accepted: PDF, Word, TXT, RTF — max 10 MB. Your file is not stored.</span>
+      </div>
+      <div>
+        <button type="submit" class="btn primary">Analyse Resume</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% if suggestions %}
+<section class="panel panel-min" style="margin-top:16px;">
+  <header>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h2 style="margin:0;">Suggestions for: {{ filename or 'your resume' }}</h2>
+      {% if suggestions.source == 'ai' %}
+      <span class="pill good" style="font-size:12px;">AI-powered</span>
+      {% else %}
+      <span class="pill neutral" style="font-size:12px;">General tips</span>
+      {% endif %}
+    </div>
+    {% if not suggestions.text_extracted %}
+    <p style="color:var(--warn);font-size:13px;margin:8px 0 0;">
+      ⚠ Could not extract text from this file — showing general best-practice suggestions.
+    </p>
+    {% endif %}
+  </header>
+  <div class="body" style="display:flex;flex-direction:column;gap:24px;">
+
+    <div>
+      <h3 style="font-size:15px;margin:0 0 10px;color:var(--accent);">Professional Summary</h3>
+      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;">
+        {% for tip in suggestions.summary %}
+        <li style="font-size:14px;line-height:1.55;">{{ tip }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div>
+      <h3 style="font-size:15px;margin:0 0 10px;color:var(--accent);">Bullet Points</h3>
+      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;">
+        {% for tip in suggestions.bullets %}
+        <li style="font-size:14px;line-height:1.55;">{{ tip }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div>
+      <h3 style="font-size:15px;margin:0 0 10px;color:var(--accent);">Formatting</h3>
+      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;">
+        {% for tip in suggestions.formatting %}
+        <li style="font-size:14px;line-height:1.55;">{{ tip }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<div style="margin-top:16px;display:flex;gap:10px;">
+  <a href="/premium/resume/enhance" class="btn ghost">Analyse another resume</a>
+  <a href="/premium" class="btn ghost">← Back to Premium</a>
+</div>
+{% endif %}
+{% endblock %}
