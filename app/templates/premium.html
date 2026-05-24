@@ -41,9 +41,10 @@
     <div class="pricing-card-name">Premium</div>
     <div class="pricing-card-tagline">For nurses actively on assignment</div>
     <div class="pricing-card-price">
-      <span class="pricing-amount">$9</span>
+      <span class="pricing-amount">$5</span>
       <span class="pricing-period">/ mo</span>
     </div>
+    <p style="margin:-10px 0 14px;font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;" class="pricing-yearly-note">or $50 / year — save 17%</p>
     {% if is_premium and not is_premium_plus %}
     <span class="pricing-cta pricing-cta--current">Your current plan</span>
     {% elif is_premium_plus %}
@@ -66,9 +67,10 @@
     <div class="pricing-card-name">Premium+</div>
     <div class="pricing-card-tagline">For nurses managing multiple agencies</div>
     <div class="pricing-card-price">
-      <span class="pricing-amount">$19</span>
+      <span class="pricing-amount">$10</span>
       <span class="pricing-period">/ mo</span>
     </div>
+    <p style="margin:-10px 0 14px;font-size:12px;color:var(--muted);font-weight:600;">or $80 / year — save 33%</p>
     {% if is_premium_plus %}
     <span class="pricing-cta pricing-cta--current">Your current plan</span>
     {% elif is_premium %}
