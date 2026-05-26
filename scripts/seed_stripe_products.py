@@ -1,25 +1,61 @@
 """
 Run this once to create Stripe products and prices for Credanta.
-After running, copy the printed price IDs into your Replit Secrets:
-  STRIPE_PRICE_PREMIUM_MONTHLY
-  STRIPE_PRICE_PREMIUM_YEARLY
-  STRIPE_PRICE_PREMIUM_PLUS_MONTHLY
-  STRIPE_PRICE_PREMIUM_PLUS_YEARLY
+After running, copy the printed STRIPE_PRICE_* values into your Replit Secrets.
 
 Usage:
-  STRIPE_SECRET_KEY=sk_test_... python scripts/seed_stripe_products.py
+  python scripts/seed_stripe_products.py
 """
 
+import json
 import os
 import sys
+import urllib.parse
+import urllib.request
 
 import stripe
 
-key = os.environ.get("STRIPE_SECRET_KEY")
-if not key:
-    sys.exit("ERROR: STRIPE_SECRET_KEY environment variable is not set.")
 
-stripe.api_key = key
+def _get_secret_key() -> str:
+    hostname = os.environ.get("REPLIT_CONNECTORS_HOSTNAME")
+    if hostname:
+        repl_identity = os.environ.get("REPL_IDENTITY")
+        web_repl_renewal = os.environ.get("WEB_REPL_RENEWAL")
+        if repl_identity:
+            token = f"repl {repl_identity}"
+        elif web_repl_renewal:
+            token = f"depl {web_repl_renewal}"
+        else:
+            token = None
+
+        if token:
+            params = urllib.parse.urlencode({
+                "include_secrets": "true",
+                "connector_names": "stripe",
+                "environment": "development",
+            })
+            url = f"https://{hostname}/api/v2/connection?{params}"
+            req = urllib.request.Request(
+                url,
+                headers={"Accept": "application/json", "X-Replit-Token": token},
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read())
+                items = data.get("items", [])
+                if items:
+                    key = items[0].get("settings", {}).get("secret")
+                    if key:
+                        print(f"  Using Stripe key from Replit connector (env: development)")
+                        return key
+            except Exception as e:
+                print(f"  Connector API error: {e}")
+
+    key = os.environ.get("STRIPE_SECRET_KEY", "")
+    if key:
+        print("  Using STRIPE_SECRET_KEY from environment")
+        return key
+
+    sys.exit("ERROR: No Stripe API key found. Connect the Stripe integration in Replit or set STRIPE_SECRET_KEY.")
 
 
 def find_price(product_id: str, interval: str, amount: int):
@@ -64,7 +100,9 @@ def get_or_create_price(product_id: str, amount: int, interval: str, nickname: s
 
 print("\n=== Credanta — Stripe Product Seed ===\n")
 
-print("Creating Premium product...")
+stripe.api_key = _get_secret_key()
+
+print("\nCreating Premium product...")
 premium = get_or_create_product(
     name="Credanta Premium",
     description="Email reminders, calendar sync, AI document parsing, and readiness checklist.",
