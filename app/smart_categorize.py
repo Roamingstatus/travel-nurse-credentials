@@ -57,21 +57,43 @@ _MONTH_MAP = {
 
 _MONTH_RE = r'(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)'
 
+# Full date patterns (return day-precision datetime)
 _DATE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'\b(\d{1,2})[/\-](\d{1,2})[/\-](20\d{2})\b'), 'mdy'),
     (re.compile(r'\b(20\d{2})[-/](\d{2})[-/](\d{2})\b'), 'ymd'),
     (re.compile(rf'\b({_MONTH_RE})[,.\s]+(\d{{1,2}})[,.\s]+(20\d{{2}})\b', re.IGNORECASE), 'mname_d_y'),
     (re.compile(rf'\b(\d{{1,2}})[,.\s]+({_MONTH_RE})[,.\s]+(20\d{{2}})\b', re.IGNORECASE), 'd_mname_y'),
+    # 2-digit year: MM/YY  (interpret as 20YY, guard against impossible months)
+    (re.compile(r'\b(\d{1,2})[/\-](\d{2})\b'), 'my_short'),
+]
+
+# Month+year only patterns → produce the last day of that month
+_MONTH_YEAR_PATTERNS: list[re.Pattern] = [
+    re.compile(rf'\b({_MONTH_RE})[,.\s]+(20\d{{2}})\b', re.IGNORECASE),   # "March 2026"
+    re.compile(r'\b(0?[1-9]|1[0-2])[/\-](20\d{2})\b'),                    # "03/2026"
 ]
 
 _EXPIRY_CTX = re.compile(
-    r'(expir|valid\s+(?:through|until|thru)|renew|not\s+valid\s+after|void\s+after|good\s+(?:through|until)|use\s+by)',
+    r'(expir|expiration|exp\.?\s*(?:date|:)?|renew|renewal|'
+    r'valid\s+(?:through|until|thru|to\b)|not\s+valid\s+after|'
+    r'void\s+after|good\s+(?:through|until)|use\s+by|'
+    r'through\s+date|thru|valid\s+thru|re.?certif|'
+    r'next\s+renewal|due\s+(?:date|for\s+renewal)|'
+    r'must\s+renew|expire\s*[sd]?)',
     re.IGNORECASE,
 )
 _ISSUE_CTX = re.compile(
-    r'(issued?|date\s+of\s+issue|effective|valid\s+from|start\s+date|date\s+issued)',
+    r'(issued?|issue\s*date|date\s+of\s+issue|effective|effective\s+date|'
+    r'valid\s+from|start\s+date|date\s+issued|original\s+date|'
+    r'begin\s+date|initial\s+date|activation|activated|granted|'
+    r'license\s+date|cert(?:ified)?\s+date|awarded)',
     re.IGNORECASE,
 )
+
+
+def _last_day_of_month(y: int, mo: int) -> datetime:
+    import calendar
+    return datetime(y, mo, calendar.monthrange(y, mo)[1])
 
 
 def _parse_date_match(m: re.Match, ptype: str) -> datetime | None:
@@ -87,6 +109,12 @@ def _parse_date_match(m: re.Match, ptype: str) -> datetime | None:
             d = int(m.group(1))
             mo = _MONTH_MAP.get(m.group(2).lower())
             y = int(m.group(3))
+        elif ptype == 'my_short':
+            mo, yy = int(m.group(1)), int(m.group(2))
+            y = 2000 + yy
+            if not (1 <= mo <= 12 and 2020 <= y <= 2050):
+                return None
+            return _last_day_of_month(y, mo)
         else:
             return None
         if mo and 1 <= mo <= 12 and 1 <= d <= 31 and 2000 <= y <= 2050:
@@ -96,24 +124,98 @@ def _parse_date_match(m: re.Match, ptype: str) -> datetime | None:
     return None
 
 
+def _context_around(text: str, start: int, end: int, before: int = 160, after: int = 100) -> str:
+    return text[max(0, start - before): end + after].lower()
+
+
+def _classify_context(ctx: str) -> str | None:
+    """Return 'expiry', 'issue', or None based on surrounding text."""
+    if _EXPIRY_CTX.search(ctx):
+        return 'expiry'
+    if _ISSUE_CTX.search(ctx):
+        return 'issue'
+    return None
+
+
 def _extract_dates_from_text(text: str) -> tuple[datetime | None, datetime | None]:
     issued: datetime | None = None
     expires: datetime | None = None
     now = datetime.now()
 
+    # Split into lines so we can check the line containing the date
+    # and its immediate neighbours for label keywords.
+    lines = text.splitlines()
+    line_starts: list[int] = []
+    pos = 0
+    for ln in lines:
+        line_starts.append(pos)
+        pos += len(ln) + 1  # +1 for the \n
+
+    def line_index_for(char_pos: int) -> int:
+        lo, hi = 0, len(line_starts) - 1
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if line_starts[mid] <= char_pos:
+                lo = mid
+            else:
+                hi = mid - 1
+        return lo
+
+    def neighbour_ctx(char_pos: int, window: int = 2) -> str:
+        li = line_index_for(char_pos)
+        lo = max(0, li - window)
+        hi = min(len(lines) - 1, li + window)
+        return ' '.join(lines[lo:hi + 1]).lower()
+
+    def classify(m: re.Match) -> str | None:
+        raw_ctx = _context_around(text, m.start(), m.end())
+        result = _classify_context(raw_ctx)
+        if result:
+            return result
+        # Fall back to adjacent lines
+        return _classify_context(neighbour_ctx(m.start()))
+
+    # 1. Full-precision date patterns
     for pat, ptype in _DATE_PATTERNS:
         for m in pat.finditer(text):
             dt = _parse_date_match(m, ptype)
             if not dt:
                 continue
-            context = text[max(0, m.start() - 120): m.start()].lower()
-            if _EXPIRY_CTX.search(context):
+            label = classify(m)
+            if label == 'expiry':
                 if expires is None:
                     expires = dt
-            elif _ISSUE_CTX.search(context):
+            elif label == 'issue':
                 if issued is None:
                     issued = dt
             else:
+                if dt > now and expires is None:
+                    expires = dt
+                elif dt <= now and issued is None:
+                    issued = dt
+
+    # 2. Month+year-only patterns (lower priority — only fill gaps)
+    for pat in _MONTH_YEAR_PATTERNS:
+        for m in pat.finditer(text):
+            try:
+                grp = m.groups()
+                if len(grp) == 2:
+                    raw_mo, raw_y = grp
+                    mo = _MONTH_MAP.get(str(raw_mo).lower(), None) or int(raw_mo)
+                    y = int(raw_y)
+                    if not (1 <= mo <= 12 and 2000 <= y <= 2050):
+                        continue
+                    dt = _last_day_of_month(y, mo)
+                else:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            label = classify(m)
+            if label == 'expiry' and expires is None:
+                expires = dt
+            elif label == 'issue' and issued is None:
+                issued = dt
+            elif label is None:
                 if dt > now and expires is None:
                     expires = dt
                 elif dt <= now and issued is None:
