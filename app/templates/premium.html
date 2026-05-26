@@ -9,6 +9,14 @@
   <p>Everything you need to manage credentials, share packets with recruiters, and stay compliant — across every assignment.</p>
 </div>
 
+<!-- ── Billing period toggle ────────────────────── -->
+<div class="billing-toggle-wrap anim-fade-up">
+  <button type="button" class="billing-toggle-btn active" id="btn-monthly" onclick="setBilling('monthly')">Monthly</button>
+  <button type="button" class="billing-toggle-btn" id="btn-yearly" onclick="setBilling('yearly')">
+    Yearly <span class="billing-save-badge">Save up to 33%</span>
+  </button>
+</div>
+
 <!-- ── Pricing cards ────────────────────────────── -->
 <div class="pricing-cards anim-fade-up d1">
 
@@ -41,16 +49,26 @@
     <div class="pricing-card-name">Premium</div>
     <div class="pricing-card-tagline">For nurses actively on assignment</div>
     <div class="pricing-card-price">
-      <span class="pricing-amount">$5</span>
-      <span class="pricing-period">/ mo</span>
+      <span class="pricing-amount" id="price-premium">$5</span>
+      <span class="pricing-period" id="period-premium">/ mo</span>
     </div>
-    <p style="margin:0 0 14px;font-size:12px;color:var(--muted);font-weight:600;">or $50 / year — save 17%</p>
+    <p class="billing-sub-note" id="note-premium">or $50 / year — save 17%</p>
     {% if is_premium and not is_premium_plus %}
-    <span class="pricing-cta pricing-cta--current">Your current plan</span>
+      <span class="pricing-cta pricing-cta--current">Your current plan</span>
+      <a href="/billing/portal" class="btn small ghost" style="margin-top:8px;display:block;text-align:center;">Manage subscription</a>
     {% elif is_premium_plus %}
-    <span class="pricing-cta pricing-cta--current" style="opacity:0.6;">Included</span>
+      <span class="pricing-cta pricing-cta--current" style="opacity:0.6;">Included</span>
+    {% elif stripe_configured %}
+      <form method="POST" action="/billing/checkout" id="form-premium-monthly">
+        <input type="hidden" name="price_id" value="{{ price_premium_monthly }}">
+        <button type="submit" class="pricing-cta pricing-cta--blue">Upgrade to Premium</button>
+      </form>
+      <form method="POST" action="/billing/checkout" id="form-premium-yearly" style="display:none;">
+        <input type="hidden" name="price_id" value="{{ price_premium_yearly }}">
+        <button type="submit" class="pricing-cta pricing-cta--blue">Upgrade to Premium</button>
+      </form>
     {% else %}
-    <a href="/dev/set-tier" class="pricing-cta pricing-cta--blue">Upgrade to Premium</a>
+      <span class="pricing-cta pricing-cta--blue" style="opacity:0.5;cursor:not-allowed;">Payments coming soon</span>
     {% endif %}
     <ul class="pricing-feats">
       <li>Everything in Free</li>
@@ -67,16 +85,24 @@
     <div class="pricing-card-name">Premium+</div>
     <div class="pricing-card-tagline">For nurses managing multiple agencies</div>
     <div class="pricing-card-price">
-      <span class="pricing-amount">$10</span>
-      <span class="pricing-period">/ mo</span>
+      <span class="pricing-amount" id="price-plus">$10</span>
+      <span class="pricing-period" id="period-plus">/ mo</span>
     </div>
-    <p style="margin:0 0 14px;font-size:12px;color:var(--muted);font-weight:600;">or $80 / year — save 33%</p>
+    <p class="billing-sub-note" id="note-plus">or $80 / year — save 33%</p>
     {% if is_premium_plus %}
-    <span class="pricing-cta pricing-cta--current">Your current plan</span>
-    {% elif is_premium %}
-    <a href="/dev/set-tier" class="pricing-cta pricing-cta--dark">Upgrade to Premium+</a>
+      <span class="pricing-cta pricing-cta--current">Your current plan</span>
+      <a href="/billing/portal" class="btn small ghost" style="margin-top:8px;display:block;text-align:center;">Manage subscription</a>
+    {% elif stripe_configured %}
+      <form method="POST" action="/billing/checkout" id="form-plus-monthly">
+        <input type="hidden" name="price_id" value="{{ price_premium_plus_monthly }}">
+        <button type="submit" class="pricing-cta pricing-cta--dark">Upgrade to Premium+</button>
+      </form>
+      <form method="POST" action="/billing/checkout" id="form-plus-yearly" style="display:none;">
+        <input type="hidden" name="price_id" value="{{ price_premium_plus_yearly }}">
+        <button type="submit" class="pricing-cta pricing-cta--dark">Upgrade to Premium+</button>
+      </form>
     {% else %}
-    <a href="/dev/set-tier" class="pricing-cta pricing-cta--dark">Upgrade to Premium+</a>
+      <span class="pricing-cta pricing-cta--dark" style="opacity:0.5;cursor:not-allowed;">Payments coming soon</span>
     {% endif %}
     <ul class="pricing-feats">
       <li>Everything in Premium</li>
@@ -90,7 +116,32 @@
 
 </div>
 
-<!-- ── Current tier badge ────────────────────────── -->
+<script>
+function setBilling(mode) {
+  var monthly = mode === 'monthly';
+  document.getElementById('btn-monthly').classList.toggle('active', monthly);
+  document.getElementById('btn-yearly').classList.toggle('active', !monthly);
+
+  document.getElementById('price-premium').textContent = monthly ? '$5' : '$50';
+  document.getElementById('period-premium').textContent = monthly ? '/ mo' : '/ yr';
+  document.getElementById('note-premium').textContent = monthly ? 'or $50 / year — save 17%' : 'billed annually — save 17%';
+
+  document.getElementById('price-plus').textContent = monthly ? '$10' : '$80';
+  document.getElementById('period-plus').textContent = monthly ? '/ mo' : '/ yr';
+  document.getElementById('note-plus').textContent = monthly ? 'or $80 / year — save 33%' : 'billed annually — save 33%';
+
+  var fpm = document.getElementById('form-premium-monthly');
+  var fpy = document.getElementById('form-premium-yearly');
+  var fplm = document.getElementById('form-plus-monthly');
+  var fply = document.getElementById('form-plus-yearly');
+  if (fpm) fpm.style.display = monthly ? '' : 'none';
+  if (fpy) fpy.style.display = monthly ? 'none' : '';
+  if (fplm) fplm.style.display = monthly ? '' : 'none';
+  if (fply) fply.style.display = monthly ? 'none' : '';
+}
+</script>
+
+<!-- ── Current tier notice ───────────────────────── -->
 {% if not is_premium and not is_premium_plus %}
 <div class="notice" style="margin-bottom:32px;text-align:center;">
   You're on the <strong>Free</strong> plan. Features below are locked — upgrade to unlock them.
@@ -182,7 +233,7 @@
   <div class="faq-grid">
     <div class="faq-item">
       <h4>Can I cancel anytime?</h4>
-      <p>Yes — you can downgrade or cancel your plan at any time. Your documents and data are always yours.</p>
+      <p>Yes — you can downgrade or cancel your plan at any time from the billing portal. Your documents and data are always yours.</p>
     </div>
     <div class="faq-item">
       <h4>Is my data secure?</h4>
@@ -209,7 +260,7 @@
 
 <hr class="section-divider" />
 
-<!-- ── Feature sections (per-tier, with lock/unlock logic) ── -->
+<!-- ── Feature sections ─────────────────────────── -->
 <section class="panel panel-min" style="margin-bottom:24px;">
   <header><h2>Included for everyone</h2></header>
   <div class="body">
