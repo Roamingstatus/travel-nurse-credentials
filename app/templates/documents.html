@@ -60,19 +60,23 @@
         data-preview-id="{{ d.id }}"
         data-preview-title="{{ d.title | e }}"
         data-preview-mime="{{ d.mime_type or '' }}"
-        data-preview-filename="{{ d.original_filename | e }}">
+        data-preview-filename="{{ d.original_filename | e }}"
+        data-preview-category="{{ d.category | e }}">
         <div class="drag-handle" title="Drag to reorder">⠿</div>
         {% set mime = d.mime_type or '' %}
-        <div class="doc-thumb-wrap">
+        <div class="doc-thumb-wrap doc-thumb-clickable" role="button" tabindex="0" title="Click to preview" data-open-preview>
           {% if mime.startswith('image/') %}
             <img class="doc-thumb-img" src="/documents/{{ d.id }}/thumb" alt="{{ d.title }}" loading="lazy" />
           {% elif 'pdf' in mime %}
             <div class="doc-thumb-icon doc-thumb-pdf">PDF</div>
           {% elif 'word' in mime or 'document' in mime or d.original_filename.endswith('.doc') or d.original_filename.endswith('.docx') %}
             <div class="doc-thumb-icon doc-thumb-doc">DOC</div>
+          {% elif 'sheet' in mime or 'excel' in mime or d.original_filename.endswith('.xlsx') or d.original_filename.endswith('.xls') %}
+            <div class="doc-thumb-icon doc-thumb-xls">XLS</div>
           {% else %}
             <div class="doc-thumb-icon doc-thumb-file">FILE</div>
           {% endif %}
+          <div class="doc-thumb-overlay"><span>View</span></div>
         </div>
         <div class="doc-card-main">
           <h3 class="doc-card-name">{{ d.title }}</h3>
@@ -182,6 +186,30 @@
   <a class="btn ghost" href="/packet/pdf">Manifest (.pdf)</a>
 </div>
 
+<!-- ── Document preview modal ── -->
+<div id="dpm" class="dpm" role="dialog" aria-modal="true" aria-label="Document preview" hidden>
+  <div class="dpm-backdrop" id="dpm-backdrop"></div>
+  <div class="dpm-panel">
+    <div class="dpm-header">
+      <div class="dpm-header-meta">
+        <span class="dpm-header-name" id="dpm-name"></span>
+        <span class="dpm-header-cat pill" id="dpm-cat"></span>
+      </div>
+      <div class="dpm-header-actions">
+        <div class="dpm-zoom" id="dpm-zoom" hidden>
+          <button class="btn small ghost dpm-zoom-btn" id="dpm-zoom-out" aria-label="Zoom out">−</button>
+          <span class="dpm-zoom-level" id="dpm-zoom-level">100%</span>
+          <button class="btn small ghost dpm-zoom-btn" id="dpm-zoom-in" aria-label="Zoom in">+</button>
+        </div>
+        <a class="btn small ghost" id="dpm-dl" href="#">Download</a>
+        <button class="btn small ghost dpm-close-btn" id="dpm-close" aria-label="Close preview">✕</button>
+      </div>
+    </div>
+    <div class="dpm-body" id="dpm-body"></div>
+  </div>
+</div>
+
+<!-- Hover popover -->
 <script>
 (function () {
   var pop = document.createElement('div');
@@ -191,7 +219,6 @@
 
   var hoverTimer = null;
   var currentCard = null;
-  var overPop = false;
 
   function buildContent(id, title, mime, filename) {
     pop.innerHTML = '';
@@ -200,12 +227,7 @@
     var ttl = document.createElement('span');
     ttl.className = 'doc-hover-pop-title';
     ttl.textContent = title || filename;
-    var dl = document.createElement('a');
-    dl.className = 'btn small ghost';
-    dl.href = '/documents/' + id + '/download';
-    dl.textContent = 'Download';
     hdr.appendChild(ttl);
-    hdr.appendChild(dl);
     pop.appendChild(hdr);
 
     var body = document.createElement('div');
@@ -218,27 +240,22 @@
       img.className = 'doc-hover-pop-img';
       img.alt = title;
       body.appendChild(img);
-    } else if (mime === 'application/pdf' || (filename || '').toLowerCase().endsWith('.pdf')) {
-      var fr = document.createElement('iframe');
-      fr.src = viewUrl;
-      fr.className = 'doc-hover-pop-pdf';
-      fr.title = title;
-      body.appendChild(fr);
     } else {
-      body.innerHTML = '<div class="doc-hover-pop-unsupported"><span>📄</span><span>' +
-        (filename || title) + '</span><span>No preview — download to view</span></div>';
+      var icon = mime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf') ? 'PDF'
+               : /\.(doc|docx)$/i.test(filename) ? 'DOC'
+               : /\.(xls|xlsx)$/i.test(filename) ? 'XLS'
+               : '📄';
+      body.innerHTML = '<div class="doc-hover-pop-unsupported"><span class="doc-hover-pop-icon">' +
+        icon + '</span><span class="doc-hover-pop-hint">Click thumbnail to preview</span></div>';
     }
     pop.appendChild(body);
   }
 
   function position(card) {
     var r = card.getBoundingClientRect();
-    var pw = 360;
-    var ph = 420;
+    var pw = 280, ph = 320;
     var left = r.right + 12;
-    if (left + pw > window.innerWidth - 16) {
-      left = r.left - pw - 12;
-    }
+    if (left + pw > window.innerWidth - 16) left = r.left - pw - 12;
     if (left < 8) left = 8;
     var top = r.top;
     var maxTop = window.innerHeight - ph - 12;
@@ -250,12 +267,8 @@
 
   function show(card) {
     currentCard = card;
-    buildContent(
-      card.dataset.previewId,
-      card.dataset.previewTitle,
-      card.dataset.previewMime || '',
-      card.dataset.previewFilename || ''
-    );
+    buildContent(card.dataset.previewId, card.dataset.previewTitle,
+      card.dataset.previewMime || '', card.dataset.previewFilename || '');
     position(card);
     pop.removeAttribute('hidden');
   }
@@ -271,7 +284,7 @@
   document.querySelectorAll('[data-preview-id]').forEach(function (card) {
     card.addEventListener('mouseenter', function () {
       clearTimeout(hoverTimer);
-      hoverTimer = setTimeout(function () { show(card); }, 320);
+      hoverTimer = setTimeout(function () { show(card); }, 350);
     });
     card.addEventListener('mouseleave', function (e) {
       clearTimeout(hoverTimer);
@@ -280,16 +293,233 @@
     });
   });
 
-  pop.addEventListener('mouseenter', function () { overPop = true; });
   pop.addEventListener('mouseleave', function (e) {
-    overPop = false;
     if (currentCard && e.relatedTarget &&
         (e.relatedTarget === currentCard || currentCard.contains(e.relatedTarget))) return;
     hide();
   });
 
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
+})();
+</script>
+
+<!-- Full preview modal -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var modal     = document.getElementById('dpm');
+  var backdrop  = document.getElementById('dpm-backdrop');
+  var bodyEl    = document.getElementById('dpm-body');
+  var nameEl    = document.getElementById('dpm-name');
+  var catEl     = document.getElementById('dpm-cat');
+  var dlBtn     = document.getElementById('dpm-dl');
+  var closeBtn  = document.getElementById('dpm-close');
+  var zoomWrap  = document.getElementById('dpm-zoom');
+  var zoomInBtn = document.getElementById('dpm-zoom-in');
+  var zoomOutBtn= document.getElementById('dpm-zoom-out');
+  var zoomLvl   = document.getElementById('dpm-zoom-level');
+
+  if (!modal) return;
+
+  var WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var scale = 1.2;
+  var currentPdf = null;
+  var currentUrl = null;
+  var rendering = false;
+
+  /* ── open ─────────────────────────────── */
+  function open(id, title, mime, filename, category) {
+    scale = 1.2;
+    currentPdf = null;
+    rendering = false;
+    nameEl.textContent = filename || title;
+    catEl.textContent  = category || '';
+    catEl.hidden = !category;
+    dlBtn.href = '/documents/' + id + '/download';
+    bodyEl.innerHTML = '<div class="dpm-loading"><div class="dpm-spinner"></div><span>Loading…</span></div>';
+    zoomWrap.hidden = true;
+    modal.removeAttribute('hidden');
+    document.body.classList.add('dpm-open');
+    closeBtn.focus();
+
+    currentUrl = '/documents/' + id + '/view';
+    mime = mime || '';
+    var fn = (filename || '').toLowerCase();
+
+    if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/.test(fn)) {
+      renderImage(currentUrl, title);
+    } else if (mime === 'application/pdf' || fn.endsWith('.pdf')) {
+      renderPDF(currentUrl);
+    } else if (/word|document/.test(mime) || /\.(doc|docx)$/.test(fn)) {
+      renderDocx(currentUrl);
+    } else if (/sheet|excel/.test(mime) || /\.(xls|xlsx|csv)$/.test(fn)) {
+      renderXlsx(currentUrl);
+    } else {
+      bodyEl.innerHTML = '<div class="dpm-unsupported"><span class="dpm-uns-icon">📄</span>' +
+        '<p class="dpm-uns-name">' + escHtml(filename || title) + '</p>' +
+        '<p class="dpm-uns-hint">No preview available for this file type.</p>' +
+        '<a class="btn primary" href="/documents/' + id + '/download">Download</a></div>';
+    }
+  }
+
+  /* ── close ────────────────────────────── */
+  function close() {
+    modal.setAttribute('hidden', '');
+    document.body.classList.remove('dpm-open');
+    bodyEl.innerHTML = '';
+    currentPdf = null;
+    currentUrl = null;
+  }
+
+  /* ── image ────────────────────────────── */
+  function renderImage(url, title) {
+    var img = document.createElement('img');
+    img.className = 'dpm-image';
+    img.src = url;
+    img.alt = title || '';
+    img.onerror = function () { showError('Image could not be loaded.'); };
+    bodyEl.innerHTML = '';
+    bodyEl.appendChild(img);
+  }
+
+  /* ── PDF ──────────────────────────────── */
+  function renderPDF(url) {
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_URL;
+      loadPDF(url);
+    } else {
+      showError('PDF viewer not loaded. Please refresh and try again.');
+    }
+  }
+
+  function loadPDF(url) {
+    window.pdfjsLib.getDocument(url).promise.then(function (pdf) {
+      currentPdf = pdf;
+      zoomWrap.hidden = false;
+      return drawPages(pdf);
+    }).catch(function () { showError('Could not render PDF.'); });
+  }
+
+  function drawPages(pdf) {
+    if (rendering) return;
+    rendering = true;
+    var container = document.createElement('div');
+    container.className = 'dpm-pdf-pages';
+    bodyEl.innerHTML = '';
+    bodyEl.appendChild(container);
+    zoomLvl.textContent = Math.round(scale * 100) + '%';
+
+    var chain = Promise.resolve();
+    for (var i = 1; i <= pdf.numPages; i++) {
+      (function (pageNum) {
+        chain = chain.then(function () {
+          return pdf.getPage(pageNum).then(function (page) {
+            var vp = page.getViewport({ scale: scale });
+            var canvas = document.createElement('canvas');
+            canvas.className = 'dpm-pdf-page';
+            canvas.width  = vp.width;
+            canvas.height = vp.height;
+            container.appendChild(canvas);
+            return page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+          });
+        });
+      })(i);
+    }
+    return chain.then(function () { rendering = false; });
+  }
+
+  function rezoom(delta) {
+    if (!currentPdf) return;
+    scale = Math.min(3, Math.max(0.5, scale + delta));
+    rendering = false;
+    drawPages(currentPdf);
+  }
+
+  zoomInBtn.addEventListener('click',  function () { rezoom(0.25); });
+  zoomOutBtn.addEventListener('click', function () { rezoom(-0.25); });
+
+  /* ── DOCX ─────────────────────────────── */
+  function renderDocx(url) {
+    fetch(url).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
+      if (!window.mammoth) { showError('DOCX renderer not loaded.'); return; }
+      return window.mammoth.convertToHtml({ arrayBuffer: buf });
+    }).then(function (result) {
+      if (!result) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'dpm-docx';
+      wrap.innerHTML = result.value || '<p><em>Empty document.</em></p>';
+      bodyEl.innerHTML = '';
+      bodyEl.appendChild(wrap);
+    }).catch(function () { showError('Could not render document.'); });
+  }
+
+  /* ── XLSX / CSV ───────────────────────── */
+  function renderXlsx(url) {
+    fetch(url).then(function (r) {
+      var fn = (currentUrl || '').toLowerCase();
+      if (fn.endsWith('.csv')) return r.text().then(function (t) {
+        return window.XLSX ? window.XLSX.read(t, { type: 'string' }) : null;
+      });
+      return r.arrayBuffer().then(function (buf) {
+        return window.XLSX ? window.XLSX.read(new Uint8Array(buf), { type: 'array' }) : null;
+      });
+    }).then(function (wb) {
+      if (!wb) { showError('Spreadsheet renderer not loaded.'); return; }
+      var sheetName = wb.SheetNames[0];
+      var html = window.XLSX.utils.sheet_to_html(wb.Sheets[sheetName], { id: 'dpm-xlsx-table' });
+      var wrap = document.createElement('div');
+      wrap.className = 'dpm-xlsx';
+      wrap.innerHTML = html;
+      bodyEl.innerHTML = '';
+      bodyEl.appendChild(wrap);
+    }).catch(function () { showError('Could not render spreadsheet.'); });
+  }
+
+  /* ── helpers ──────────────────────────── */
+  function showError(msg) {
+    bodyEl.innerHTML = '<div class="dpm-error"><span>⚠</span><p>' + escHtml(msg) + '</p></div>';
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── wire up thumb clicks ─────────────── */
+  document.querySelectorAll('[data-open-preview]').forEach(function (thumb) {
+    var card = thumb.closest('[data-preview-id]');
+    if (!card) return;
+    function trigger(e) {
+      e.stopPropagation();
+      open(card.dataset.previewId, card.dataset.previewTitle,
+           card.dataset.previewMime || '', card.dataset.previewFilename || '',
+           card.dataset.previewCategory || '');
+    }
+    thumb.addEventListener('click', trigger);
+    thumb.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trigger(e); }
+    });
+  });
+
+  /* ── close handlers ───────────────────── */
+  closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', close);
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') hide();
+    if (e.key === 'Escape' && !modal.hidden) close();
+  });
+
+  /* trap focus inside modal */
+  modal.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var focusable = modal.querySelectorAll('a[href],button:not([disabled]),[tabindex="0"]');
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey ? document.activeElement === first : document.activeElement === last) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+    }
   });
 })();
 </script>
