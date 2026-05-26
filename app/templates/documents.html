@@ -209,93 +209,231 @@
   </div>
 </div>
 
-<!-- Hover popover -->
+<!-- Hover preview panel (desktop only) -->
 <script>
 (function () {
+  'use strict';
+
+  // Skip on touch-primary devices (phones/tablets)
+  if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
+
+  var PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var THUMB_SCALE  = 0.55;
+  var DEBOUNCE_MS  = 280;
+  var POP_W        = 296;
+
+  // Preview cache: docId → { type, el?, text? }
+  var cache = new Map();
+  // In-flight fetch set (prevent duplicate requests)
+  var inflight = new Set();
+
   var pop = document.createElement('div');
-  pop.className = 'doc-hover-pop';
-  pop.setAttribute('hidden', '');
+  pop.className = 'dhp';
   document.body.appendChild(pop);
 
-  var hoverTimer = null;
-  var currentCard = null;
+  var timer    = null;
+  var activeId = null;
+  var activeCard = null;
 
-  function buildContent(id, title, mime, filename) {
-    pop.innerHTML = '';
-    var hdr = document.createElement('div');
-    hdr.className = 'doc-hover-pop-header';
-    var ttl = document.createElement('span');
-    ttl.className = 'doc-hover-pop-title';
-    ttl.textContent = title || filename;
-    hdr.appendChild(ttl);
-    pop.appendChild(hdr);
-
-    var body = document.createElement('div');
-    body.className = 'doc-hover-pop-body';
-    var viewUrl = '/documents/' + id + '/view';
-
-    if (mime.startsWith('image/')) {
-      var img = document.createElement('img');
-      img.src = viewUrl;
-      img.className = 'doc-hover-pop-img';
-      img.alt = title;
-      body.appendChild(img);
-    } else {
-      var icon = mime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf') ? 'PDF'
-               : /\.(doc|docx)$/i.test(filename) ? 'DOC'
-               : /\.(xls|xlsx)$/i.test(filename) ? 'XLS'
-               : '📄';
-      body.innerHTML = '<div class="doc-hover-pop-unsupported"><span class="doc-hover-pop-icon">' +
-        icon + '</span><span class="doc-hover-pop-hint">Click thumbnail to preview</span></div>';
-    }
-    pop.appendChild(body);
-  }
-
-  function position(card) {
-    var r = card.getBoundingClientRect();
-    var pw = 280, ph = 320;
-    var left = r.right + 12;
-    if (left + pw > window.innerWidth - 16) left = r.left - pw - 12;
-    if (left < 8) left = 8;
-    var top = r.top;
-    var maxTop = window.innerHeight - ph - 12;
-    if (top > maxTop) top = maxTop;
-    if (top < 8) top = 8;
+  /* ── Positioning ──────────────────────── */
+  function reposition(card) {
+    var r  = card.getBoundingClientRect();
+    var ph = pop.offsetHeight || 280;
+    // Prefer right side; fall back to left
+    var left = r.right + 14;
+    if (left + POP_W > window.innerWidth - 8) left = r.left - POP_W - 14;
+    left = Math.max(8, left);
+    // Vertically centred on the card, clamped to viewport
+    var top = r.top + r.height / 2 - ph / 2;
+    top = Math.max(8, Math.min(top, window.innerHeight - ph - 8));
     pop.style.left = left + 'px';
     pop.style.top  = top  + 'px';
   }
 
+  /* ── Show / hide ──────────────────────── */
   function show(card) {
-    currentCard = card;
-    buildContent(card.dataset.previewId, card.dataset.previewTitle,
-      card.dataset.previewMime || '', card.dataset.previewFilename || '');
-    position(card);
+    var id  = card.dataset.previewId;
+    var mime = card.dataset.previewMime || '';
+    var fn   = card.dataset.previewFilename || '';
+    var ttl  = card.dataset.previewTitle   || fn;
+
+    activeId   = id;
+    activeCard = card;
+
+    if (cache.has(id)) {
+      renderCached(cache.get(id), ttl, fn, mime);
+    } else {
+      setShell(ttl, fn, mime, skeleton());
+      kickLoad(id, mime, fn, card);
+    }
+
+    reposition(card);
     pop.removeAttribute('hidden');
+    // rAF so 'hidden' removal and class add are in separate frames → triggers transition
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { pop.classList.add('dhp--on'); });
+    });
   }
 
   function hide() {
-    clearTimeout(hoverTimer);
-    hoverTimer = null;
-    currentCard = null;
-    pop.setAttribute('hidden', '');
-    pop.innerHTML = '';
+    clearTimeout(timer);
+    timer = activeId = activeCard = null;
+    pop.classList.remove('dhp--on');
   }
 
+  pop.addEventListener('transitionend', function () {
+    if (!pop.classList.contains('dhp--on')) pop.setAttribute('hidden', '');
+  });
+
+  /* ── Render helpers ───────────────────── */
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function typeTag(mime, fn) {
+    if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(fn)) return 'Image';
+    if (mime === 'application/pdf'  || /\.pdf$/i.test(fn))                 return 'PDF';
+    if (/word|document/.test(mime)  || /\.(doc|docx)$/i.test(fn))          return 'DOCX';
+    if (/sheet|excel/.test(mime)    || /\.(xls|xlsx|csv)$/i.test(fn))      return 'XLSX';
+    return 'File';
+  }
+
+  function skeleton() {
+    return '<div class="dhp-skel"><div class="dhp-skel-bar"></div>' +
+           '<div class="dhp-skel-bar dhp-skel-bar--sm"></div></div>';
+  }
+
+  function setShell(title, fn, mime, innerHtml) {
+    pop.innerHTML =
+      '<div class="dhp-preview">' + innerHtml + '</div>' +
+      '<div class="dhp-foot">' +
+        '<span class="dhp-foot-name">' + esc(title || fn) + '</span>' +
+        '<span class="dhp-foot-tag">'  + esc(typeTag(mime, fn)) + '</span>' +
+      '</div>';
+  }
+
+  function injectPreview(id, node) {
+    if (activeId !== id) return;
+    var previewEl = pop.querySelector('.dhp-preview');
+    if (!previewEl) return;
+    previewEl.innerHTML = '';
+    previewEl.appendChild(node);
+    reposition(activeCard);
+  }
+
+  function injectText(id, text) {
+    if (activeId !== id) return;
+    var previewEl = pop.querySelector('.dhp-preview');
+    if (previewEl) previewEl.innerHTML = '<div class="dhp-snippet">' + esc(text) + '</div>';
+    reposition(activeCard);
+  }
+
+  function renderCached(entry, title, fn, mime) {
+    if (entry.type === 'img' || entry.type === 'pdf') {
+      setShell(title, fn, mime, '');
+      pop.querySelector('.dhp-preview').appendChild(entry.el.cloneNode(true));
+    } else if (entry.type === 'docx') {
+      setShell(title, fn, mime, '<div class="dhp-snippet">' + esc(entry.text) + '</div>');
+    } else {
+      setShell(title, fn, mime,
+        '<div class="dhp-nopreview"><span>📄</span><span>Click thumbnail to open</span></div>');
+    }
+  }
+
+  /* ── Loaders ──────────────────────────── */
+  function kickLoad(id, mime, fn, card) {
+    if (inflight.has(id)) return;
+    inflight.add(id);
+    var fnl = fn.toLowerCase();
+
+    if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(fnl)) {
+      loadImage(id, card);
+    } else if (mime === 'application/pdf' || fnl.endsWith('.pdf')) {
+      loadPDF(id, card);
+    } else if (/word|document/.test(mime) || /\.(doc|docx)$/i.test(fnl)) {
+      loadDocx(id, fn, card);
+    } else {
+      cache.set(id, { type: 'none' });
+      inflight.delete(id);
+      if (activeId === id) {
+        var previewEl = pop.querySelector('.dhp-preview');
+        if (previewEl) previewEl.innerHTML =
+          '<div class="dhp-nopreview"><span>📄</span><span>Click thumbnail to open</span></div>';
+      }
+    }
+  }
+
+  function loadImage(id, card) {
+    var img = new Image();
+    img.className = 'dhp-img';
+    img.src = '/documents/' + id + '/thumb';
+    img.onload = function () {
+      cache.set(id, { type: 'img', el: img });
+      inflight.delete(id);
+      injectPreview(id, img.cloneNode(true));
+    };
+    img.onerror = function () {
+      cache.set(id, { type: 'none' });
+      inflight.delete(id);
+    };
+  }
+
+  function loadPDF(id) {
+    if (!window.pdfjsLib) { cache.set(id, { type: 'none' }); inflight.delete(id); return; }
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    window.pdfjsLib.getDocument('/documents/' + id + '/view').promise
+      .then(function (pdf) { return pdf.getPage(1); })
+      .then(function (page) {
+        var vp     = page.getViewport({ scale: THUMB_SCALE });
+        var canvas = document.createElement('canvas');
+        canvas.width  = vp.width;
+        canvas.height = vp.height;
+        return page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise
+          .then(function () {
+            var img = new Image();
+            img.className = 'dhp-img';
+            img.src = canvas.toDataURL('image/jpeg', 0.82);
+            cache.set(id, { type: 'pdf', el: img });
+            inflight.delete(id);
+            injectPreview(id, img.cloneNode(true));
+          });
+      })
+      .catch(function () { cache.set(id, { type: 'none' }); inflight.delete(id); });
+  }
+
+  function loadDocx(id, fn) {
+    if (!window.mammoth) { cache.set(id, { type: 'none' }); inflight.delete(id); return; }
+    fetch('/documents/' + id + '/view')
+      .then(function (r) { return r.arrayBuffer(); })
+      .then(function (buf) { return window.mammoth.extractRawText({ arrayBuffer: buf }); })
+      .then(function (res) {
+        var snippet = (res.value || '').replace(/\s+/g, ' ').trim().slice(0, 260);
+        cache.set(id, { type: 'docx', text: snippet || '(Empty document)' });
+        inflight.delete(id);
+        injectText(id, cache.get(id).text);
+      })
+      .catch(function () { cache.set(id, { type: 'none' }); inflight.delete(id); });
+  }
+
+  /* ── Event wiring ─────────────────────── */
   document.querySelectorAll('[data-preview-id]').forEach(function (card) {
     card.addEventListener('mouseenter', function () {
-      clearTimeout(hoverTimer);
-      hoverTimer = setTimeout(function () { show(card); }, 350);
+      clearTimeout(timer);
+      timer = setTimeout(function () { show(card); }, DEBOUNCE_MS);
     });
     card.addEventListener('mouseleave', function (e) {
-      clearTimeout(hoverTimer);
+      clearTimeout(timer);
       if (e.relatedTarget && (e.relatedTarget === pop || pop.contains(e.relatedTarget))) return;
       hide();
     });
   });
 
+  pop.addEventListener('mouseenter', function () { clearTimeout(timer); });
   pop.addEventListener('mouseleave', function (e) {
-    if (currentCard && e.relatedTarget &&
-        (e.relatedTarget === currentCard || currentCard.contains(e.relatedTarget))) return;
+    if (activeCard && e.relatedTarget &&
+        (e.relatedTarget === activeCard || activeCard.contains(e.relatedTarget))) return;
     hide();
   });
 
