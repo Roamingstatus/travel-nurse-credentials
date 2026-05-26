@@ -39,12 +39,14 @@ from .dashboard import days_until, status_for, summarize, ui_status_label
 from .db import (
     ChecklistResult,
     Document,
+    Event,
     ReminderSettings,
     ShareLink,
     User,
     get_session,
     init_db,
 )
+from .events import log_event, require_admin
 from .packet import build_zip
 from .packet_pdf import build_manifest_pdf
 from .premium import (
@@ -186,7 +188,9 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
         user.email = email
         user.name = info.get("name") or user.name
         user.picture = info.get("picture") or user.picture
+    is_new = user.id is None
     db.commit()
+    log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
     request.session["user_id"] = user.id
     request.session["flash"] = f"Signed in as {user.email}"
     return RedirectResponse("/dashboard", status_code=302)
@@ -383,6 +387,7 @@ async def upload_submit(
     )
     db.add(doc)
     db.commit()
+    log_event("document_upload", user_id=user.id, meta={"category": doc.category, "mime": doc.mime_type}, db=db)
     request.session["flash"] = f"Saved \"{doc.title}\"."
     return RedirectResponse("/documents", status_code=302)
 
@@ -461,6 +466,7 @@ def packet(request: Request, db: Session = Depends(get_session)):
         request.session["flash"] = "Upload at least one document before building a packet."
         return RedirectResponse("/dashboard", status_code=302)
     blob = build_zip(user, docs)
+    log_event("packet_download", user_id=user.id, meta={"doc_count": len(docs)}, db=db)
     fname = f"credentials-packet-{datetime.utcnow().strftime('%Y%m%d')}.zip"
     return Response(
         content=blob,
@@ -478,6 +484,7 @@ def packet_pdf(request: Request, db: Session = Depends(get_session)):
         request.session["flash"] = "Upload at least one document before building a packet."
         return RedirectResponse("/dashboard", status_code=302)
     blob = build_manifest_pdf(user, docs)
+    log_event("packet_pdf", user_id=user.id, meta={"doc_count": len(docs)}, db=db)
     fname = f"credentials-manifest-{datetime.utcnow().strftime('%Y%m%d')}.pdf"
     return Response(
         content=blob,
@@ -542,6 +549,7 @@ def share_create(
     )
     db.add(link)
     db.commit()
+    log_event("share_link_created", user_id=user.id, meta={"label": link.label}, db=db)
     request.session["flash"] = "Share link created."
     return RedirectResponse("/share", status_code=302)
 
@@ -702,6 +710,7 @@ def premium_calendar_export(request: Request, db: Session = Depends(get_session)
     require_premium(user)
     docs = db.query(Document).filter_by(user_id=user.id).all()
     body = build_expiring_ics(docs, calendar_name="Credanta — Expiring Credentials")
+    log_event("calendar_export", user_id=user.id, meta={"doc_count": len(docs)}, db=db)
     return Response(
         content=body,
         media_type="text/calendar; charset=utf-8",
@@ -751,6 +760,7 @@ async def resume_enhance_post(
 
     from .resume_enhancer import enhance_resume
     suggestions = enhance_resume(raw, file.content_type or "", file.filename or "resume")
+    log_event("resume_enhance", user_id=user.id, meta={"filename": file.filename}, db=db)
     return render(
         request,
         "premium_resume.html",
@@ -795,6 +805,7 @@ def checklist_generate(
     )
     db.add(result)
     db.commit()
+    log_event("checklist_generate", user_id=user.id, meta={"profile": profile_type, "score": result_data["readiness_score"]}, db=db)
 
     return render(
         request,
@@ -864,9 +875,11 @@ async def billing_checkout(
         if db_user.stripe_customer_id != session.customer:
             db_user.stripe_customer_id = session.customer
             db.commit()
+        log_event("billing_checkout_started", user_id=user.id, meta={"price_id": price_id}, db=db)
     except Exception as exc:
         import logging
         logging.error(f"[Stripe] checkout error: {exc}")
+        log_event("billing_checkout_started", user_id=user.id, meta={"price_id": price_id, "error": str(exc)}, ok=False)
         request.session["flash"] = "Could not start checkout — please try again."
         return RedirectResponse("/premium", status_code=302)
     return RedirectResponse(session.url, status_code=303)
@@ -904,6 +917,7 @@ def billing_portal(request: Request, db: Session = Depends(get_session)):
     if not portal:
         request.session["flash"] = "No active subscription found."
         return RedirectResponse("/premium", status_code=302)
+    log_event("billing_portal_opened", user_id=user.id, db=db)
     return RedirectResponse(portal.url, status_code=303)
 
 
@@ -953,6 +967,7 @@ async def billing_webhook(request: Request, db: Session = Depends(get_session)):
                 db_user.subscription_tier = "free"
             db_user.stripe_subscription_id = sub["id"]
             db.commit()
+            log_event("stripe_subscription_changed", user_id=db_user.id, meta={"tier": db_user.subscription_tier, "status": status}, db=db)
             logging.info(f"[Stripe] subscription updated → user {db_user.id}: {db_user.subscription_tier}")
 
     elif etype == "customer.subscription.deleted":
@@ -963,9 +978,39 @@ async def billing_webhook(request: Request, db: Session = Depends(get_session)):
             db_user.subscription_tier = "free"
             db_user.stripe_subscription_id = None
             db.commit()
+            log_event("stripe_subscription_changed", user_id=db_user.id, meta={"tier": "free", "status": "cancelled"}, db=db)
             logging.info(f"[Stripe] subscription cancelled → user {db_user.id} downgraded to free")
 
     return JSONResponse({"received": True})
+
+
+# ---------------------------------------------------------------------------
+# Admin dashboard
+# ---------------------------------------------------------------------------
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard(request: Request, db: Session = Depends(get_session)):
+    from .admin import (
+        document_metrics,
+        failed_events,
+        feature_metrics,
+        misc_metrics,
+        recent_events,
+        user_metrics,
+    )
+    user = require_user(request)
+    require_admin(user)
+    return render(
+        request,
+        "admin.html",
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        user_stats=user_metrics(db),
+        doc_stats=document_metrics(db),
+        feature_stats=feature_metrics(db),
+        recent=recent_events(db),
+        failed=failed_events(db),
+        misc=misc_metrics(db),
+    )
 
 
 # ---------------------------------------------------------------------------

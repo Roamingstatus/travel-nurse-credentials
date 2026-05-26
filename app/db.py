@@ -100,6 +100,16 @@ class ReminderSettings(Base):
             return [30, 14, 7, 0]
 
 
+class Event(Base):
+    __tablename__ = "events"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    meta = Column(Text, nullable=True)
+    ok = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class ChecklistResult(Base):
     __tablename__ = "checklist_results"
     id = Column(Integer, primary_key=True)
@@ -148,6 +158,22 @@ def _ensure_sqlite_columns() -> None:
     try:
         insp = inspect(engine)
         tables = insp.get_table_names()
+
+        if "events" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS events ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,"
+                    "  event_type VARCHAR NOT NULL,"
+                    "  meta TEXT,"
+                    "  ok INTEGER NOT NULL DEFAULT 1,"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_events_event_type ON events (event_type)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_events_created_at ON events (created_at)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_events_user_id ON events (user_id)"))
 
         if "users" in tables:
             cols = {c["name"] for c in insp.get_columns("users")}
