@@ -359,11 +359,6 @@ def extract_document_metadata(raw: bytes, mime_type: str, filename: str) -> dict
     import logging
     text = _extract_text(raw, mime_type, filename)
 
-    logging.warning(f"[DocExtract] file={filename!r} mime={mime_type!r} text_len={len(text)}")
-    if text:
-        # Log first 800 chars so we can see what pypdf actually extracted
-        logging.warning(f"[DocExtract] text_sample={text[:800]!r}")
-
     title = _extract_pdf_title(raw, mime_type, filename)
     if not title:
         title = _clean_filename_as_title(filename) or None
