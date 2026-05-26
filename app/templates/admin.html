@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Admin · Credanta{% endblock %}
+{% block content %}
+
+<div class="admin-header">
+  <div>
+    <h1 class="admin-title">Analytics</h1>
+    <p class="admin-sub">Internal dashboard · {{ now }}</p>
+  </div>
+</div>
+
+<!-- ── User metrics ──────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Users</h2>
+  <div class="admin-cards">
+    <div class="admin-card">
+      <div class="admin-card-value">{{ user_stats.total }}</div>
+      <div class="admin-card-label">Total users</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ user_stats.new_today }}</div>
+      <div class="admin-card-label">New today</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ user_stats.new_7d }}</div>
+      <div class="admin-card-label">New (7 days)</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ user_stats.new_30d }}</div>
+      <div class="admin-card-label">New (30 days)</div>
+    </div>
+    <div class="admin-card admin-card--free">
+      <div class="admin-card-value">{{ user_stats.free }}</div>
+      <div class="admin-card-label">Free tier</div>
+    </div>
+    <div class="admin-card admin-card--premium">
+      <div class="admin-card-value">{{ user_stats.premium }}</div>
+      <div class="admin-card-label">Premium</div>
+    </div>
+    <div class="admin-card admin-card--plus">
+      <div class="admin-card-value">{{ user_stats.premium_plus }}</div>
+      <div class="admin-card-label">Premium+</div>
+    </div>
+    {% if user_stats.total > 0 %}
+    <div class="admin-card">
+      <div class="admin-card-value">{{ "%.0f"|format(((user_stats.premium + user_stats.premium_plus) / user_stats.total) * 100) }}%</div>
+      <div class="admin-card-label">Conversion rate</div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- ── Document metrics ──────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Documents</h2>
+  <div class="admin-cards">
+    <div class="admin-card">
+      <div class="admin-card-value">{{ doc_stats.total }}</div>
+      <div class="admin-card-label">Total uploaded</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ doc_stats.uploaded_7d }}</div>
+      <div class="admin-card-label">Uploaded (7 days)</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ doc_stats.uploaded_30d }}</div>
+      <div class="admin-card-label">Uploaded (30 days)</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ doc_stats.avg_per_user }}</div>
+      <div class="admin-card-label">Avg per user</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ misc.active_share_links }}</div>
+      <div class="admin-card-label">Active share links</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ misc.reminder_users }}</div>
+      <div class="admin-card-label">Reminder subscribers</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ misc.checklist_runs }}</div>
+      <div class="admin-card-label">Checklist runs (all time)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Document categories breakdown ──────────────── -->
+{% if doc_stats.by_category %}
+<section class="admin-section">
+  <h2 class="admin-section-title">Top credential categories</h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Category</th><th>Count</th></tr>
+      </thead>
+      <tbody>
+        {% for row in doc_stats.by_category %}
+        <tr>
+          <td>{{ row.category }}</td>
+          <td>{{ row.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Feature usage ─────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Feature usage</h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>All time</th>
+          <th>Last 30 days</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in feature_stats %}
+        <tr {% if f.all_time == 0 %}class="admin-row-dim"{% endif %}>
+          <td>{{ f.label }}</td>
+          <td>{{ f.all_time }}</td>
+          <td>{{ f.last_30d }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── Recent activity ───────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Recent activity <span class="admin-count-badge">{{ recent | length }}</span></h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table admin-table--activity">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Event</th>
+          <th>User</th>
+          <th>Tier</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in recent %}
+        <tr>
+          <td class="admin-ts">{{ ev.created_at | dt }}</td>
+          <td><code class="admin-event-type">{{ ev.event_type }}</code></td>
+          <td class="admin-email">{{ ev.user_email or "—" }}</td>
+          <td>
+            {% if ev.user_tier == "premium_plus" %}
+              <span class="tier-badge tier-premium-plus">Premium+</span>
+            {% elif ev.user_tier == "premium" %}
+              <span class="tier-badge tier-premium">Premium</span>
+            {% elif ev.user_tier %}
+              <span class="admin-tier-free">Free</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if ev.ok %}
+              <span class="admin-ok">✓</span>
+            {% else %}
+              <span class="admin-fail">✗</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="admin-empty">No events recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── Failed events ─────────────────────────────── -->
+{% if failed %}
+<section class="admin-section">
+  <h2 class="admin-section-title admin-title-warn">Failed events <span class="admin-count-badge admin-count-badge--warn">{{ failed | length }}</span></h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Time</th><th>Event</th><th>User</th><th>Detail</th></tr>
+      </thead>
+      <tbody>
+        {% for ev in failed %}
+        <tr class="admin-row-fail">
+          <td class="admin-ts">{{ ev.created_at | dt }}</td>
+          <td><code class="admin-event-type">{{ ev.event_type }}</code></td>
+          <td class="admin-email">{{ ev.user_email or "—" }}</td>
+          <td class="admin-meta">{{ ev.meta or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}
