@@ -63,14 +63,14 @@ _DATE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'\b(20\d{2})[-/](\d{2})[-/](\d{2})\b'), 'ymd'),
     (re.compile(rf'\b({_MONTH_RE})[,.\s]+(\d{{1,2}})[,.\s]+(20\d{{2}})\b', re.IGNORECASE), 'mname_d_y'),
     (re.compile(rf'\b(\d{{1,2}})[,.\s]+({_MONTH_RE})[,.\s]+(20\d{{2}})\b', re.IGNORECASE), 'd_mname_y'),
-    # 2-digit year: MM/YY  (interpret as 20YY, guard against impossible months)
-    (re.compile(r'\b(\d{1,2})[/\-](\d{2})\b'), 'my_short'),
 ]
 
 # Month+year only patterns → produce the last day of that month
+# Negative lookahead (?![/\-\d]) prevents matching inside MM/DD/YYYY
 _MONTH_YEAR_PATTERNS: list[re.Pattern] = [
-    re.compile(rf'\b({_MONTH_RE})[,.\s]+(20\d{{2}})\b', re.IGNORECASE),   # "March 2026"
-    re.compile(r'\b(0?[1-9]|1[0-2])[/\-](20\d{2})\b'),                    # "03/2026"
+    re.compile(rf'\b({_MONTH_RE})[,.\s]+(20\d{{2}})\b', re.IGNORECASE),        # "March 2026"
+    re.compile(r'\b(0?[1-9]|1[0-2])[/\-](20\d{2})\b'),                         # "03/2026"
+    re.compile(r'\b(0?[1-9]|1[0-2])[/\-](\d{2})\b(?![/\-\d])'),               # "03/26" (MM/YY, not inside MM/DD/YYYY)
 ]
 
 _EXPIRY_CTX = re.compile(
@@ -203,7 +203,9 @@ def _extract_dates_from_text(text: str) -> tuple[datetime | None, datetime | Non
                     raw_mo, raw_y = grp
                     mo = _MONTH_MAP.get(str(raw_mo).lower(), None) or int(raw_mo)
                     y = int(raw_y)
-                    if not (1 <= mo <= 12 and 2000 <= y <= 2050):
+                    if y < 100:          # 2-digit year → 20YY
+                        y = 2000 + y
+                    if not (1 <= mo <= 12 and 2020 <= y <= 2050):
                         continue
                     dt = _last_day_of_month(y, mo)
                 else:
@@ -312,7 +314,13 @@ def extract_document_metadata(raw: bytes, mime_type: str, filename: str) -> dict
     Extract title, category, issued_at, expires_at from document content.
     Returns dict with string dates (YYYY-MM-DD) or None values.
     """
+    import logging
     text = _extract_text(raw, mime_type, filename)
+
+    logging.warning(f"[DocExtract] file={filename!r} mime={mime_type!r} text_len={len(text)}")
+    if text:
+        # Log first 800 chars so we can see what pypdf actually extracted
+        logging.warning(f"[DocExtract] text_sample={text[:800]!r}")
 
     title = _extract_pdf_title(raw, mime_type, filename)
     if not title:
@@ -323,6 +331,8 @@ def extract_document_metadata(raw: bytes, mime_type: str, filename: str) -> dict
         category = infer_category('', text[:1000])
 
     issued_at, expires_at = _extract_dates_from_text(text) if text else (None, None)
+
+    logging.warning(f"[DocExtract] issued={issued_at} expires={expires_at}")
 
     if not expires_at:
         expires_at = infer_expiry_from_text(filename, title or '')
