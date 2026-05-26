@@ -1867,7 +1867,7 @@ textarea:focus {
 
 /* ── Document hover preview popover ────────────── */
 .doc-hover-pop {
-  position: absolute;
+  position: fixed;
   z-index: 800;
   width: 360px;
   background: var(--surface);
