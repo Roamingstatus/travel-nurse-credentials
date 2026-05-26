@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Edit · {{ doc.title }} · Credanta{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <h1>Edit document</h1>
+  <a class="btn ghost" href="/documents">Back</a>
+</div>
+
+<section class="panel panel-min">
+  <div class="body">
+    <form method="post" action="/documents/{{ doc.id }}/edit">
+      <div class="field-grid">
+        <div class="field">
+          <label for="title">Name</label>
+          <input id="title" name="title" type="text" value="{{ doc.title }}" required />
+        </div>
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" name="category" required>
+            {% for c in categories %}
+              <option value="{{ c }}" {% if doc.category == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="issued_at">Issued</label>
+          <input id="issued_at" name="issued_at" type="date"
+            value="{{ doc.issued_at.strftime('%Y-%m-%d') if doc.issued_at else '' }}" />
+        </div>
+        <div class="field">
+          <label for="expires_at">Expires
+            {% if not doc.expires_at %}
+              <span class="pill warn" style="font-size:11px;margin-left:6px;">Not set</span>
+            {% endif %}
+          </label>
+          <input id="expires_at" name="expires_at" type="date"
+            value="{{ doc.expires_at.strftime('%Y-%m-%d') if doc.expires_at else '' }}" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="notes">Notes <span class="optional">optional</span></label>
+        <textarea id="notes" name="notes" rows="3">{{ doc.notes or '' }}</textarea>
+      </div>
+
+      <div class="edit-file-info">
+        <span class="edit-file-icon">📎</span>
+        <span class="edit-file-name">{{ doc.original_filename }}</span>
+        <span class="edit-file-note">File cannot be changed — delete and re-upload to replace</span>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button type="submit" class="btn primary">Save changes</button>
+        <a class="btn ghost" href="/documents">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}
