@@ -1,13 +1,63 @@
+import json
 import os
+import urllib.parse
+import urllib.request
+
 import stripe
 
 
-def _key() -> str:
+def _fetch_connector_credentials() -> dict | None:
+    hostname = os.environ.get("REPLIT_CONNECTORS_HOSTNAME")
+    if not hostname:
+        return None
+
+    repl_identity = os.environ.get("REPL_IDENTITY")
+    web_repl_renewal = os.environ.get("WEB_REPL_RENEWAL")
+
+    if repl_identity:
+        token = f"repl {repl_identity}"
+    elif web_repl_renewal:
+        token = f"depl {web_repl_renewal}"
+    else:
+        return None
+
+    is_production = os.environ.get("REPLIT_DEPLOYMENT") == "1"
+    target_env = "production" if is_production else "development"
+
+    params = urllib.parse.urlencode({
+        "include_secrets": "true",
+        "connector_names": "stripe",
+        "environment": target_env,
+    })
+    url = f"https://{hostname}/api/v2/connection?{params}"
+    req = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json", "X-Replit-Token": token},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        items = data.get("items", [])
+        if not items:
+            return None
+        settings = items[0].get("settings", {})
+        return {
+            "secret_key": settings.get("secret"),
+            "publishable_key": settings.get("publishable"),
+        }
+    except Exception:
+        return None
+
+
+def _secret_key() -> str:
+    creds = _fetch_connector_credentials()
+    if creds and creds.get("secret_key"):
+        return creds["secret_key"]
     return os.environ.get("STRIPE_SECRET_KEY", "")
 
 
 def stripe_configured() -> bool:
-    return bool(_key())
+    return bool(_secret_key())
 
 
 def _price(env_var: str) -> str:
@@ -15,10 +65,10 @@ def _price(env_var: str) -> str:
 
 
 PRICE_VARS = {
-    "premium_monthly":       "STRIPE_PRICE_PREMIUM_MONTHLY",
-    "premium_yearly":        "STRIPE_PRICE_PREMIUM_YEARLY",
-    "premium_plus_monthly":  "STRIPE_PRICE_PREMIUM_PLUS_MONTHLY",
-    "premium_plus_yearly":   "STRIPE_PRICE_PREMIUM_PLUS_YEARLY",
+    "premium_monthly":      "STRIPE_PRICE_PREMIUM_MONTHLY",
+    "premium_yearly":       "STRIPE_PRICE_PREMIUM_YEARLY",
+    "premium_plus_monthly": "STRIPE_PRICE_PREMIUM_PLUS_MONTHLY",
+    "premium_plus_yearly":  "STRIPE_PRICE_PREMIUM_PLUS_YEARLY",
 }
 
 
@@ -36,7 +86,7 @@ def tier_for_price_id(price_id: str) -> str:
 
 
 def get_or_create_customer(user) -> str:
-    stripe.api_key = _key()
+    stripe.api_key = _secret_key()
     if user.stripe_customer_id:
         return user.stripe_customer_id
     customer = stripe.Customer.create(
@@ -48,7 +98,7 @@ def get_or_create_customer(user) -> str:
 
 
 def create_checkout_session(user, price_id: str, success_url: str, cancel_url: str):
-    stripe.api_key = _key()
+    stripe.api_key = _secret_key()
     customer_id = get_or_create_customer(user)
     session = stripe.checkout.Session.create(
         customer=customer_id,
@@ -64,7 +114,7 @@ def create_checkout_session(user, price_id: str, success_url: str, cancel_url: s
 
 
 def create_portal_session(user, return_url: str):
-    stripe.api_key = _key()
+    stripe.api_key = _secret_key()
     if not user.stripe_customer_id:
         return None
     session = stripe.billing_portal.Session.create(

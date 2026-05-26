@@ -2,6 +2,7 @@ modules = ["python-3.12", "web", "nodejs-20", "bash"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
+integrations = ["stripe:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
@@ -46,4 +47,12 @@ run = ["python", "run.py"]
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 120000
+
+[userenv]
+
+[userenv.shared]
+STRIPE_PRICE_PREMIUM_MONTHLY = "price_1TbRDlPWALiH5IrqY2966DAF"
+STRIPE_PRICE_PREMIUM_YEARLY = "price_1TbRDlPWALiH5IrqOs0wAvHQ"
+STRIPE_PRICE_PREMIUM_PLUS_MONTHLY = "price_1TbRDmPWALiH5IrqgCU4LXRu"
+STRIPE_PRICE_PREMIUM_PLUS_YEARLY = "price_1TbRDnPWALiH5IrqVOVRylQb"
 
