@@ -55,7 +55,12 @@
       {% for d in rows %}
       {% set cat_label = d.category if cat == 'Other' else cat %}
       {% set us = ui_status_label(d) %}
-      <article class="doc-card {% if us == 'expired' %}doc-card--bad{% elif us == 'expiring_soon' %}doc-card--warn{% else %}doc-card--good{% endif %}" data-doc-id="{{ d.id }}">
+      <article class="doc-card {% if us == 'expired' %}doc-card--bad{% elif us == 'expiring_soon' %}doc-card--warn{% else %}doc-card--good{% endif %}"
+        data-doc-id="{{ d.id }}"
+        data-preview-id="{{ d.id }}"
+        data-preview-title="{{ d.title | e }}"
+        data-preview-mime="{{ d.mime_type or '' }}"
+        data-preview-filename="{{ d.original_filename | e }}">
         <div class="drag-handle" title="Drag to reorder">⠿</div>
         {% set mime = d.mime_type or '' %}
         <div class="doc-thumb-wrap">
@@ -91,11 +96,6 @@
         {% endif %}
         <div class="doc-card-foot">
           <div class="doc-card-actions">
-            <button class="btn small ghost" type="button"
-              data-preview-id="{{ d.id }}"
-              data-preview-title="{{ d.title }}"
-              data-preview-mime="{{ d.mime_type or '' }}"
-              data-preview-filename="{{ d.original_filename }}">Preview</button>
             <a class="btn small ghost" href="/documents/{{ d.id }}/edit">Edit</a>
             <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
             <form method="post" action="/documents/{{ d.id }}/delete" onsubmit="return confirm('Remove this document?');">
@@ -113,20 +113,6 @@
   {% endfor %}
 </div>
 
-<!-- Preview modal -->
-<div id="doc-preview-modal" class="preview-modal" role="dialog" aria-modal="true" aria-label="Document preview" hidden>
-  <div class="preview-modal-backdrop"></div>
-  <div class="preview-modal-panel">
-    <div class="preview-modal-header">
-      <span class="preview-modal-title" id="preview-modal-title"></span>
-      <div class="preview-modal-actions">
-        <a class="btn small ghost" id="preview-download-btn" href="#">Download</a>
-        <button class="btn small ghost" id="preview-close-btn" type="button" aria-label="Close">✕</button>
-      </div>
-    </div>
-    <div class="preview-modal-body" id="preview-modal-body"></div>
-  </div>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
@@ -198,71 +184,112 @@
 
 <script>
 (function () {
-  var modal   = document.getElementById('doc-preview-modal');
-  var titleEl = document.getElementById('preview-modal-title');
-  var bodyEl  = document.getElementById('preview-modal-body');
-  var dlBtn   = document.getElementById('preview-download-btn');
-  var closeBtn= document.getElementById('preview-close-btn');
-  if (!modal) return;
+  var pop = document.createElement('div');
+  pop.className = 'doc-hover-pop';
+  pop.setAttribute('hidden', '');
+  document.body.appendChild(pop);
 
-  function openPreview(id, title, mime, filename) {
-    titleEl.textContent = title || filename;
-    dlBtn.href = '/documents/' + id + '/download';
-    bodyEl.innerHTML = '';
+  var hoverTimer = null;
+  var currentCard = null;
+  var overPop = false;
 
+  function buildContent(id, title, mime, filename) {
+    pop.innerHTML = '';
+    var hdr = document.createElement('div');
+    hdr.className = 'doc-hover-pop-header';
+    var ttl = document.createElement('span');
+    ttl.className = 'doc-hover-pop-title';
+    ttl.textContent = title || filename;
+    var dl = document.createElement('a');
+    dl.className = 'btn small ghost';
+    dl.href = '/documents/' + id + '/download';
+    dl.textContent = 'Download';
+    hdr.appendChild(ttl);
+    hdr.appendChild(dl);
+    pop.appendChild(hdr);
+
+    var body = document.createElement('div');
+    body.className = 'doc-hover-pop-body';
     var viewUrl = '/documents/' + id + '/view';
 
     if (mime.startsWith('image/')) {
       var img = document.createElement('img');
       img.src = viewUrl;
+      img.className = 'doc-hover-pop-img';
       img.alt = title;
-      img.className = 'preview-img';
-      bodyEl.appendChild(img);
-    } else if (mime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf')) {
-      var obj = document.createElement('iframe');
-      obj.src = viewUrl;
-      obj.className = 'preview-pdf';
-      obj.title = title;
-      bodyEl.appendChild(obj);
+      body.appendChild(img);
+    } else if (mime === 'application/pdf' || (filename || '').toLowerCase().endsWith('.pdf')) {
+      var fr = document.createElement('iframe');
+      fr.src = viewUrl;
+      fr.className = 'doc-hover-pop-pdf';
+      fr.title = title;
+      body.appendChild(fr);
     } else {
-      bodyEl.innerHTML =
-        '<div class="preview-unsupported">' +
-        '<p class="preview-unsupported-icon">📄</p>' +
-        '<p class="preview-unsupported-name">' + (filename || title) + '</p>' +
-        '<p class="preview-unsupported-note">No in-browser preview available for this file type.</p>' +
-        '<a class="btn primary" href="/documents/' + id + '/download">Download to view</a>' +
-        '</div>';
+      body.innerHTML = '<div class="doc-hover-pop-unsupported"><span>📄</span><span>' +
+        (filename || title) + '</span><span>No preview — download to view</span></div>';
     }
-
-    modal.removeAttribute('hidden');
-    document.body.classList.add('preview-open');
-    closeBtn.focus();
+    pop.appendChild(body);
   }
 
-  function closePreview() {
-    modal.setAttribute('hidden', '');
-    document.body.classList.remove('preview-open');
-    bodyEl.innerHTML = '';
+  function position(card) {
+    var r = card.getBoundingClientRect();
+    var pw = 360;
+    var ph = 420;
+    var left = r.right + window.scrollX + 12;
+    if (left + pw > window.innerWidth - 16) {
+      left = r.left + window.scrollX - pw - 12;
+    }
+    if (left < 8) left = 8;
+    var top = r.top + window.scrollY;
+    var maxTop = window.scrollY + window.innerHeight - ph - 12;
+    if (top > maxTop) top = maxTop;
+    if (top < window.scrollY + 8) top = window.scrollY + 8;
+    pop.style.left = left + 'px';
+    pop.style.top  = top  + 'px';
   }
 
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-preview-id]');
-    if (btn) {
-      openPreview(
-        btn.dataset.previewId,
-        btn.dataset.previewTitle,
-        btn.dataset.previewMime,
-        btn.dataset.previewFilename
-      );
-      return;
-    }
-    if (e.target.classList.contains('preview-modal-backdrop')) closePreview();
+  function show(card) {
+    currentCard = card;
+    buildContent(
+      card.dataset.previewId,
+      card.dataset.previewTitle,
+      card.dataset.previewMime || '',
+      card.dataset.previewFilename || ''
+    );
+    position(card);
+    pop.removeAttribute('hidden');
+  }
+
+  function hide() {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+    currentCard = null;
+    pop.setAttribute('hidden', '');
+    pop.innerHTML = '';
+  }
+
+  document.querySelectorAll('[data-preview-id]').forEach(function (card) {
+    card.addEventListener('mouseenter', function () {
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(function () { show(card); }, 320);
+    });
+    card.addEventListener('mouseleave', function (e) {
+      clearTimeout(hoverTimer);
+      if (e.relatedTarget && (e.relatedTarget === pop || pop.contains(e.relatedTarget))) return;
+      hide();
+    });
   });
 
-  closeBtn.addEventListener('click', closePreview);
+  pop.addEventListener('mouseenter', function () { overPop = true; });
+  pop.addEventListener('mouseleave', function (e) {
+    overPop = false;
+    if (currentCard && e.relatedTarget &&
+        (e.relatedTarget === currentCard || currentCard.contains(e.relatedTarget))) return;
+    hide();
+  });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !modal.hasAttribute('hidden')) closePreview();
+    if (e.key === 'Escape') hide();
   });
 })();
 </script>
