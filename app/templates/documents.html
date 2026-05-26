@@ -235,15 +235,15 @@
     var r = card.getBoundingClientRect();
     var pw = 360;
     var ph = 420;
-    var left = r.right + window.scrollX + 12;
+    var left = r.right + 12;
     if (left + pw > window.innerWidth - 16) {
-      left = r.left + window.scrollX - pw - 12;
+      left = r.left - pw - 12;
     }
     if (left < 8) left = 8;
-    var top = r.top + window.scrollY;
-    var maxTop = window.scrollY + window.innerHeight - ph - 12;
+    var top = r.top;
+    var maxTop = window.innerHeight - ph - 12;
     if (top > maxTop) top = maxTop;
-    if (top < window.scrollY + 8) top = window.scrollY + 8;
+    if (top < 8) top = 8;
     pop.style.left = left + 'px';
     pop.style.top  = top  + 'px';
   }

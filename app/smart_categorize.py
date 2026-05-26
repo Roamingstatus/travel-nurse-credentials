@@ -137,6 +137,27 @@ def _classify_context(ctx: str) -> str | None:
     return None
 
 
+# Lines containing these patterns are copyright/boilerplate — ignore dates in them
+_NOISE_LINE = re.compile(
+    r'(©|\ball\s+rights\s+reserved\b|copyright|\bpublication\s+no\b|\bitem\s+no\b)',
+    re.IGNORECASE,
+)
+
+
+def _is_noise_line(text: str, char_pos: int, lines: list[str], line_starts: list[int]) -> bool:
+    """Return True if the character position falls on a boilerplate/copyright line."""
+    if not lines:
+        return False
+    lo, hi = 0, len(line_starts) - 1
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if line_starts[mid] <= char_pos:
+            lo = mid
+        else:
+            hi = mid - 1
+    return bool(_NOISE_LINE.search(lines[lo]))
+
+
 def _extract_dates_from_text(text: str) -> tuple[datetime | None, datetime | None]:
     issued: datetime | None = None
     expires: datetime | None = None
@@ -181,6 +202,8 @@ def _extract_dates_from_text(text: str) -> tuple[datetime | None, datetime | Non
             dt = _parse_date_match(m, ptype)
             if not dt:
                 continue
+            if _is_noise_line(text, m.start(), lines, line_starts):
+                continue
             label = classify(m)
             if label == 'expiry':
                 if expires is None:
@@ -197,6 +220,8 @@ def _extract_dates_from_text(text: str) -> tuple[datetime | None, datetime | Non
     # 2. Month+year-only patterns (lower priority — only fill gaps)
     for pat in _MONTH_YEAR_PATTERNS:
         for m in pat.finditer(text):
+            if _is_noise_line(text, m.start(), lines, line_starts):
+                continue
             try:
                 grp = m.groups()
                 if len(grp) == 2:
@@ -265,6 +290,23 @@ def _extract_text(raw: bytes, mime_type: str, filename: str) -> str:
                     parts.append(page.extract_text() or '')
                 except Exception:
                     pass
+            # Also read AcroForm field values (e.g. AHA ACLS/BLS digital cards
+            # store Issue Date / Renew By as form fields, not as page text)
+            try:
+                fields = reader.get_fields() or {}
+                field_lines: list[str] = []
+                for fname, fdata in fields.items():
+                    val = ''
+                    if hasattr(fdata, 'value'):
+                        val = str(fdata.value or '').strip()
+                    elif isinstance(fdata, dict):
+                        val = str(fdata.get('/V') or fdata.get('value') or '').strip()
+                    if val and val not in ('/Off', 'Off', 'None'):
+                        field_lines.append(f"{fname}: {val}")
+                if field_lines:
+                    parts.append('\n'.join(field_lines))
+            except Exception:
+                pass
             return '\n'.join(parts)[:15000]
         except Exception:
             return ''
