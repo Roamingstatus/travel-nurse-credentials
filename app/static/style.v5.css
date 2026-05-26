@@ -1865,95 +1865,80 @@ textarea:focus {
 }
 .admin-count-badge--warn { background: color-mix(in srgb, #dc2626 10%, transparent); border-color: #dc2626; color: #dc2626; }
 
-/* ── Document preview modal ────────────────────── */
-body.preview-open { overflow: hidden; }
-
-.preview-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.preview-modal[hidden] { display: none; }
-
-.preview-modal-backdrop {
+/* ── Document hover preview popover ────────────── */
+.doc-hover-pop {
   position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,.55);
-  backdrop-filter: blur(3px);
-}
-
-.preview-modal-panel {
-  position: relative;
-  z-index: 1;
+  z-index: 800;
+  width: 360px;
   background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 24px 64px rgba(0,0,0,.25);
-  width: min(92vw, 860px);
-  max-height: 90vh;
+  box-shadow: 0 16px 48px rgba(0,0,0,.18);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: auto;
 }
+.doc-hover-pop[hidden] { display: none; }
 
-.preview-modal-header {
+.doc-hover-pop-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 18px;
+  gap: 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.preview-modal-title {
-  font-size: 14px;
+.doc-hover-pop-title {
+  font-size: 13px;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
 }
-.preview-modal-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
-.preview-modal-body {
+.doc-hover-pop-body {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
+  background: var(--bg);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  background: var(--bg);
-  min-height: 200px;
+  min-height: 180px;
+  max-height: 380px;
 }
 
-.preview-img {
+.doc-hover-pop-img {
   max-width: 100%;
-  max-height: calc(90vh - 70px);
+  max-height: 380px;
   object-fit: contain;
   display: block;
   margin: auto;
 }
 
-.preview-pdf {
+.doc-hover-pop-pdf {
   width: 100%;
-  height: calc(90vh - 70px);
+  height: 380px;
   border: none;
   display: block;
 }
 
-.preview-unsupported {
-  text-align: center;
-  padding: 48px 24px;
+.doc-hover-pop-unsupported {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 6px;
+  padding: 32px 16px;
   width: 100%;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
 }
-.preview-unsupported-icon { font-size: 40px; margin: 0; }
-.preview-unsupported-name { font-weight: 700; font-size: 15px; margin: 0; }
-.preview-unsupported-note { color: var(--muted); font-size: 13px; margin: 0; }
+.doc-hover-pop-unsupported span:first-child { font-size: 32px; }
+.doc-hover-pop-unsupported span:nth-child(2) { font-weight: 600; color: var(--text); font-size: 13px; }
 
 /* ── Document card — missing expiry banner ──────── */
 .doc-card-no-expiry {
