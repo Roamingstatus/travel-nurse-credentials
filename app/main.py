@@ -424,6 +424,40 @@ async def reorder_documents(request: Request, db: Session = Depends(get_session)
     return JSONResponse({"ok": True})
 
 
+@app.get("/documents/{doc_id}/edit", response_class=HTMLResponse)
+def edit_document_form(doc_id: int, request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    doc = db.get(Document, doc_id)
+    if not doc or doc.user_id != user.id:
+        raise HTTPException(404)
+    return render(request, "edit_document.html", doc=doc, categories=CREDENTIAL_CATEGORIES)
+
+
+@app.post("/documents/{doc_id}/edit")
+def edit_document_submit(
+    doc_id: int,
+    request: Request,
+    title: str = Form(...),
+    category: str = Form(...),
+    issued_at: str = Form(""),
+    expires_at: str = Form(""),
+    notes: str = Form(""),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    doc = db.get(Document, doc_id)
+    if not doc or doc.user_id != user.id:
+        raise HTTPException(404)
+    doc.title = title.strip() or doc.title
+    doc.category = category if category in CREDENTIAL_CATEGORIES else doc.category
+    doc.notes = notes.strip() or None
+    doc.issued_at = _parse_date(issued_at)
+    doc.expires_at = _parse_date(expires_at)
+    db.commit()
+    request.session["flash"] = "Document updated."
+    return RedirectResponse("/documents", status_code=302)
+
+
 @app.post("/documents/{doc_id}/delete")
 def delete_document(doc_id: int, request: Request, db: Session = Depends(get_session)):
     user = require_user(request)

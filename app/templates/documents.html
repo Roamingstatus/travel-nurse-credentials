@@ -83,6 +83,12 @@
             </dd></div>
           </dl>
         </div>
+        {% if not d.expires_at %}
+        <div class="doc-card-no-expiry">
+          <span>⚠ No expiration date —</span>
+          <a href="/documents/{{ d.id }}/edit">add one</a>
+        </div>
+        {% endif %}
         <div class="doc-card-foot">
           <div class="doc-card-actions">
             <button class="btn small ghost" type="button"
@@ -90,6 +96,7 @@
               data-preview-title="{{ d.title }}"
               data-preview-mime="{{ d.mime_type or '' }}"
               data-preview-filename="{{ d.original_filename }}">Preview</button>
+            <a class="btn small ghost" href="/documents/{{ d.id }}/edit">Edit</a>
             <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
             <form method="post" action="/documents/{{ d.id }}/delete" onsubmit="return confirm('Remove this document?');">
               <button class="btn small danger" type="submit">Delete</button>
