@@ -85,6 +85,11 @@
         </div>
         <div class="doc-card-foot">
           <div class="doc-card-actions">
+            <button class="btn small ghost" type="button"
+              data-preview-id="{{ d.id }}"
+              data-preview-title="{{ d.title }}"
+              data-preview-mime="{{ d.mime_type or '' }}"
+              data-preview-filename="{{ d.original_filename }}">Preview</button>
             <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
             <form method="post" action="/documents/{{ d.id }}/delete" onsubmit="return confirm('Remove this document?');">
               <button class="btn small danger" type="submit">Delete</button>
@@ -99,6 +104,21 @@
     {% endif %}
   </div>
   {% endfor %}
+</div>
+
+<!-- Preview modal -->
+<div id="doc-preview-modal" class="preview-modal" role="dialog" aria-modal="true" aria-label="Document preview" hidden>
+  <div class="preview-modal-backdrop"></div>
+  <div class="preview-modal-panel">
+    <div class="preview-modal-header">
+      <span class="preview-modal-title" id="preview-modal-title"></span>
+      <div class="preview-modal-actions">
+        <a class="btn small ghost" id="preview-download-btn" href="#">Download</a>
+        <button class="btn small ghost" id="preview-close-btn" type="button" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="preview-modal-body" id="preview-modal-body"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
@@ -168,4 +188,75 @@
   <a class="btn ghost" href="/packet">Download packet (.zip)</a>
   <a class="btn ghost" href="/packet/pdf">Manifest (.pdf)</a>
 </div>
+
+<script>
+(function () {
+  var modal   = document.getElementById('doc-preview-modal');
+  var titleEl = document.getElementById('preview-modal-title');
+  var bodyEl  = document.getElementById('preview-modal-body');
+  var dlBtn   = document.getElementById('preview-download-btn');
+  var closeBtn= document.getElementById('preview-close-btn');
+  if (!modal) return;
+
+  function openPreview(id, title, mime, filename) {
+    titleEl.textContent = title || filename;
+    dlBtn.href = '/documents/' + id + '/download';
+    bodyEl.innerHTML = '';
+
+    var viewUrl = '/documents/' + id + '/view';
+
+    if (mime.startsWith('image/')) {
+      var img = document.createElement('img');
+      img.src = viewUrl;
+      img.alt = title;
+      img.className = 'preview-img';
+      bodyEl.appendChild(img);
+    } else if (mime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf')) {
+      var obj = document.createElement('iframe');
+      obj.src = viewUrl;
+      obj.className = 'preview-pdf';
+      obj.title = title;
+      bodyEl.appendChild(obj);
+    } else {
+      bodyEl.innerHTML =
+        '<div class="preview-unsupported">' +
+        '<p class="preview-unsupported-icon">📄</p>' +
+        '<p class="preview-unsupported-name">' + (filename || title) + '</p>' +
+        '<p class="preview-unsupported-note">No in-browser preview available for this file type.</p>' +
+        '<a class="btn primary" href="/documents/' + id + '/download">Download to view</a>' +
+        '</div>';
+    }
+
+    modal.removeAttribute('hidden');
+    document.body.classList.add('preview-open');
+    closeBtn.focus();
+  }
+
+  function closePreview() {
+    modal.setAttribute('hidden', '');
+    document.body.classList.remove('preview-open');
+    bodyEl.innerHTML = '';
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-preview-id]');
+    if (btn) {
+      openPreview(
+        btn.dataset.previewId,
+        btn.dataset.previewTitle,
+        btn.dataset.previewMime,
+        btn.dataset.previewFilename
+      );
+      return;
+    }
+    if (e.target.classList.contains('preview-modal-backdrop')) closePreview();
+  });
+
+  closeBtn.addEventListener('click', closePreview);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.hasAttribute('hidden')) closePreview();
+  });
+})();
+</script>
 {% endblock %}

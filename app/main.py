@@ -437,6 +437,22 @@ def delete_document(doc_id: int, request: Request, db: Session = Depends(get_ses
     return RedirectResponse("/documents", status_code=302)
 
 
+@app.get("/documents/{doc_id}/view")
+def view_document(doc_id: int, request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    doc = db.get(Document, doc_id)
+    if not doc or doc.user_id != user.id:
+        raise HTTPException(404)
+    p = file_path(user.id, doc.stored_filename)
+    if not p.exists():
+        raise HTTPException(404, "File missing.")
+    return Response(
+        content=p.read_bytes(),
+        media_type=doc.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{doc.original_filename}"'},
+    )
+
+
 @app.get("/documents/{doc_id}/download")
 def download_document(doc_id: int, request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
