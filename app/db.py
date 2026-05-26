@@ -37,6 +37,8 @@ class User(Base):
     picture = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     subscription_tier = Column(String, default="free", nullable=False)
+    stripe_customer_id = Column(String, nullable=True, index=True)
+    stripe_subscription_id = Column(String, nullable=True)
 
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     share_links = relationship("ShareLink", back_populates="user", cascade="all, delete-orphan")
@@ -152,6 +154,10 @@ def _ensure_sqlite_columns() -> None:
             with engine.begin() as conn:
                 if "subscription_tier" not in cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN subscription_tier VARCHAR DEFAULT 'free'"))
+                if "stripe_customer_id" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR"))
+                if "stripe_subscription_id" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR"))
 
         if "documents" in tables:
             cols = {c["name"] for c in insp.get_columns("documents")}

@@ -26,6 +26,14 @@ from collections import defaultdict
 
 from .ai_docs import ai_enabled, ai_refine_category_expiry, extract_text_sample
 from .auth import current_user, google_configured, oauth, require_user
+from .stripe_billing import (
+    construct_webhook_event,
+    create_checkout_session,
+    create_portal_session,
+    price_ids,
+    stripe_configured,
+    tier_for_price_id,
+)
 from .categories import CATEGORY_ORDER, CREDENTIAL_CATEGORIES, normalized_effective_category
 from .dashboard import days_until, status_for, summarize, ui_status_label
 from .db import (
@@ -635,7 +643,16 @@ def share_packet_pdf(token: str, db: Session = Depends(get_session)):
 @app.get("/premium", response_class=HTMLResponse)
 def premium_page(request: Request):
     require_user(request)
-    return render(request, "premium.html")
+    ids = price_ids()
+    return render(
+        request,
+        "premium.html",
+        stripe_configured=stripe_configured(),
+        price_premium_monthly=ids["premium_monthly"],
+        price_premium_yearly=ids["premium_yearly"],
+        price_premium_plus_monthly=ids["premium_plus_monthly"],
+        price_premium_plus_yearly=ids["premium_plus_yearly"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -814,6 +831,141 @@ def agency_packet_post(
         result=result,
         selected_template=template_name,
     )
+
+
+# ---------------------------------------------------------------------------
+# Billing (Stripe)
+# ---------------------------------------------------------------------------
+
+@app.post("/billing/checkout")
+async def billing_checkout(
+    request: Request,
+    price_id: str = Form(...),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    if not stripe_configured():
+        request.session["flash"] = "Payments are not configured yet. Please contact support."
+        return RedirectResponse("/premium", status_code=302)
+    ids = price_ids()
+    valid = set(ids.values()) - {""}
+    if price_id not in valid:
+        request.session["flash"] = "Invalid plan selected."
+        return RedirectResponse("/premium", status_code=302)
+    db_user = db.get(User, user.id)
+    base = str(request.base_url).rstrip("/")
+    try:
+        session = create_checkout_session(
+            db_user,
+            price_id,
+            success_url=f"{base}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base}/premium",
+        )
+        if db_user.stripe_customer_id != session.customer:
+            db_user.stripe_customer_id = session.customer
+            db.commit()
+    except Exception as exc:
+        import logging
+        logging.error(f"[Stripe] checkout error: {exc}")
+        request.session["flash"] = "Could not start checkout — please try again."
+        return RedirectResponse("/premium", status_code=302)
+    return RedirectResponse(session.url, status_code=303)
+
+
+@app.get("/billing/success", response_class=HTMLResponse)
+def billing_success(request: Request, session_id: str = ""):
+    require_user(request)
+    request.session["flash"] = "Payment successful — your subscription is now active!"
+    return RedirectResponse("/premium", status_code=302)
+
+
+@app.get("/billing/cancel", response_class=HTMLResponse)
+def billing_cancel(request: Request):
+    require_user(request)
+    request.session["flash"] = "Checkout cancelled — no charge was made."
+    return RedirectResponse("/premium", status_code=302)
+
+
+@app.get("/billing/portal")
+def billing_portal(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    if not stripe_configured():
+        request.session["flash"] = "Billing portal is not configured yet."
+        return RedirectResponse("/premium", status_code=302)
+    db_user = db.get(User, user.id)
+    base = str(request.base_url).rstrip("/")
+    try:
+        portal = create_portal_session(db_user, return_url=f"{base}/premium")
+    except Exception as exc:
+        import logging
+        logging.error(f"[Stripe] portal error: {exc}")
+        request.session["flash"] = "Could not open billing portal — please try again."
+        return RedirectResponse("/premium", status_code=302)
+    if not portal:
+        request.session["flash"] = "No active subscription found."
+        return RedirectResponse("/premium", status_code=302)
+    return RedirectResponse(portal.url, status_code=303)
+
+
+@app.post("/billing/webhook")
+async def billing_webhook(request: Request, db: Session = Depends(get_session)):
+    import logging
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        event = construct_webhook_event(payload, sig)
+    except Exception as exc:
+        logging.warning(f"[Stripe] webhook signature error: {exc}")
+        raise HTTPException(400, "Invalid webhook signature")
+
+    etype = event["type"]
+    logging.info(f"[Stripe] webhook event: {etype}")
+
+    if etype == "checkout.session.completed":
+        obj = event["data"]["object"]
+        customer_id = obj.get("customer")
+        subscription_id = obj.get("subscription")
+        user_id = int((obj.get("metadata") or {}).get("user_id", 0) or 0)
+        db_user = db.get(User, user_id) if user_id else None
+        if not db_user and customer_id:
+            db_user = db.query(User).filter_by(stripe_customer_id=customer_id).first()
+        if db_user and subscription_id:
+            import stripe as _stripe
+            _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+            sub = _stripe.Subscription.retrieve(subscription_id)
+            price_id = sub["items"]["data"][0]["price"]["id"]
+            db_user.stripe_customer_id = customer_id
+            db_user.stripe_subscription_id = subscription_id
+            db_user.subscription_tier = tier_for_price_id(price_id)
+            db.commit()
+            logging.info(f"[Stripe] user {db_user.id} upgraded to {db_user.subscription_tier}")
+
+    elif etype == "customer.subscription.updated":
+        sub = event["data"]["object"]
+        customer_id = sub["customer"]
+        status = sub["status"]
+        price_id = sub["items"]["data"][0]["price"]["id"]
+        db_user = db.query(User).filter_by(stripe_customer_id=customer_id).first()
+        if db_user:
+            if status in ("active", "trialing"):
+                db_user.subscription_tier = tier_for_price_id(price_id)
+            else:
+                db_user.subscription_tier = "free"
+            db_user.stripe_subscription_id = sub["id"]
+            db.commit()
+            logging.info(f"[Stripe] subscription updated → user {db_user.id}: {db_user.subscription_tier}")
+
+    elif etype == "customer.subscription.deleted":
+        sub = event["data"]["object"]
+        customer_id = sub["customer"]
+        db_user = db.query(User).filter_by(stripe_customer_id=customer_id).first()
+        if db_user:
+            db_user.subscription_tier = "free"
+            db_user.stripe_subscription_id = None
+            db.commit()
+            logging.info(f"[Stripe] subscription cancelled → user {db_user.id} downgraded to free")
+
+    return JSONResponse({"received": True})
 
 
 # ---------------------------------------------------------------------------
