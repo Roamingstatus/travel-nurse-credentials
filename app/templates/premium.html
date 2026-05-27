@@ -20,9 +20,9 @@
 <!-- ── Pricing cards ────────────────────────────── -->
 <div class="pricing-cards anim-fade-up d1">
 
-  <!-- Free -->
+  <!-- Basic -->
   <div class="pricing-card">
-    <div class="pricing-card-name">Free</div>
+    <div class="pricing-card-name">Basic</div>
     <div class="pricing-card-tagline">Everything you need to get started</div>
     <div class="pricing-card-price">
       <span class="pricing-amount">$0</span>
@@ -71,7 +71,7 @@
       <span class="pricing-cta pricing-cta--blue" style="opacity:0.5;cursor:not-allowed;">Payments coming soon</span>
     {% endif %}
     <ul class="pricing-feats">
-      <li>Everything in Free</li>
+      <li>Everything in Basic</li>
       <li>Email expiration reminders</li>
       <li>Calendar sync (.ics feed)</li>
       <li>AI-powered document parsing</li>
@@ -144,7 +144,7 @@ function setBilling(mode) {
 <!-- ── Current tier notice ───────────────────────── -->
 {% if not is_premium and not is_premium_plus %}
 <div class="notice" style="margin-bottom:32px;text-align:center;">
-  You're on the <strong>Free</strong> plan. Features below are locked — upgrade to unlock them.
+  You're on the <strong>Basic</strong> plan. Features below are locked — upgrade to unlock them.
 </div>
 {% endif %}
 
@@ -156,7 +156,7 @@ function setBilling(mode) {
       <thead>
         <tr>
           <th>Feature</th>
-          <th>Free</th>
+          <th>Basic</th>
           <th class="col-feat">Premium</th>
           <th>Premium+</th>
         </tr>

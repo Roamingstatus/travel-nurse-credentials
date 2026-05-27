@@ -2624,3 +2624,13 @@ body.dpm-open { overflow: hidden; }
   .app-main { margin-left: 0; }
   .app-content { padding: 16px 16px 88px; }
 }
+
+/* ── Credential page: constrained centered column ── */
+.content-page-head,
+.vault-search,
+.vault-tab-shell,
+.vault-empty-banner {
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}

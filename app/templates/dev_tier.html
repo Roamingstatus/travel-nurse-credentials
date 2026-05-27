@@ -16,7 +16,7 @@
       <form method="post" action="/dev/set-tier" style="display:flex;flex-direction:column;gap:12px;">
         <label class="form-label">Set tier for {{ user.email }}</label>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          {% for t, label in [('free','Free (default)'), ('premium','Premium'), ('premium_plus','Premium+')] %}
+          {% for t, label in [('free','Basic (default)'), ('premium','Premium'), ('premium_plus','Premium+')] %}
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);">
             <input type="radio" name="tier" value="{{ t }}" {% if subscription_tier == t %}checked{% endif %} />
             <span>{{ label }}</span>

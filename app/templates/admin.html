@@ -31,7 +31,7 @@
     </div>
     <div class="admin-card admin-card--free">
       <div class="admin-card-value">{{ user_stats.free }}</div>
-      <div class="admin-card-label">Free tier</div>
+      <div class="admin-card-label">Basic tier</div>
     </div>
     <div class="admin-card admin-card--premium">
       <div class="admin-card-value">{{ user_stats.premium }}</div>
@@ -158,7 +158,7 @@
             {% elif ev.user_tier == "premium" %}
               <span class="tier-badge tier-premium">Premium</span>
             {% elif ev.user_tier %}
-              <span class="admin-tier-free">Free</span>
+              <span class="admin-tier-free">Basic</span>
             {% else %}
               —
             {% endif %}
