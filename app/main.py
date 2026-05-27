@@ -125,9 +125,20 @@ def _days_from_now(value) -> int:
     return (value.date() - datetime.utcnow().date()).days
 
 
+def _end_of_month(value) -> str:
+    """Return the last day of the month for a given date, formatted like 'May 31, 2026'."""
+    if not value or not isinstance(value, datetime):
+        return "—"
+    import calendar
+    last_day = calendar.monthrange(value.year, value.month)[1]
+    eom = value.replace(day=last_day)
+    return eom.strftime("%b %d, %Y")
+
+
 templates.env.filters["dt"] = _format_dt
 templates.env.filters["filesize"] = _format_size
 templates.env.filters["days_from_now"] = _days_from_now
+templates.env.filters["end_of_month"] = _end_of_month
 
 
 def render(request: Request, template: str, **ctx) -> HTMLResponse:

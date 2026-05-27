@@ -78,7 +78,7 @@
     <li class="dash-row row-warn">
       <div>
         <span class="dash-row-title">{{ d.title }}</span>
-        <span class="dash-row-meta">{{ d.category }} · expires {{ d.expires_at|dt }}</span>
+        <span class="dash-row-meta">{{ d.category }} · renew by {{ d.expires_at|end_of_month }}</span>
       </div>
       <span class="pill warn">Expiring soon</span>
       <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
