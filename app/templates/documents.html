@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Credentials · Credanta{% endblock %}
 {% block content %}
-<div class="page-head-min">
-  <h1>Credentials</h1>
-  <a class="btn primary" href="/documents/upload">Upload</a>
+<div class="content-page-head">
+  <div class="content-page-title">
+    <h1>All Documents</h1>
+    <p class="content-page-sub">{{ docs|length }} total item{{ 's' if docs|length != 1 else '' }}</p>
+  </div>
+  <a class="btn primary content-upload-btn" href="/documents/upload">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
+    Upload
+  </a>
 </div>
 
 <form class="vault-search" method="get" action="/documents" role="search">

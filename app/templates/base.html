@@ -9,35 +9,75 @@
 <link rel="stylesheet" href="/static/style.v5.css" />
 </head>
 <body>
+
+{# ─── open wrapper ─────────────────────────────────── #}
+{% if user and not public_view %}
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <a href="/" class="sidebar-brand-link">
+        <img class="sidebar-logo-img" src="/static/credanta-wordmark-nobg.png" alt="Credanta" />
+      </a>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="/dashboard" class="sidebar-link {% if request.url.path == '/dashboard' %}active{% endif %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Dashboard
+      </a>
+      <a href="/documents" class="sidebar-link {% if request.url.path.startswith('/documents') %}active{% endif %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Credentials
+      </a>
+      <a href="/share" class="sidebar-link {% if request.url.path.startswith('/share') %}active{% endif %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Shared Links
+      </a>
+      <a href="/premium" class="sidebar-link {% if request.url.path == '/premium' %}active{% endif %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Premium
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="sidebar-user" title="{{ user.email }}">{{ user.email }}</span>
+      <div class="sidebar-foot-actions">
+        <button type="button" class="btn small ghost sidebar-theme-btn" data-theme-toggle title="Toggle theme">◐</button>
+        <form method="post" action="/logout" style="margin:0;">
+          <button type="submit" class="btn small ghost">Sign out</button>
+        </form>
+      </div>
+    </div>
+  </aside>
+  <div class="app-main">
+    <main class="app-content">
+      {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+{% else %}
 {% if not public_view %}
 <header class="topbar">
   <div class="container topbar-inner">
     <a href="/" class="brand">
       <img class="brand-logo" src="/static/credanta-wordmark-nobg.png" alt="Credanta" />
     </a>
-    {% if user %}
-    <nav class="nav">
-      <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}">Dashboard</a>
-      <a href="/documents" class="{% if request.url.path.startswith('/documents') %}active{% endif %}">Credentials</a>
-      <a href="/premium" class="{% if request.url.path == '/premium' %}active{% endif %}">Premium</a>
-      <span class="who">{{ user.email }}</span>
-      <button type="button" class="btn small ghost theme-hit" data-theme-toggle title="Theme">◐</button>
-      <form method="post" action="/logout" class="logout-form">
-        <button type="submit" class="btn small ghost">Sign out</button>
-      </form>
-    </nav>
-    {% else %}
     <button type="button" class="btn small ghost theme-hit" data-theme-toggle title="Theme">◐</button>
-    {% endif %}
   </div>
 </header>
 {% endif %}
-
 <main class="container main-pad">
   {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
-  {% block content %}{% endblock %}
-</main>
+{% endif %}
 
+{# ─── page content ─────────────────────────────────── #}
+{% block content %}{% endblock %}
+
+{# ─── close wrapper ────────────────────────────────── #}
+{% if user and not public_view %}
+    </main>
+  </div>
+</div>
+{% else %}
+</main>
+{% endif %}
+
+{# ─── mobile bottom nav ────────────────────────────── #}
 {% if user and not public_view %}
 <nav class="bottom-nav" aria-label="Main navigation">
   <a href="/dashboard" class="bottom-nav-item {% if request.url.path == '/dashboard' %}active{% endif %}">
