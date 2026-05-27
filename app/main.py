@@ -606,7 +606,9 @@ def calendar_expiring_ics(request: Request, db: Session = Depends(get_session)):
 @app.get("/share", response_class=HTMLResponse)
 def share_index(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_premium_plus(user)
+    if not has_premium_plus(user):
+        request.session["flash"] = "Shared Links is a Premium Plus feature — upgrade to create recruiter-ready share links."
+        return RedirectResponse("/premium", status_code=302)
     links = (
         db.query(ShareLink)
         .filter_by(user_id=user.id)
