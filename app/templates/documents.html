@@ -90,9 +90,7 @@
         <div class="doc-card-body">
           <p class="doc-card-name">{{ d.title }}</p>
           <p class="doc-card-sub">
-            {%- if us == 'expired' -%}Renew by {{ d.expires_at|end_of_month }}
-            {%- elif us == 'expiring_soon' -%}Renew by {{ d.expires_at|end_of_month }}
-            {%- elif d.expires_at -%}Renew by {{ d.expires_at|end_of_month }}
+            {%- if d.expires_at -%}Renew by {{ d.expires_at|dt }}
             {%- else -%}{{ cat_label }} · Uploaded {{ d.created_at|dt }}{%- endif -%}
           </p>
           {% if d.expiration_source == 'custom_rule' and d.expiration_rule_applied %}

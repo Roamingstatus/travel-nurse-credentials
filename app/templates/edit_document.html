@@ -28,7 +28,7 @@
             value="{{ doc.issued_at.strftime('%Y-%m-%d') if doc.issued_at else '' }}" />
         </div>
         <div class="field">
-          <label for="expires_at">Expires
+          <label for="expires_at">Renew by
             {% if not doc.expires_at %}
               <span class="pill warn" style="font-size:11px;margin-left:6px;">Not set</span>
             {% endif %}
