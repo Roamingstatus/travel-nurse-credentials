@@ -119,8 +119,15 @@ def _format_size(value):
     return f"{n:.1f} TB"
 
 
+def _days_from_now(value) -> int:
+    if not value or not isinstance(value, datetime):
+        return 0
+    return (value.date() - datetime.utcnow().date()).days
+
+
 templates.env.filters["dt"] = _format_dt
 templates.env.filters["filesize"] = _format_size
+templates.env.filters["days_from_now"] = _days_from_now
 
 
 def render(request: Request, template: str, **ctx) -> HTMLResponse:

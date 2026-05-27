@@ -55,6 +55,8 @@
       {% for d in rows %}
       {% set cat_label = d.category if cat == 'Other' else cat %}
       {% set us = ui_status_label(d) %}
+      {% set mime = d.mime_type or '' %}
+      {% set fname_l = d.original_filename.lower() %}
       <article class="doc-card {% if us == 'expired' %}doc-card--bad{% elif us == 'expiring_soon' %}doc-card--warn{% elif not d.expires_at %}doc-card--none{% else %}doc-card--good{% endif %}"
         data-doc-id="{{ d.id }}"
         data-preview-id="{{ d.id }}"
@@ -64,50 +66,44 @@
         data-preview-category="{{ d.category | e }}">
         <div class="drag-handle" title="Drag to reorder">⠿</div>
 
-        {# 64×64 icon / thumbnail — click opens full preview modal #}
-        {% set mime = d.mime_type or '' %}
-        <div class="doc-thumb-wrap doc-thumb-clickable" role="button" tabindex="0" title="Click to preview" data-open-preview>
-          {% if mime.startswith('image/') %}
-            <img class="doc-thumb-img" src="/documents/{{ d.id }}/thumb" alt="{{ d.title }}" loading="lazy" />
-          {% elif 'pdf' in mime %}
-            <div class="doc-thumb-icon doc-thumb-pdf">PDF</div>
-          {% elif 'word' in mime or 'document' in mime or d.original_filename.endswith('.doc') or d.original_filename.endswith('.docx') %}
-            <div class="doc-thumb-icon doc-thumb-doc">DOC</div>
-          {% elif 'sheet' in mime or 'excel' in mime or d.original_filename.endswith('.xlsx') or d.original_filename.endswith('.xls') %}
-            <div class="doc-thumb-icon doc-thumb-xls">XLS</div>
+        {# Colored 40×40 type/status icon — click opens full preview modal #}
+        <div class="doc-icon {% if us == 'expired' %}doc-icon--red{% elif us == 'expiring_soon' %}doc-icon--orange{% elif 'pdf' in mime or fname_l.endswith('.pdf') %}doc-icon--red{% elif 'word' in mime or 'document' in mime or fname_l.endswith('.doc') or fname_l.endswith('.docx') %}doc-icon--blue{% elif mime.startswith('image/') %}doc-icon--green{% elif 'sheet' in mime or 'excel' in mime or fname_l.endswith('.xlsx') or fname_l.endswith('.xls') %}doc-icon--green{% elif 'Certif' in cat_label or 'License' in cat_label %}doc-icon--purple{% elif 'Health' in cat_label or 'Compliance' in cat_label %}doc-icon--teal{% else %}doc-icon--blue{% endif %}"
+          role="button" tabindex="0" title="Click to preview" data-open-preview>
+          {% if us in ('expired', 'expiring_soon') %}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          {% elif mime.startswith('image/') %}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          {% elif 'sheet' in mime or 'excel' in mime or fname_l.endswith('.xlsx') or fname_l.endswith('.xls') %}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
           {% else %}
-            <div class="doc-thumb-icon doc-thumb-file">FILE</div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           {% endif %}
-          <div class="doc-thumb-overlay"><span>View</span></div>
         </div>
 
-        {# Details column #}
-        <div class="doc-card-main">
-          <div class="doc-card-top">
-            <h3 class="doc-card-name">{{ d.title }}</h3>
-            {% if us == 'expired' %}<span class="pill bad" aria-label="Status: Expired">Expired</span>
-            {% elif us == 'expiring_soon' %}<span class="pill warn" aria-label="Status: Expiring soon">Expiring soon</span>
-            {% elif not d.expires_at %}<span class="pill neutral" aria-label="Status: No date">No date</span>
-            {% else %}<span class="pill good" aria-label="Status: Valid">Valid</span>{% endif %}
-          </div>
-
-          <p class="doc-card-cat">{{ cat_label }}</p>
-
-          <div class="doc-card-dates">
-            <span>Uploaded {{ d.created_at|dt }}</span>
-            {% if d.expires_at %}
-              <span class="doc-card-dates-sep">·</span>
-              <span>Expires {{ d.expires_at|dt }}</span>
-            {% endif %}
-          </div>
-
+        {# Name + contextual subtitle #}
+        <div class="doc-card-body">
+          <p class="doc-card-name">{{ d.title }}</p>
+          <p class="doc-card-sub">
+            {%- if us == 'expired' -%}Expired {{ d.expires_at|dt }}
+            {%- elif us == 'expiring_soon' -%}
+              {%- set days = d.expires_at|days_from_now -%}
+              {%- if days <= 0 %}Expires today
+              {%- elif days == 1 %}Expires tomorrow
+              {%- else %}Expires in {{ days }} days{%- endif -%}
+            {%- elif d.expires_at -%}Valid until {{ d.expires_at|dt }}
+            {%- else -%}{{ cat_label }} · Uploaded {{ d.created_at|dt }}{%- endif -%}
+          </p>
           {% if d.expiration_source == 'custom_rule' and d.expiration_rule_applied %}
-          <div><span class="doc-card-rule-badge">⚙ {{ d.expiration_rule_applied }}</span></div>
+          <span class="doc-card-rule-badge">⚙ {{ d.expiration_rule_applied }}</span>
           {% endif %}
+        </div>
 
-          {% if not d.expires_at %}
-          <p class="doc-card-no-expiry-inline">⚠ No expiry date — <a href="/documents/{{ d.id }}/edit">add one</a></p>
-          {% endif %}
+        {# Right: status badge + hover-reveal actions #}
+        <div class="doc-card-end">
+          {% if us == 'expired' %}<span class="pill bad" aria-label="Status: Expired">Expired</span>
+          {% elif us == 'expiring_soon' %}<span class="pill warn" aria-label="Status: Expiring soon">Expiring Soon</span>
+          {% elif not d.expires_at %}<span class="pill neutral" aria-label="Status: No date">No Date</span>
+          {% else %}<span class="pill good" aria-label="Status: Valid">Valid</span>{% endif %}
 
           <div class="doc-card-actions">
             <a class="btn small ghost btn-icon" href="/documents/{{ d.id }}/edit" title="Edit">
