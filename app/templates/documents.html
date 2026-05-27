@@ -55,7 +55,7 @@
       {% for d in rows %}
       {% set cat_label = d.category if cat == 'Other' else cat %}
       {% set us = ui_status_label(d) %}
-      <article class="doc-card {% if us == 'expired' %}doc-card--bad{% elif us == 'expiring_soon' %}doc-card--warn{% else %}doc-card--good{% endif %}"
+      <article class="doc-card {% if us == 'expired' %}doc-card--bad{% elif us == 'expiring_soon' %}doc-card--warn{% elif not d.expires_at %}doc-card--none{% else %}doc-card--good{% endif %}"
         data-doc-id="{{ d.id }}"
         data-preview-id="{{ d.id }}"
         data-preview-title="{{ d.title | e }}"
@@ -63,6 +63,8 @@
         data-preview-filename="{{ d.original_filename | e }}"
         data-preview-category="{{ d.category | e }}">
         <div class="drag-handle" title="Drag to reorder">⠿</div>
+
+        {# 64×64 icon / thumbnail — click opens full preview modal #}
         {% set mime = d.mime_type or '' %}
         <div class="doc-thumb-wrap doc-thumb-clickable" role="button" tabindex="0" title="Click to preview" data-open-preview>
           {% if mime.startswith('image/') %}
@@ -78,30 +80,35 @@
           {% endif %}
           <div class="doc-thumb-overlay"><span>View</span></div>
         </div>
+
+        {# Details column #}
         <div class="doc-card-main">
-          <h3 class="doc-card-name">{{ d.title }}</h3>
-          <dl class="doc-card-meta">
-            <div><dt>Category</dt><dd>{{ cat_label }}</dd></div>
-            <div><dt>Upload date</dt><dd>{{ d.created_at|dt }}</dd></div>
-            <div><dt>Expiration date</dt><dd>{{ d.expires_at|dt }}</dd></div>
-            {% if d.expiration_source == 'custom_rule' and d.expiration_rule_applied %}
-            <div class="doc-card-rule-row"><dt>Expiration rule</dt><dd><span class="doc-card-rule-badge">⚙ {{ d.expiration_rule_applied }}</span></dd></div>
+          <div class="doc-card-top">
+            <h3 class="doc-card-name">{{ d.title }}</h3>
+            {% if us == 'expired' %}<span class="pill bad" aria-label="Status: Expired">Expired</span>
+            {% elif us == 'expiring_soon' %}<span class="pill warn" aria-label="Status: Expiring soon">Expiring soon</span>
+            {% elif not d.expires_at %}<span class="pill neutral" aria-label="Status: No date">No date</span>
+            {% else %}<span class="pill good" aria-label="Status: Valid">Valid</span>{% endif %}
+          </div>
+
+          <p class="doc-card-cat">{{ cat_label }}</p>
+
+          <div class="doc-card-dates">
+            <span>Uploaded {{ d.created_at|dt }}</span>
+            {% if d.expires_at %}
+              <span class="doc-card-dates-sep">·</span>
+              <span>Expires {{ d.expires_at|dt }}</span>
             {% endif %}
-            <div><dt>Status</dt><dd>
-              {% set us = ui_status_label(d) %}
-              {% if us == 'expired' %}<span class="pill bad">Expired</span>
-              {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring soon</span>
-              {% else %}<span class="pill good">Valid</span>{% endif %}
-            </dd></div>
-          </dl>
-        </div>
-        {% if not d.expires_at %}
-        <div class="doc-card-no-expiry">
-          <span>⚠ No expiration date —</span>
-          <a href="/documents/{{ d.id }}/edit">add one</a>
-        </div>
-        {% endif %}
-        <div class="doc-card-foot">
+          </div>
+
+          {% if d.expiration_source == 'custom_rule' and d.expiration_rule_applied %}
+          <div><span class="doc-card-rule-badge">⚙ {{ d.expiration_rule_applied }}</span></div>
+          {% endif %}
+
+          {% if not d.expires_at %}
+          <p class="doc-card-no-expiry-inline">⚠ No expiry date — <a href="/documents/{{ d.id }}/edit">add one</a></p>
+          {% endif %}
+
           <div class="doc-card-actions">
             <a class="btn small ghost" href="/documents/{{ d.id }}/edit">Edit</a>
             <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
