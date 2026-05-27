@@ -80,6 +80,20 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLResponse:
+    detail = str(exc.detail or "")
+    is_premium_gate = exc.status_code == 403 and "upgrade" in detail.lower()
+    ctx = {
+        "status_code": exc.status_code,
+        "message": detail,
+        "is_premium_gate": is_premium_gate,
+    }
+    resp = render(request, "error.html", **ctx)
+    resp.status_code = exc.status_code
+    return resp
+
+
 @app.on_event("startup")
 def _startup() -> None:
     init_db()
@@ -524,7 +538,9 @@ def download_document(doc_id: int, request: Request, db: Session = Depends(get_s
 @app.get("/packet")
 def packet(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_premium(user)
+    if not has_premium(user):
+        request.session["flash"] = "Packet download is a Premium feature — upgrade to unlock it."
+        return RedirectResponse("/premium", status_code=302)
     docs = db.query(Document).filter_by(user_id=user.id).all()
     if not docs:
         request.session["flash"] = "Upload at least one document before building a packet."
@@ -542,7 +558,9 @@ def packet(request: Request, db: Session = Depends(get_session)):
 @app.get("/packet/pdf")
 def packet_pdf(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_premium(user)
+    if not has_premium(user):
+        request.session["flash"] = "Manifest PDF is a Premium feature — upgrade to unlock it."
+        return RedirectResponse("/premium", status_code=302)
     docs = db.query(Document).filter_by(user_id=user.id).order_by(Document.category.asc(), Document.title.asc()).all()
     if not docs:
         request.session["flash"] = "Upload at least one document before building a packet."
