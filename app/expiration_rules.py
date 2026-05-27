@@ -2,6 +2,25 @@
 
 To add new rules, append an entry to CUSTOM_EXPIRATION_RULES.  Each rule is
 evaluated in order; the first keyword match wins.
+
+Rule format
+-----------
+Each entry is a dict with these keys:
+
+  name               str       Human label prefix shown in the UI badge
+  keywords           [str]     Any keyword match (case-insensitive) triggers
+                               the rule against filename + title + text
+  duration           dict      Flat duration applied for all states:
+                                 {"years": 1} | {"months": 6} | {"days": 90}
+  duration_by_state  dict      State-conditional durations; "__default__" is
+                               required as the fallback:
+                                 {"CA": {"years": 1}, "__default__": {"years": 2}}
+                               Only one of duration / duration_by_state is needed.
+  base_date_priority [str]     Ordered list of date sources to try; first
+                               non-None value wins:
+                                 "issue_date" | "completion_date" |
+                                 "certificate_date" | "detected_date" |
+                                 "upload_date"
 """
 from __future__ import annotations
 
@@ -10,20 +29,26 @@ from typing import Optional
 
 
 # ---------------------------------------------------------------------------
-# Rule definitions — extend here for TB, Fit Test, etc.
+# Rule table — add entries here to extend the engine
 # ---------------------------------------------------------------------------
 
 CUSTOM_EXPIRATION_RULES: list[dict] = [
+    # NIH — state-specific validity periods
+    # California: 1 year from issue date
+    # All other US states: 2 years from issue date
     {
-        "name": "NIH Stroke Scale",
+        "name": "NIH",
         "keywords": [
+            "nih",
+            "national institutes of health",
             "nih stroke scale",
             "nihss",
-            "national institutes of health stroke scale",
             "nih stroke",
         ],
-        "duration": {"years": 1},
-        # Tried in order; first non-None value wins.
+        "duration_by_state": {
+            "CA": {"years": 1},
+            "__default__": {"years": 2},
+        },
         "base_date_priority": [
             "issue_date",
             "completion_date",
@@ -32,7 +57,7 @@ CUSTOM_EXPIRATION_RULES: list[dict] = [
             "upload_date",
         ],
     },
-    # ── Future rules ────────────────────────────────────────────────────────
+    # ── Future rules — uncomment and fill in to activate ───────────────────
     # {
     #     "name": "TB Test",
     #     "keywords": ["tb test", "tuberculosis", "ppd", "mantoux"],
@@ -43,6 +68,12 @@ CUSTOM_EXPIRATION_RULES: list[dict] = [
     #     "name": "Fit Test",
     #     "keywords": ["fit test", "respirator fit", "n95 fit"],
     #     "duration": {"years": 1},
+    #     "base_date_priority": ["issue_date", "upload_date"],
+    # },
+    # {
+    #     "name": "BLS Certification",
+    #     "keywords": ["bls", "basic life support"],
+    #     "duration": {"years": 2},
     #     "base_date_priority": ["issue_date", "upload_date"],
     # },
 ]
@@ -60,7 +91,7 @@ def _add_duration(base: datetime, duration: dict) -> datetime:
     if years:
         try:
             result = result.replace(year=result.year + years)
-        except ValueError:                          # e.g. Feb 29 on non-leap year
+        except ValueError:
             result = result.replace(year=result.year + years, day=28)
 
     months = duration.get("months", 0)
@@ -91,6 +122,22 @@ def _duration_label(duration: dict) -> str:
     return "+".join(parts) or "?"
 
 
+def _resolve_duration(rule: dict, state: Optional[str]) -> Optional[dict]:
+    """Pick the correct duration dict for this rule and state.
+
+    Priority:
+      1. If ``duration_by_state`` is present, look up the state (uppercase).
+         Falls back to ``__default__`` when the state is not listed.
+      2. If plain ``duration`` is present, use it regardless of state.
+    Returns *None* when no duration can be resolved (rule is skipped).
+    """
+    if "duration_by_state" in rule:
+        by_state = rule["duration_by_state"]
+        key = (state or "").strip().upper()
+        return by_state.get(key) or by_state.get("__default__")
+    return rule.get("duration")
+
+
 def _matches_rule(rule: dict, filename: str, title: str, text: Optional[str]) -> bool:
     blob = " ".join([filename, title, text or ""]).lower()
     return any(kw in blob for kw in rule["keywords"])
@@ -105,7 +152,8 @@ def _resolve_base_date(
 
     ``issue_date``, ``completion_date``, ``certificate_date``, and
     ``detected_date`` all resolve from the document's ``issued_at`` field —
-    which is the best date we extracted from the document itself.
+    the best date extracted from the document itself.
+    ``upload_date`` is the fallback.
     """
     date_map: dict[str, Optional[datetime]] = {
         "issue_date":       issue_date,
@@ -132,6 +180,7 @@ def apply_custom_expiration_rules(
     issue_date: Optional[datetime],
     upload_date: Optional[datetime],
     existing_expires: Optional[datetime],
+    state: Optional[str] = None,
 ) -> tuple[Optional[datetime], Optional[str], Optional[str]]:
     """Apply custom expiration rules when no expiration date is already set.
 
@@ -143,6 +192,8 @@ def apply_custom_expiration_rules(
     issue_date      : detected or user-supplied issue/completion date
     upload_date     : datetime the document was uploaded (fallback base date)
     existing_expires: already-detected expiration date (rule skipped if set)
+    state           : two-letter US state abbreviation (e.g. "CA"), used for
+                      state-conditional duration rules
 
     Returns
     -------
@@ -150,7 +201,7 @@ def apply_custom_expiration_rules(
 
     When a rule fires:
       - ``expires_at``              — computed expiration datetime
-      - ``expiration_rule_applied`` — human label, e.g. "NIH Stroke Scale — 1yr"
+      - ``expiration_rule_applied`` — human label, e.g. "NIH — 2yr"
       - ``expiration_source``       — ``"custom_rule"``
 
     When nothing fires (or ``existing_expires`` is already set):
@@ -159,19 +210,21 @@ def apply_custom_expiration_rules(
     if existing_expires is not None:
         return existing_expires, None, None
 
-    fn  = (filename or "").lower()
-    ttl = (title    or "").lower()
-
     for rule in CUSTOM_EXPIRATION_RULES:
-        if not _matches_rule(rule, fn, ttl, text):
+        if not _matches_rule(rule, filename or "", title or "", text):
             continue
 
-        base, base_key = _resolve_base_date(rule, issue_date, upload_date)
+        duration = _resolve_duration(rule, state)
+        if not duration:
+            continue
+
+        base, _ = _resolve_base_date(rule, issue_date, upload_date)
         if base is None:
             continue
 
-        expires = _add_duration(base, rule["duration"])
-        label   = f"{rule['name']} — {_duration_label(rule['duration'])}"
+        expires = _add_duration(base, duration)
+        state_tag = f" ({state.upper()})" if state else ""
+        label = f"{rule['name']} — {_duration_label(duration)}{state_tag}"
         return expires, label, "custom_rule"
 
     return existing_expires, None, None

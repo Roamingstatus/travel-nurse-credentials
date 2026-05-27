@@ -54,6 +54,17 @@
       </div>
 
       <div class="field">
+        <label for="issuing_state">Issuing state <span class="optional">optional</span></label>
+        <select id="issuing_state" name="issuing_state">
+          <option value="">— not specified —</option>
+          {% for abbr, sname in us_states %}
+          <option value="{{ abbr }}">{{ sname }}</option>
+          {% endfor %}
+        </select>
+        <p class="field-hint">Used to apply state-specific validity rules (e.g. NIH expiration).</p>
+      </div>
+
+      <div class="field">
         <label for="notes">Notes <span class="optional">optional</span></label>
         <textarea id="notes" name="notes" rows="3" placeholder="Reference numbers, issuer, or context."></textarea>
       </div>

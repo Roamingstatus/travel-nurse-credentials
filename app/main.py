@@ -34,7 +34,7 @@ from .stripe_billing import (
     stripe_configured,
     tier_for_price_id,
 )
-from .categories import CATEGORY_ORDER, CREDENTIAL_CATEGORIES, normalized_effective_category
+from .categories import CATEGORY_ORDER, CREDENTIAL_CATEGORIES, US_STATES, normalized_effective_category
 from .dashboard import days_until, status_for, summarize, ui_status_label
 from .db import (
     ChecklistResult,
@@ -333,6 +333,7 @@ def upload_form(request: Request, category: Optional[str] = None):
         request,
         "upload.html",
         categories=CREDENTIAL_CATEGORIES,
+        us_states=US_STATES,
         preset_category=category or "",
         advanced_ai_available=user_has_premium(user) and ai_enabled(),
     )
@@ -356,6 +357,7 @@ async def upload_submit(
     issued_at: str = Form(""),
     expires_at: str = Form(""),
     notes: str = Form(""),
+    issuing_state: str = Form(""),
     file: UploadFile = File(...),
     db: Session = Depends(get_session),
 ):
@@ -404,6 +406,7 @@ async def upload_submit(
 
     # Apply custom expiration rules (e.g. NIHSS → 1 year) when no expiry is set yet.
     doc_text = extract_document_text(raw, file.content_type, fname)
+    state_clean = issuing_state.strip().upper() or None
     exp, rule_applied, rule_source = apply_custom_expiration_rules(
         filename=fname,
         title=title_clean,
@@ -411,6 +414,7 @@ async def upload_submit(
         issue_date=_parse_date(issued_at),
         upload_date=datetime.utcnow(),
         existing_expires=exp,
+        state=state_clean,
     )
 
     suffix = Path(fname).suffix
@@ -430,6 +434,7 @@ async def upload_submit(
         content_hash=content_hash,
         expiration_rule_applied=rule_applied,
         expiration_source=rule_source,
+        issuing_state=state_clean,
     )
     db.add(doc)
     db.commit()
@@ -476,7 +481,7 @@ def edit_document_form(doc_id: int, request: Request, db: Session = Depends(get_
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         raise HTTPException(404)
-    return render(request, "edit_document.html", doc=doc, categories=CREDENTIAL_CATEGORIES)
+    return render(request, "edit_document.html", doc=doc, categories=CREDENTIAL_CATEGORIES, us_states=US_STATES)
 
 
 @app.post("/documents/{doc_id}/edit")
@@ -488,6 +493,7 @@ def edit_document_submit(
     issued_at: str = Form(""),
     expires_at: str = Form(""),
     notes: str = Form(""),
+    issuing_state: str = Form(""),
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
@@ -499,6 +505,7 @@ def edit_document_submit(
     doc.notes = notes.strip() or None
     doc.issued_at = _parse_date(issued_at)
     doc.expires_at = _parse_date(expires_at)
+    doc.issuing_state = issuing_state.strip().upper() or None
     db.commit()
     request.session["flash"] = "Document updated."
     return RedirectResponse("/documents", status_code=302)

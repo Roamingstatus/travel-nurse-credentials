@@ -65,6 +65,7 @@ class Document(Base):
     sort_order = Column(Integer, nullable=True, default=0)
     expiration_rule_applied = Column(String, nullable=True)
     expiration_source = Column(String, nullable=True)
+    issuing_state = Column(String(2), nullable=True)
 
     user = relationship("User", back_populates="documents")
 
@@ -200,6 +201,8 @@ def _ensure_sqlite_columns() -> None:
                     conn.execute(text("ALTER TABLE documents ADD COLUMN expiration_rule_applied VARCHAR"))
                 if "expiration_source" not in cols:
                     conn.execute(text("ALTER TABLE documents ADD COLUMN expiration_source VARCHAR"))
+                if "issuing_state" not in cols:
+                    conn.execute(text("ALTER TABLE documents ADD COLUMN issuing_state VARCHAR(2)"))
 
         if "share_links" in tables:
             cols = {c["name"] for c in insp.get_columns("share_links")}
