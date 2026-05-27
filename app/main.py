@@ -59,7 +59,8 @@ from .premium import (
     user_has_premium,
 )
 from .reminders import build_expiring_ics
-from .smart_categorize import extract_document_metadata, infer_category, infer_expiry_from_text
+from .expiration_rules import apply_custom_expiration_rules
+from .smart_categorize import extract_document_metadata, extract_document_text, infer_category, infer_expiry_from_text
 from .storage import delete_file, file_path, save_upload
 
 AUTO_CATEGORY = "__auto__"
@@ -369,6 +370,17 @@ async def upload_submit(
         if ai_exp:
             exp = ai_exp
 
+    # Apply custom expiration rules (e.g. NIHSS → 1 year) when no expiry is set yet.
+    doc_text = extract_document_text(raw, file.content_type, fname)
+    exp, rule_applied, rule_source = apply_custom_expiration_rules(
+        filename=fname,
+        title=title_clean,
+        text=doc_text,
+        issue_date=_parse_date(issued_at),
+        upload_date=datetime.utcnow(),
+        existing_expires=exp,
+    )
+
     suffix = Path(fname).suffix
     stored, size = save_upload(user.id, raw, suffix)
     doc = Document(
@@ -384,6 +396,8 @@ async def upload_submit(
         mime_type=file.content_type or "application/octet-stream",
         size_bytes=size,
         content_hash=content_hash,
+        expiration_rule_applied=rule_applied,
+        expiration_source=rule_source,
     )
     db.add(doc)
     db.commit()

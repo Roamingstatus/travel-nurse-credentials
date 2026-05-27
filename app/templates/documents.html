@@ -84,6 +84,9 @@
             <div><dt>Category</dt><dd>{{ cat_label }}</dd></div>
             <div><dt>Upload date</dt><dd>{{ d.created_at|dt }}</dd></div>
             <div><dt>Expiration date</dt><dd>{{ d.expires_at|dt }}</dd></div>
+            {% if d.expiration_source == 'custom_rule' and d.expiration_rule_applied %}
+            <div class="doc-card-rule-row"><dt>Expiration rule</dt><dd><span class="doc-card-rule-badge">⚙ {{ d.expiration_rule_applied }}</span></dd></div>
+            {% endif %}
             <div><dt>Status</dt><dd>
               {% set us = ui_status_label(d) %}
               {% if us == 'expired' %}<span class="pill bad">Expired</span>

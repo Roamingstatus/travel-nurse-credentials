@@ -1957,6 +1957,20 @@ textarea:focus {
   text-decoration: underline;
 }
 
+.doc-card-rule-row dt { color: var(--muted); font-size: 11px; }
+.doc-card-rule-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  padding: 1px 7px;
+}
+
 /* ── Edit document form ─────────────────────────── */
 .edit-file-info {
   display: flex;

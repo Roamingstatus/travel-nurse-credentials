@@ -351,6 +351,16 @@ def _clean_filename_as_title(filename: str) -> str:
 
 # --- Main entry point ---
 
+def extract_document_text(raw: bytes, mime_type: str, filename: str, limit: int = 3000) -> str:
+    """Public helper: return extracted plain text (up to *limit* chars).
+
+    Used by the expiration rules engine so it can match against document
+    content without re-running the full metadata pipeline.
+    """
+    text = _extract_text(raw, mime_type, filename)
+    return (text or "")[:limit]
+
+
 def extract_document_metadata(raw: bytes, mime_type: str, filename: str) -> dict:
     """
     Extract title, category, issued_at, expires_at from document content.
