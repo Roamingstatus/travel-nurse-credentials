@@ -62,6 +62,15 @@ from .reminders import build_expiring_ics
 from .expiration_rules import apply_custom_expiration_rules
 from .smart_categorize import extract_document_metadata, extract_document_text, infer_category, infer_expiry_from_text
 from .storage import delete_file, file_path, save_upload
+from .security import (
+    SecurityHeadersMiddleware,
+    INLINE_SAFE_MIMES,
+    validate_env,
+    validate_upload,
+    upload_limiter,
+    auth_limiter,
+    share_limiter,
+)
 
 AUTO_CATEGORY = "__auto__"
 
@@ -69,11 +78,13 @@ BASE_DIR = Path(__file__).parent
 
 app = FastAPI(title="Credanta")
 
+_is_production = os.environ.get("ENV", "").lower() == "production"
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.environ.get("SESSION_SECRET", secrets.token_urlsafe(32)),
     same_site="lax",
-    https_only=False,
+    https_only=_is_production,
 )
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -96,6 +107,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLRe
 
 @app.on_event("startup")
 def _startup() -> None:
+    validate_env()
     init_db()
 
 
@@ -183,6 +195,7 @@ def login(request: Request):
 
 @app.get("/auth/google")
 async def google_start(request: Request):
+    auth_limiter.check(request)
     if not google_configured():
         raise HTTPException(503, "Google sign-in is not configured yet.")
     redirect_uri = str(request.url_for("google_callback"))
@@ -195,6 +208,7 @@ async def google_start(request: Request):
 
 @app.get("/auth/google/callback", name="google_callback")
 async def google_callback(request: Request, db: Session = Depends(get_session)):
+    auth_limiter.check(request)
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
@@ -362,6 +376,7 @@ async def upload_submit(
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
+    upload_limiter.check(request)
     raw = await file.read()
     if not raw:
         request.session["flash"] = "Please choose a file to upload."
@@ -381,6 +396,13 @@ async def upload_submit(
         return RedirectResponse("/documents", status_code=302)
 
     fname = file.filename or ""
+    # Validate file type against allow-list using magic bytes + extension check.
+    # Returns the effective (trusted) MIME type to store.
+    try:
+        effective_mime = validate_upload(raw, fname, file.content_type)
+    except HTTPException as exc:
+        request.session["flash"] = exc.detail
+        return RedirectResponse("/documents/upload", status_code=302)
     title_clean = title.strip()
     cat = category.strip()
     if cat == AUTO_CATEGORY or not cat:
@@ -397,7 +419,7 @@ async def upload_submit(
             exp = hinted
 
     if user_has_premium(user) and ai_enabled():
-        sample = extract_text_sample(raw, file.content_type, fname)
+        sample = extract_text_sample(raw, effective_mime, fname)
         ai_cat, ai_exp = ai_refine_category_expiry(fname, title_clean, sample, cat or "Other", exp)
         if ai_cat:
             cat = ai_cat
@@ -405,7 +427,7 @@ async def upload_submit(
             exp = ai_exp
 
     # Apply custom expiration rules (e.g. NIHSS → 1 year) when no expiry is set yet.
-    doc_text = extract_document_text(raw, file.content_type, fname)
+    doc_text = extract_document_text(raw, effective_mime, fname)
     state_clean = issuing_state.strip().upper() or None
     exp, rule_applied, rule_source = apply_custom_expiration_rules(
         filename=fname,
@@ -429,7 +451,7 @@ async def upload_submit(
         expires_at=exp,
         stored_filename=stored,
         original_filename=fname or stored,
-        mime_type=file.content_type or "application/octet-stream",
+        mime_type=effective_mime,
         size_bytes=size,
         content_hash=content_hash,
         expiration_rule_applied=rule_applied,
@@ -533,10 +555,16 @@ def view_document(doc_id: int, request: Request, db: Session = Depends(get_sessi
     p = file_path(user.id, doc.stored_filename)
     if not p.exists():
         raise HTTPException(404, "File missing.")
+    mime = doc.mime_type or "application/octet-stream"
+    disposition = "inline" if mime in INLINE_SAFE_MIMES else "attachment"
     return Response(
         content=p.read_bytes(),
-        media_type=doc.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'inline; filename="{doc.original_filename}"'},
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{doc.original_filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
     )
 
 
@@ -646,6 +674,7 @@ def share_create(
 ):
     user = require_user(request)
     require_premium_plus(user)
+    share_limiter.check(request)
     exp: datetime | None = None
     if expires_days and expires_days.strip().isdigit():
         exp = datetime.utcnow() + timedelta(days=int(expires_days.strip()))

@@ -1,5 +1,8 @@
+import logging
 import secrets
 from pathlib import Path
+
+logger = logging.getLogger("credanta.storage")
 
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -22,7 +25,24 @@ def save_upload(user_id: int, file_bytes: bytes, suffix: str) -> tuple[str, int]
 
 
 def file_path(user_id: int, stored_filename: str) -> Path:
-    return user_dir(user_id) / stored_filename
+    """Return the filesystem path for a stored file.
+
+    Uses only the *basename* of stored_filename so any path separators
+    embedded in the value cannot escape the user's directory.
+    """
+    base = user_dir(user_id)
+    # Strip directory components — stored_filename should already be a bare
+    # token, but we enforce this as a path-traversal defence-in-depth measure.
+    safe_name = Path(stored_filename).name
+    target = (base / safe_name).resolve()
+    base_resolved = base.resolve()
+    if not str(target).startswith(str(base_resolved)):
+        logger.error(
+            "[storage] Path traversal blocked: user_id=%s filename=%r",
+            user_id, stored_filename,
+        )
+        raise ValueError(f"Unsafe stored filename: {stored_filename!r}")
+    return target
 
 
 def delete_file(user_id: int, stored_filename: str) -> None:
