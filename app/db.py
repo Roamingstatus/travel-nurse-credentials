@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -39,6 +40,12 @@ class User(Base):
     subscription_tier = Column(String, default="free", nullable=False)
     stripe_customer_id = Column(String, nullable=True, index=True)
     stripe_subscription_id = Column(String, nullable=True)
+    mfa_enabled = Column(Boolean, default=False, nullable=False, server_default="0")
+    mfa_method = Column(String, nullable=True)
+    mfa_totp_secret = Column(String, nullable=True)
+    mfa_recovery_codes = Column(Text, nullable=True)
+    phone_number = Column(String, nullable=True)
+    phone_verified = Column(Boolean, default=False, nullable=False, server_default="0")
 
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     share_links = relationship("ShareLink", back_populates="user", cascade="all, delete-orphan")
@@ -187,6 +194,18 @@ def _ensure_sqlite_columns() -> None:
                     conn.execute(text("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR"))
                 if "stripe_subscription_id" not in cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR"))
+                if "mfa_enabled" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN mfa_enabled INTEGER NOT NULL DEFAULT 0"))
+                if "mfa_method" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN mfa_method VARCHAR"))
+                if "mfa_totp_secret" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN mfa_totp_secret VARCHAR"))
+                if "mfa_recovery_codes" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN mfa_recovery_codes TEXT"))
+                if "phone_number" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN phone_number VARCHAR"))
+                if "phone_verified" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN phone_verified INTEGER NOT NULL DEFAULT 0"))
 
         if "documents" in tables:
             cols = {c["name"] for c in insp.get_columns("documents")}

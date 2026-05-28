@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Set Up Authenticator — Credanta{% endblock %}
+{% block content %}
+<div class="vault-header">
+  <h1 class="vault-title">Set Up Authenticator App</h1>
+  <p class="vault-sub">Follow the steps below to connect your authenticator app.</p>
+</div>
+
+<div class="settings-card mfa-setup-card" style="max-width:520px;">
+
+  <div class="mfa-step">
+    <div class="mfa-step-num">1</div>
+    <div>
+      <h3 class="mfa-step-title">Scan this QR code</h3>
+      <p class="mfa-step-desc">Open Google Authenticator, Authy, or any TOTP app and scan the code below.</p>
+      <div id="mfa-qr" class="mfa-qr-box"></div>
+      <details class="mfa-manual-entry">
+        <summary>Can't scan? Enter code manually</summary>
+        <div class="mfa-manual-inner">
+          <p class="mfa-step-desc">In your app, choose "Enter setup key" and use these details:</p>
+          <div class="mfa-key-row">
+            <span class="mfa-key-label">Account</span>
+            <code class="mfa-key-val">{{ user.email }}</code>
+          </div>
+          <div class="mfa-key-row">
+            <span class="mfa-key-label">Key</span>
+            <code class="mfa-key-val" id="totp-secret-display">{{ totp_secret_display }}</code>
+          </div>
+          <div class="mfa-key-row">
+            <span class="mfa-key-label">Type</span>
+            <code class="mfa-key-val">Time based</code>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <hr class="mfa-divider" />
+
+  <div class="mfa-step">
+    <div class="mfa-step-num">2</div>
+    <div style="width:100%;">
+      <h3 class="mfa-step-title">Enter the 6-digit code</h3>
+      <p class="mfa-step-desc">Enter the code shown in your authenticator app to confirm setup.</p>
+      <form method="post" action="/security/mfa/confirm" class="mfa-verify-form">
+        <input type="hidden" name="totp_secret" value="{{ totp_secret_token }}" />
+        <div class="mfa-code-row">
+          <input
+            type="text"
+            name="code"
+            class="mfa-code-input"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="000000"
+            autocomplete="one-time-code"
+            required
+            autofocus
+          />
+          <button type="submit" class="btn primary">Verify &amp; Enable</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<div style="max-width:520px; margin-top:.75rem;">
+  <a href="/security" class="btn ghost small">← Cancel</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js" crossorigin="anonymous"></script>
+<script>
+  QRCode.toCanvas(
+    document.createElement("canvas"),
+    {{ totp_uri | tojson }},
+    { width: 200, margin: 2, color: { dark: "#000", light: "#fff" } },
+    function(err, canvas) {
+      if (err) {
+        document.getElementById("mfa-qr").textContent = "QR generation failed — use the manual code above.";
+        return;
+      }
+      document.getElementById("mfa-qr").appendChild(canvas);
+    }
+  );
+</script>
+
+<style>
+.vault-sub { color: var(--text-muted); margin: .25rem 0 0; }
+.settings-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.75rem;
+  margin-bottom: 1rem;
+}
+.mfa-setup-card { max-width: 520px; }
+.mfa-step { display: flex; gap: 1rem; align-items: flex-start; }
+.mfa-step-num {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--accent, #6366f1);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .85rem;
+}
+.mfa-step-title { font-size: .95rem; font-weight: 600; margin: 0 0 .3rem; }
+.mfa-step-desc { font-size: .85rem; color: var(--text-muted); margin: 0 0 .75rem; line-height: 1.5; }
+.mfa-qr-box {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: inline-flex;
+  padding: 8px;
+  margin-bottom: .75rem;
+}
+.mfa-manual-entry { margin-top: .5rem; }
+.mfa-manual-entry summary {
+  cursor: pointer;
+  font-size: .8rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+.mfa-manual-inner { margin-top: .75rem; }
+.mfa-key-row { display: flex; align-items: center; gap: .75rem; margin-bottom: .4rem; }
+.mfa-key-label { font-size: .75rem; color: var(--text-muted); width: 56px; flex-shrink: 0; }
+.mfa-key-val { font-size: .8rem; word-break: break-all; }
+.mfa-divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+.mfa-verify-form { margin-top: .5rem; }
+.mfa-code-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.mfa-code-input {
+  width: 130px;
+  padding: .55rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg, var(--card-bg));
+  color: var(--text);
+  font-size: 1.2rem;
+  letter-spacing: .25em;
+  text-align: center;
+}
+.mfa-code-input:focus { outline: 2px solid var(--accent, #6366f1); }
+</style>
+{% endblock %}

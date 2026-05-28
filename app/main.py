@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import secrets
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -70,6 +71,18 @@ from .security import (
     upload_limiter,
     auth_limiter,
     share_limiter,
+)
+import itsdangerous as _itsd
+from .mfa import (
+    decrypt_totp_secret,
+    encrypt_totp_secret,
+    generate_recovery_codes,
+    generate_totp_secret,
+    get_totp_uri,
+    encode_recovery_hashes,
+    hash_recovery_code,
+    verify_totp,
+    consume_recovery_code,
 )
 
 AUTO_CATEGORY = "__auto__"
@@ -536,6 +549,9 @@ def edit_document_submit(
 @app.post("/documents/{doc_id}/delete")
 def delete_document(doc_id: int, request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    mfa_check = _mfa_gate(request, user)
+    if mfa_check:
+        return mfa_check
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         raise HTTPException(404)
@@ -675,6 +691,9 @@ def share_create(
     user = require_user(request)
     require_premium_plus(user)
     share_limiter.check(request)
+    mfa_check = _mfa_gate(request, user)
+    if mfa_check:
+        return mfa_check
     exp: datetime | None = None
     if expires_days and expires_days.strip().isdigit():
         exp = datetime.utcnow() + timedelta(days=int(expires_days.strip()))
@@ -983,6 +1002,166 @@ def agency_packet_post(
 
 
 # ---------------------------------------------------------------------------
+# Security / MFA
+# ---------------------------------------------------------------------------
+
+MFA_SESSION_WINDOW = 1800  # 30 minutes
+
+
+def _is_mfa_verified(request: Request) -> bool:
+    """True if the session has a recent MFA verification timestamp."""
+    ts = request.session.get("mfa_verified_at", 0)
+    return (time.time() - ts) < MFA_SESSION_WINDOW
+
+
+def _mfa_gate(request: Request, user: User) -> Optional[RedirectResponse]:
+    """Return a redirect to the MFA challenge page if needed, else None."""
+    if getattr(user, "mfa_enabled", False) and not _is_mfa_verified(request):
+        request.session["mfa_next"] = str(request.url)
+        return RedirectResponse("/security/mfa/challenge", status_code=302)
+    return None
+
+
+def _mfa_signer() -> "_itsd.URLSafeSerializer":
+    return _itsd.URLSafeSerializer(
+        os.environ.get("SESSION_SECRET", "dev"), salt="mfa-setup"
+    )
+
+
+@app.get("/security", response_class=HTMLResponse)
+def security_settings(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    db_user = db.get(User, user.id)
+    recovery_codes = request.session.pop("mfa_recovery_codes_display", None)
+    return render(request, "security.html", user=db_user, recovery_codes=recovery_codes)
+
+
+@app.get("/security/mfa/setup", response_class=HTMLResponse)
+def mfa_setup_page(request: Request):
+    user = require_user(request)
+    secret = generate_totp_secret()
+    uri = get_totp_uri(secret, user.email)
+    token = _mfa_signer().dumps(secret)
+    return render(
+        request,
+        "mfa_setup.html",
+        user=user,
+        totp_uri=uri,
+        totp_secret_token=token,
+        totp_secret_display=secret,
+    )
+
+
+@app.post("/security/mfa/confirm")
+async def mfa_confirm(
+    request: Request,
+    totp_secret: str = Form(...),
+    code: str = Form(...),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    try:
+        raw_secret = _mfa_signer().loads(totp_secret)
+    except Exception:
+        request.session["flash"] = "Setup session expired. Please start again."
+        return RedirectResponse("/security/mfa/setup", status_code=302)
+
+    if not verify_totp(raw_secret, code):
+        request.session["flash"] = "Incorrect code — please check your authenticator and try again."
+        return RedirectResponse("/security/mfa/setup", status_code=302)
+
+    db_user = db.get(User, user.id)
+    db_user.mfa_enabled = True
+    db_user.mfa_method = "totp"
+    db_user.mfa_totp_secret = encrypt_totp_secret(raw_secret)
+    plain_codes = generate_recovery_codes()
+    db_user.mfa_recovery_codes = encode_recovery_hashes([hash_recovery_code(c) for c in plain_codes])
+    db.commit()
+    request.session["mfa_verified_at"] = time.time()
+    request.session["mfa_recovery_codes_display"] = plain_codes
+    log_event("mfa_enabled", user_id=user.id, db=db)
+    request.session["flash"] = "Two-step verification enabled."
+    return RedirectResponse("/security", status_code=302)
+
+
+@app.post("/security/mfa/disable")
+async def mfa_disable(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    db_user = db.get(User, user.id)
+    db_user.mfa_enabled = False
+    db_user.mfa_method = None
+    db_user.mfa_totp_secret = None
+    db_user.mfa_recovery_codes = None
+    db.commit()
+    request.session.pop("mfa_verified_at", None)
+    log_event("mfa_disabled", user_id=user.id, db=db)
+    request.session["flash"] = "Two-step verification disabled."
+    return RedirectResponse("/security", status_code=302)
+
+
+@app.get("/security/mfa/challenge", response_class=HTMLResponse)
+def mfa_challenge_page(request: Request):
+    user = require_user(request)
+    if not getattr(user, "mfa_enabled", False):
+        return RedirectResponse("/security", status_code=302)
+    next_url = request.session.get("mfa_next", "/dashboard")
+    return render(request, "mfa_challenge.html", user=user, next_url=next_url)
+
+
+@app.post("/security/mfa/challenge")
+async def mfa_challenge_submit(
+    request: Request,
+    code: str = Form(...),
+    next: str = Form("/dashboard"),
+    is_recovery: str = Form(""),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    db_user = db.get(User, user.id)
+    if not db_user.mfa_enabled:
+        safe_next = next if next.startswith("/") else "/dashboard"
+        return RedirectResponse(safe_next, status_code=302)
+
+    verified = False
+    if is_recovery:
+        matched, new_stored = consume_recovery_code(code, db_user.mfa_recovery_codes)
+        if matched:
+            db_user.mfa_recovery_codes = new_stored
+            db.commit()
+            verified = True
+    else:
+        raw_secret = decrypt_totp_secret(db_user.mfa_totp_secret or "")
+        if raw_secret and verify_totp(raw_secret, code):
+            verified = True
+
+    if not verified:
+        request.session["flash"] = "Incorrect code — please try again."
+        return RedirectResponse("/security/mfa/challenge", status_code=302)
+
+    request.session["mfa_verified_at"] = time.time()
+    request.session.pop("mfa_next", None)
+    safe_next = next if next.startswith("/") else "/dashboard"
+    return RedirectResponse(safe_next, status_code=302)
+
+
+@app.post("/security/recovery-codes/regenerate")
+async def regenerate_recovery_codes(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    db_user = db.get(User, user.id)
+    if not db_user.mfa_enabled:
+        return RedirectResponse("/security", status_code=302)
+    mfa_check = _mfa_gate(request, db_user)
+    if mfa_check:
+        return mfa_check
+    plain_codes = generate_recovery_codes()
+    db_user.mfa_recovery_codes = encode_recovery_hashes([hash_recovery_code(c) for c in plain_codes])
+    db.commit()
+    request.session["mfa_recovery_codes_display"] = plain_codes
+    request.session["flash"] = "Recovery codes regenerated."
+    return RedirectResponse("/security", status_code=302)
+
+
+# ---------------------------------------------------------------------------
 # Billing (Stripe)
 # ---------------------------------------------------------------------------
 
@@ -993,6 +1172,9 @@ async def billing_checkout(
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
+    mfa_check = _mfa_gate(request, user)
+    if mfa_check:
+        return mfa_check
     if not stripe_configured():
         request.session["flash"] = "Payments are not configured yet. Please contact support."
         return RedirectResponse("/premium", status_code=302)
@@ -1040,6 +1222,9 @@ def billing_cancel(request: Request):
 @app.get("/billing/portal")
 def billing_portal(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    mfa_check = _mfa_gate(request, user)
+    if mfa_check:
+        return mfa_check
     if not stripe_configured():
         request.session["flash"] = "Billing portal is not configured yet."
         return RedirectResponse("/premium", status_code=302)

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Security — Credanta{% endblock %}
+{% block content %}
+<div class="vault-header">
+  <div>
+    <h1 class="vault-title">Security</h1>
+    <p class="vault-sub">Manage two-step verification and account security settings.</p>
+  </div>
+</div>
+
+{% if recovery_codes %}
+<div class="mfa-recovery-banner">
+  <div class="mfa-recovery-banner-inner">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <strong>Save your recovery codes — they will not be shown again.</strong>
+  </div>
+  <p class="mfa-recovery-note">Each code can be used once if you lose access to your authenticator app. Store them somewhere safe.</p>
+  <div class="mfa-recovery-grid">
+    {% for code in recovery_codes %}
+    <code class="mfa-recovery-code">{{ code }}</code>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Two-Step Verification overview ──────────────────────────── #}
+<div class="settings-card">
+  <div class="settings-card-header">
+    <div>
+      <h2 class="settings-card-title">Two-Step Verification</h2>
+      <p class="settings-card-desc">Add an extra layer of security. When enabled, you'll be asked to verify your identity when accessing sensitive features like shared links and billing.</p>
+    </div>
+    <span class="mfa-badge {% if user.mfa_enabled %}mfa-badge--on{% else %}mfa-badge--off{% endif %}">
+      {% if user.mfa_enabled %}Enabled{% else %}Not enabled{% endif %}
+    </span>
+  </div>
+</div>
+
+{# ── Authenticator App ────────────────────────────────────────── #}
+<div class="settings-card">
+  <h2 class="settings-card-title">Authenticator App</h2>
+  <p class="settings-card-desc">Use an app like Google Authenticator, Authy, or 1Password to generate one-time codes.</p>
+
+  {% if user.mfa_enabled and user.mfa_method == 'totp' %}
+  <div class="mfa-status-row">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span>Authenticator app is active.</span>
+  </div>
+  <div class="mfa-actions">
+    <form method="post" action="/security/mfa/disable" onsubmit="return confirm('Disable two-step verification? Your account will be less secure.');">
+      <button type="submit" class="btn danger small">Disable</button>
+    </form>
+  </div>
+
+  {% else %}
+  <div class="mfa-actions">
+    <a href="/security/mfa/setup" class="btn primary">Set up authenticator app</a>
+  </div>
+  {% endif %}
+</div>
+
+{# ── SMS Verification ─────────────────────────────────────────── #}
+<div class="settings-card settings-card--muted">
+  <h2 class="settings-card-title">SMS Verification</h2>
+  <p class="settings-card-desc">Receive a one-time code by text message. Requires an SMS provider to be configured.</p>
+  <div class="mfa-coming-soon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    SMS verification is not yet configured. Contact your administrator to enable it.
+  </div>
+  {% if user.phone_number %}
+  <p class="settings-hint">Phone on file: {{ user.phone_number }}{% if user.phone_verified %} ✓{% else %} (not verified){% endif %}</p>
+  {% endif %}
+</div>
+
+{# ── Recovery Codes ───────────────────────────────────────────── #}
+<div class="settings-card {% if not user.mfa_enabled %}settings-card--muted{% endif %}">
+  <h2 class="settings-card-title">Recovery Codes</h2>
+  <p class="settings-card-desc">Recovery codes let you access your account if you lose your authenticator device. Each code can only be used once.</p>
+  {% if user.mfa_enabled %}
+  <div class="mfa-actions">
+    <form method="post" action="/security/recovery-codes/regenerate" onsubmit="return confirm('Regenerate recovery codes? Your existing codes will stop working.');">
+      <button type="submit" class="btn ghost small">Regenerate codes</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="mfa-coming-soon">Recovery codes are available after enabling two-step verification.</div>
+  {% endif %}
+</div>
+
+<style>
+.vault-header { margin-bottom: 1.5rem; }
+.vault-sub { color: var(--text-muted); margin: .25rem 0 0; }
+.settings-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  max-width: 640px;
+}
+.settings-card--muted { opacity: .8; }
+.settings-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.settings-card-title { font-size: 1rem; font-weight: 600; margin: 0 0 .35rem; }
+.settings-card-desc { color: var(--text-muted); font-size: .875rem; margin: 0 0 1rem; line-height: 1.5; }
+.settings-card-desc:last-child { margin-bottom: 0; }
+.mfa-badge {
+  flex-shrink: 0;
+  padding: .25rem .75rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mfa-badge--on { background: #d1fae5; color: #065f46; }
+.mfa-badge--off { background: var(--bg-subtle, #f3f4f6); color: var(--text-muted); }
+.mfa-status-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: #059669;
+  font-size: .875rem;
+  margin-bottom: 1rem;
+}
+.mfa-actions { display: flex; gap: .5rem; }
+.mfa-coming-soon {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .875rem;
+  color: var(--text-muted);
+  background: var(--bg-subtle, #f9fafb);
+  border-radius: 8px;
+  padding: .65rem .9rem;
+  margin-bottom: .75rem;
+}
+.settings-hint { font-size: .8rem; color: var(--text-muted); margin: .5rem 0 0; }
+.mfa-recovery-banner {
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  max-width: 640px;
+}
+.mfa-recovery-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: #92400e;
+  margin-bottom: .5rem;
+}
+.mfa-recovery-note { font-size: .85rem; color: #78350f; margin: 0 0 1rem; }
+.mfa-recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .5rem;
+}
+.mfa-recovery-code {
+  display: block;
+  background: #fff;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: .4rem .75rem;
+  font-family: monospace;
+  font-size: .9rem;
+  text-align: center;
+  letter-spacing: .05em;
+}
+@media (prefers-color-scheme: dark) {
+  .mfa-badge--on { background: #064e3b; color: #6ee7b7; }
+  .mfa-recovery-banner { background: #1c1508; border-color: #b45309; }
+  .mfa-recovery-banner-inner { color: #fcd34d; }
+  .mfa-recovery-note { color: #fde68a; }
+  .mfa-recovery-code { background: #111; border-color: #92400e; color: #fcd34d; }
+}
+[data-theme="dark"] .mfa-badge--on { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .mfa-recovery-banner { background: #1c1508; border-color: #b45309; }
+[data-theme="dark"] .mfa-recovery-banner-inner { color: #fcd34d; }
+[data-theme="dark"] .mfa-recovery-note { color: #fde68a; }
+[data-theme="dark"] .mfa-recovery-code { background: #111; border-color: #92400e; color: #fcd34d; }
+</style>
+{% endblock %}
