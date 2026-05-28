@@ -6,35 +6,32 @@
 {% set pct = ((valid_count / summary.total * 100)|int) if summary.total > 0 else 100 %}
 {% set username = user.email.split('@')[0] %}
 
-<div class="dash-greeting anim-fade-up">
-  <h1 class="dash-greeting-title">Hi, {{ username }} 👋</h1>
-  <p class="dash-greeting-sub">
-    {% if summary.total > 0 %}
-      {{ valid_count }} of {{ summary.total }} credentials up to date
-      <span class="dash-progress-wrap">
-        <span class="dash-progress-track">
-          <span class="dash-progress-fill" style="width:{{ pct }}%"></span>
+{# ── Page header — matches credentials page ─────────── #}
+<div class="dash-page-head anim-fade-up">
+  <div class="dash-page-title">
+    <h1>Hi, {{ username }} 👋</h1>
+    <p class="dash-page-sub">
+      {% if summary.total > 0 %}
+        {{ valid_count }} of {{ summary.total }} credentials up to date
+        <span class="dash-progress-wrap">
+          <span class="dash-progress-track">
+            <span class="dash-progress-fill" style="width:{{ pct }}%"></span>
+          </span>
+          <span>{{ pct }}%</span>
         </span>
-        <span>{{ pct }}%</span>
-      </span>
-    {% else %}
-      Your credential vault is empty — add your first document below.
-    {% endif %}
-  </p>
+      {% else %}
+        Your credential vault is empty — add your first credential below.
+      {% endif %}
+    </p>
+  </div>
+  <a class="btn primary content-upload-btn" href="/documents/upload">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
+    Upload
+  </a>
 </div>
 
-<a class="dash-upload-cta anim-fade-up d1" href="/documents/upload">
-  <span class="dash-upload-icon" aria-hidden="true">
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-  </span>
-  <span class="dash-upload-text">
-    <span class="dash-upload-label">Upload a credential</span>
-    <span class="dash-upload-sub">Licenses, certifications, IDs &amp; more</span>
-  </span>
-  <span class="dash-upload-arrow" aria-hidden="true">→</span>
-</a>
-
-<div class="dash-stats anim-fade-up d2">
+{# ── Stat cards ──────────────────────────────────────── #}
+<div class="dash-stats anim-fade-up d1">
   <div class="stat-card stat-card--good">
     <div class="stat-card-value">{{ valid_count }}</div>
     <div class="stat-card-label">Valid</div>
@@ -49,19 +46,21 @@
   </div>
 </div>
 
+{# ── Alert banner ────────────────────────────────────── #}
 {% if summary.expired %}
-<div class="dash-alert dash-alert--bad anim-fade-up d3">
+<div class="dash-alert dash-alert--bad anim-fade-up d2">
   <span class="dash-alert-msg">⛔ {{ summary.expired|length }} credential{% if summary.expired|length != 1 %}s{% endif %} expired</span>
   <a class="dash-alert-link" href="/documents">View →</a>
 </div>
 {% elif summary.expiring %}
-<div class="dash-alert dash-alert--warn anim-fade-up d3">
+<div class="dash-alert dash-alert--warn anim-fade-up d2">
   <span class="dash-alert-msg">⚠ {{ summary.expiring|length }} credential{% if summary.expiring|length != 1 %}s{% endif %} expiring soon</span>
   <a class="dash-alert-link" href="/documents">Review →</a>
 </div>
 {% endif %}
 
-<div class="dash-footer-actions dash-top-actions" style="margin-bottom:24px;">
+{# ── Quick links ─────────────────────────────────────── #}
+<div class="dash-footer-actions dash-top-actions anim-fade-up d2" style="margin-bottom:28px;justify-content:flex-start;">
   <a class="btn ghost" href="/calendar/expiring.ics">Reminders (.ics)</a>
   {% if ai_features_enabled %}
   <span class="pill good">AI parsing on</span>
@@ -70,49 +69,80 @@
   {% endif %}
 </div>
 
+{# ── Expiring soon ───────────────────────────────────── #}
 <section class="dash-section anim-fade-up d2">
   <h2 class="dash-section-title">Expiring soon</h2>
   {% if summary.expiring %}
-  <ul class="dash-list">
+  <div class="vault-cards">
     {% for d in summary.expiring %}
-    <li class="dash-row row-warn">
-      <div>
-        <span class="dash-row-title">{{ d.title }}</span>
-        <span class="dash-row-meta">{{ d.category }} · renew by {{ d.expires_at|dt }}</span>
+    <article class="doc-card doc-card--warn">
+      <div class="doc-icon doc-icon--orange">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
-      <span class="pill warn">Expiring soon</span>
-      <a class="btn small ghost" href="/documents/{{ d.id }}/download">Download</a>
-    </li>
+      <div class="doc-card-body">
+        <p class="doc-card-name">{{ d.title }}</p>
+        <p class="doc-card-sub">{{ d.category }} · Renew by {{ d.expires_at|dt }}</p>
+      </div>
+      <div class="doc-card-end">
+        <span class="pill warn">Expiring Soon</span>
+        <div class="doc-card-actions">
+          <a class="btn small ghost btn-icon" href="/documents/{{ d.id }}/download" title="Download">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0-3-3m3 3 3-3M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a class="btn small ghost btn-icon" href="/documents/{{ d.id }}/edit" title="Edit">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.5 1.5a1.414 1.414 0 0 1 2 2L5 12H3v-2L11.5 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+    </article>
     {% endfor %}
-  </ul>
+  </div>
   {% else %}
-  <p class="dash-empty">Nothing expiring in the next 60 days.</p>
+  <p class="dash-empty">Nothing expiring in the next 60 days. ✓</p>
   {% endif %}
 </section>
 
+{# ── Recently uploaded ───────────────────────────────── #}
 <section class="dash-section anim-fade-up d3">
   <h2 class="dash-section-title">Recently uploaded</h2>
   {% if summary.recent %}
-  <ul class="dash-list">
+  <div class="vault-cards">
     {% for d in summary.recent %}
     {% set us = ui_status_label(d) %}
-    <li class="dash-row {% if us == 'expired' %}row-bad{% elif us == 'expiring_soon' %}row-warn{% else %}row-good{% endif %}">
-      <div>
-        <span class="dash-row-title">{{ d.title }}</span>
-        <span class="dash-row-meta">{{ d.category }} · {{ d.created_at|dt }}</span>
+    <article class="doc-card {% if us == 'expired' %}doc-card--bad{% elif us == 'expiring_soon' %}doc-card--warn{% else %}doc-card--good{% endif %}">
+      <div class="doc-icon {% if us == 'expired' %}doc-icon--red{% elif us == 'expiring_soon' %}doc-icon--orange{% else %}doc-icon--blue{% endif %}">
+        {% if us in ('expired', 'expiring_soon') %}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        {% else %}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        {% endif %}
       </div>
-      {% if us == 'expired' %}<span class="pill bad">Expired</span>
-      {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring soon</span>
-      {% else %}<span class="pill good">Valid</span>{% endif %}
-      <a class="btn small ghost" href="/documents">Open vault</a>
-    </li>
+      <div class="doc-card-body">
+        <p class="doc-card-name">{{ d.title }}</p>
+        <p class="doc-card-sub">{{ d.category }} · {{ d.created_at|dt }}</p>
+      </div>
+      <div class="doc-card-end">
+        {% if us == 'expired' %}<span class="pill bad">Expired</span>
+        {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring Soon</span>
+        {% else %}<span class="pill good">Valid</span>{% endif %}
+        <div class="doc-card-actions">
+          <a class="btn small ghost btn-icon" href="/documents/{{ d.id }}/download" title="Download">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0-3-3m3 3 3-3M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a class="btn small ghost btn-icon" href="/documents/{{ d.id }}/edit" title="Edit">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.5 1.5a1.414 1.414 0 0 1 2 2L5 12H3v-2L11.5 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+    </article>
     {% endfor %}
-  </ul>
+  </div>
   {% else %}
-  <p class="dash-empty">No uploads yet. Use the button above to add your first file.</p>
+  <p class="dash-empty">No uploads yet. Use the Upload button above to add your first file.</p>
   {% endif %}
 </section>
 
+{# ── Shared packets (Premium+) ───────────────────────── #}
 {% if is_premium_plus %}
 <section class="dash-section">
   <div class="dash-section-head">
@@ -120,25 +150,69 @@
     <a class="btn small ghost" href="/share">Manage</a>
   </div>
   {% if share_links %}
-  <ul class="dash-list">
+  <div class="vault-cards">
     {% for l in share_links %}
-    <li class="dash-row row-good">
-      <span class="dash-row-title">{{ l.label or 'Shared link' }}</span>
-      <span class="dash-row-meta">Created {{ l.created_at|dt }}</span>
-      <span class="pill good">Active</span>
-      <button type="button" class="btn small ghost" onclick="navigator.clipboard.writeText('{{ request.base_url }}s/{{ l.token }}'); this.textContent='Copied';">Copy link</button>
-    </li>
+    <article class="doc-card doc-card--good">
+      <div class="doc-icon doc-icon--teal">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      </div>
+      <div class="doc-card-body">
+        <p class="doc-card-name">{{ l.label or 'Shared link' }}</p>
+        <p class="doc-card-sub">Created {{ l.created_at|dt }}</p>
+      </div>
+      <div class="doc-card-end">
+        <span class="pill good">Active</span>
+        <div class="doc-card-actions">
+          <button type="button" class="btn small ghost btn-icon" title="Copy link"
+            onclick="navigator.clipboard.writeText('{{ request.base_url }}s/{{ l.token }}'); this.title='Copied!'; this.innerHTML='<svg width=\'14\' height=\'14\' viewBox=\'0 0 16 16\' fill=\'none\'><polyline points=\'2 8 6 12 14 4\' stroke=\'currentColor\' stroke-width=\'1.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/></svg>';">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5" y="1" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 5v9a1.5 1.5 0 0 0 1.5 1.5H11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </article>
     {% endfor %}
-  </ul>
+  </div>
   {% else %}
-  <p class="dash-empty">No active share links. Create one when you need a read-only packet.</p>
+  <p class="dash-empty">No active share links. <a href="/share">Create one</a> when you need a read-only packet.</p>
   {% endif %}
 </section>
 {% endif %}
 
-<div class="dash-footer-actions">
+{# ── Footer actions ──────────────────────────────────── #}
+<div class="dash-footer-actions" style="justify-content:flex-start;">
   <a class="btn ghost" href="/packet">Download packet (.zip)</a>
   <a class="btn ghost" href="/packet/pdf">Download manifest (.pdf)</a>
-  <a class="btn ghost" href="/documents">Browse all documents</a>
+  <a class="btn ghost" href="/documents">Browse all credentials</a>
 </div>
+
+<style>
+.dash-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-top: 8px;
+}
+.dash-page-title h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.dash-page-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .dash-page-head { flex-wrap: wrap; align-items: flex-start; }
+}
+</style>
+
 {% endblock %}
