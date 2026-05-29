@@ -277,6 +277,74 @@ def analytics_recent(db: Session, limit: int = 50, days: int | None = None, even
     return result
 
 
+def analytics_by_date_user(
+    db: Session,
+    days: int | None = None,
+    event_filter: str | None = None,
+) -> list:
+    """Events grouped by (date, user) — date is primary key, email is secondary."""
+    type_map = {ev["key"]: ev["types"] for ev in ANALYTICS_EVENTS}
+    if event_filter and event_filter != "all" and event_filter in type_map:
+        types = type_map[event_filter]
+    else:
+        types = _ALL_ANALYTICS_TYPES
+
+    date_expr = func.strftime("%Y-%m-%d", Event.created_at).label("day")
+    q = (
+        db.query(
+            date_expr,
+            User.email,
+            User.name,
+            User.subscription_tier,
+            Event.event_type,
+            func.count(Event.id).label("cnt"),
+        )
+        .outerjoin(User, User.id == Event.user_id)
+        .filter(Event.event_type.in_(types), Event.ok == 1)
+    )
+    if days:
+        q = q.filter(Event.created_at >= _since(days))
+
+    rows = (
+        q.group_by(
+            func.strftime("%Y-%m-%d", Event.created_at),
+            Event.user_id,
+            Event.event_type,
+        )
+        .order_by(text("day desc"))
+        .limit(2000)
+        .all()
+    )
+
+    data: dict = {}
+    for day, email, name, tier, etype, cnt in rows:
+        if day not in data:
+            data[day] = {}
+        ukey = email or "unknown"
+        if ukey not in data[day]:
+            data[day][ukey] = {
+                "name": name,
+                "email": ukey,
+                "tier": tier or "free",
+                "cats": {},
+                "total": 0,
+            }
+        cat_key = next((ev["key"] for ev in ANALYTICS_EVENTS if etype in ev["types"]), None)
+        if cat_key:
+            data[day][ukey]["cats"][cat_key] = data[day][ukey]["cats"].get(cat_key, 0) + cnt
+        data[day][ukey]["total"] += cnt
+
+    result = []
+    for day in sorted(data.keys(), reverse=True):
+        users = sorted(data[day].values(), key=lambda u: u["total"], reverse=True)
+        result.append({
+            "date": day,
+            "users": users,
+            "day_total": sum(u["total"] for u in users),
+        })
+    return result
+
+
 def analytics_by_user(
     db: Session,
     days: int | None = None,

@@ -98,16 +98,17 @@
   </div>
 </section>
 
-<!-- ── By User ────────────────────────────────────── -->
+<!-- ── By Date → User ────────────────────────────── -->
 <section class="admin-section">
   <h2 class="admin-section-title">
-    Activity by User
-    <span class="admin-count-badge">{{ by_user | length }}</span>
+    Activity by Date &amp; User
+    <span class="admin-count-badge">{{ by_date_user | length }} days</span>
   </h2>
   <div class="admin-table-wrap">
-    <table class="admin-table">
+    <table class="admin-table an-grouped-table">
       <thead>
         <tr>
+          <th class="an-th-date">Date</th>
           <th>User</th>
           <th>Tier</th>
           {% for ev in analytics_events %}<th class="an-th-cat">{{ ev.label }}</th>{% endfor %}
@@ -115,57 +116,35 @@
         </tr>
       </thead>
       <tbody>
-        {% for u in by_user %}
-        <tr>
-          <td class="an-user-cell">
-            {%- if u.name %}<div class="an-user-name">{{ u.name }}</div>{%- endif %}
-            <div class="an-user-email">{{ u.email or "—" }}</div>
-          </td>
-          <td>
-            {%- if u.tier and u.tier != "free" %}
-            <span class="an-tier-tag an-tier-{{ u.tier }}">{{ u.tier }}</span>
-            {%- else %}<span class="an-tier-free">free</span>{%- endif %}
-          </td>
-          {% for ev in analytics_events %}
-          <td class="an-num">{{ u.cats.get(ev.key, 0) or "—" }}</td>
+        {% if by_date_user %}
+          {% for day in by_date_user %}
+            {% for u in day.users %}
+            <tr class="{% if loop.first %}an-day-first{% endif %} {% if loop.last %}an-day-last{% endif %}">
+              {% if loop.first %}
+              <td class="an-date-cell an-date-group" rowspan="{{ day.users | length }}">
+                <div class="an-date-primary">{{ day.date }}</div>
+                <div class="an-date-daytotal">{{ day.day_total }} events</div>
+              </td>
+              {% endif %}
+              <td class="an-user-cell">
+                {%- if u.name %}<div class="an-user-name">{{ u.name }}</div>{%- endif %}
+                <div class="an-user-email">{{ u.email }}</div>
+              </td>
+              <td>
+                {%- if u.tier and u.tier != "free" %}
+                <span class="an-tier-tag an-tier-{{ u.tier }}">{{ u.tier }}</span>
+                {%- else %}<span class="an-tier-free">free</span>{%- endif %}
+              </td>
+              {% for ev in analytics_events %}
+              <td class="an-num">{{ u.cats.get(ev.key, 0) or "—" }}</td>
+              {% endfor %}
+              <td class="an-num an-total">{{ u.total }}</td>
+            </tr>
+            {% endfor %}
           {% endfor %}
-          <td class="an-num an-total">{{ u.total }}</td>
-        </tr>
         {% else %}
-        <tr><td colspan="{{ analytics_events | length + 3 }}" class="admin-empty">No activity in this period.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<!-- ── By Date ────────────────────────────────────── -->
-<section class="admin-section">
-  <h2 class="admin-section-title">
-    Activity by Date
-    <span class="admin-count-badge">{{ by_date | length }} days</span>
-  </h2>
-  <div class="admin-table-wrap">
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          {% for ev in analytics_events %}<th class="an-th-cat">{{ ev.label }}</th>{% endfor %}
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for d in by_date %}
-        <tr>
-          <td class="an-date-cell">{{ d.date }}</td>
-          {% for ev in analytics_events %}
-          <td class="an-num">{{ d.cats.get(ev.key, 0) or "—" }}</td>
-          {% endfor %}
-          <td class="an-num an-total">{{ d.total }}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="{{ analytics_events | length + 2 }}" class="admin-empty">No activity in this period.</td></tr>
-        {% endfor %}
+        <tr><td colspan="{{ analytics_events | length + 4 }}" class="admin-empty">No activity in this period.</td></tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
@@ -291,10 +270,27 @@
 [data-theme="dark"] .an-tier-premium { background: rgba(37,99,235,.2); color: #93c5fd; }
 [data-theme="dark"] .an-tier-premium_plus { background: rgba(109,40,217,.2); color: #c4b5fd; }
 
-/* Grouped table columns */
+/* Grouped date+user table */
+.an-grouped-table { border-collapse: collapse; }
+.an-th-date { width: 110px; }
 .an-th-cat { font-size: .7rem; white-space: nowrap; }
 .an-num { text-align: right; font-variant-numeric: tabular-nums; font-size: .85rem; color: var(--text-muted); }
 .an-num.an-total { font-weight: 700; color: var(--text); }
+
+/* Date group cell — spans all users in that day */
+.an-date-group {
+  vertical-align: top;
+  background: var(--card-bg);
+  border-right: 2px solid var(--accent, #6366f1);
+  padding-top: .6rem;
+}
+.an-date-primary { font-family: monospace; font-size: .85rem; font-weight: 700; white-space: nowrap; }
+.an-date-daytotal { font-size: .7rem; color: var(--text-muted); margin-top: .15rem; }
+
+/* Visual grouping — thick border between day blocks */
+.an-day-first td { border-top: 2px solid var(--border) !important; }
+.an-day-last td { border-bottom: 1px solid var(--border); }
+
 .an-date-cell { font-family: monospace; font-size: .82rem; white-space: nowrap; }
 .an-tier-free { font-size: .72rem; color: var(--text-muted); }
 
