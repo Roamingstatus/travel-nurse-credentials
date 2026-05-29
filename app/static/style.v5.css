@@ -3066,3 +3066,35 @@ body.dpm-open { overflow: hidden; }
 .site-footer--app .site-footer-links {
   gap: 4px 14px;
 }
+
+/* Sidebar info/legal links (always-visible above sidebar-foot) */
+.sidebar-info-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 10px 16px 6px;
+  border-top: 1px solid var(--line);
+}
+.sidebar-info-links a {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sidebar-info-links a:hover { color: var(--text); }
+
+/* Login page info links row (below sign-in card, above trust section) */
+.login-info-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin: 14px auto 0;
+  max-width: 560px;
+}
+.login-info-links a {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.login-info-links a:hover { color: var(--text); }
