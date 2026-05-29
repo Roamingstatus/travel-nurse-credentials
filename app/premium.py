@@ -4,9 +4,8 @@ from fastapi import HTTPException
 from .db import User
 
 # ── Beta mode ────────────────────────────────────────────────────────────────
-# When True every signed-in user gets full Premium Plus access for free.
-# Flip to False (or set env var BETA_MODE=false) when paid tiers go live.
-_BETA_MODE: bool = os.environ.get("BETA_MODE", "true").lower() != "false"
+# Set env var BETA_MODE=true to grant all signed-in users Premium Plus for free.
+_BETA_MODE: bool = os.environ.get("BETA_MODE", "false").lower() == "true"
 # ─────────────────────────────────────────────────────────────────────────────
 
 PREMIUM_FEATURES = [
