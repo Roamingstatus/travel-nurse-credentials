@@ -11,7 +11,7 @@
 
 [data-theme="light"],
 :root:not([data-theme]) {
-  --bg: #ffffff;
+  --bg: #f4f4f5;
   --surface: #ffffff;
   --surface-2: #fafafa;
   --text: #18181b;
@@ -662,51 +662,6 @@ a:hover {
   transition: opacity 0.15s;
 }
 .doc-icon:hover { opacity: 0.82; }
-/* ── Dashboard small icons — grey bubble, colour on hover ─────── */
-.doc-icon--sm {
-  width: 32px !important;
-  height: 32px !important;
-  min-width: 32px !important;
-  border-radius: 8px !important;
-  background: #f1f5f9 !important;
-  color: #64748b !important;
-  transition: background 0.22s ease, color 0.22s ease, transform 0.18s ease !important;
-}
-[data-theme="dark"] .doc-icon--sm {
-  background: #27272a !important;
-  color: #71717a !important;
-}
-.doc-card:hover .doc-icon--sm {
-  transform: scale(1.12) !important;
-}
-.doc-card:hover .doc-icon--sm.doc-icon--red    { background: #fee2e2 !important; color: #dc2626 !important; }
-.doc-card:hover .doc-icon--sm.doc-icon--orange { background: #ffedd5 !important; color: #ea580c !important; }
-.doc-card:hover .doc-icon--sm.doc-icon--blue   { background: #dbeafe !important; color: #2563eb !important; }
-.doc-card:hover .doc-icon--sm.doc-icon--purple { background: #ede9fe !important; color: #7c3aed !important; }
-.doc-card:hover .doc-icon--sm.doc-icon--green  { background: #dcfce7 !important; color: #16a34a !important; }
-.doc-card:hover .doc-icon--sm.doc-icon--teal   { background: #ccfbf1 !important; color: #0d9488 !important; }
-[data-theme="dark"] .doc-card:hover .doc-icon--sm.doc-icon--red    { background: rgba(220,38,38,0.2) !important;  color: #fca5a5 !important; }
-[data-theme="dark"] .doc-card:hover .doc-icon--sm.doc-icon--orange { background: rgba(234,88,12,0.2) !important;  color: #fdba74 !important; }
-[data-theme="dark"] .doc-card:hover .doc-icon--sm.doc-icon--blue   { background: rgba(37,99,235,0.2) !important;  color: #93c5fd !important; }
-[data-theme="dark"] .doc-card:hover .doc-icon--sm.doc-icon--purple { background: rgba(124,58,237,0.2) !important; color: #c4b5fd !important; }
-[data-theme="dark"] .doc-card:hover .doc-icon--sm.doc-icon--green  { background: rgba(22,163,74,0.2) !important;  color: #86efac !important; }
-[data-theme="dark"] .doc-card:hover .doc-icon--sm.doc-icon--teal   { background: rgba(13,148,136,0.2) !important; color: #5eead4 !important; }
-
-/* ── Dashboard cards: thin uniform border, no thick left stripe ── */
-.dash-section .doc-card,
-.dash-section-head ~ .vault-cards .doc-card {
-  border-left-width: 1px !important;
-  border-left-color: var(--line) !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04) !important;
-  min-height: 0 !important;
-}
-.dash-section .doc-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05) !important;
-  transform: translateY(-2px) !important;
-}
-[data-theme="dark"] .dash-section .doc-card {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05) !important;
-}
 .doc-icon--red    { background: #fee2e2; color: #dc2626; }
 .doc-icon--orange { background: #ffedd5; color: #ea580c; }
 .doc-icon--blue   { background: #dbeafe; color: #2563eb; }
