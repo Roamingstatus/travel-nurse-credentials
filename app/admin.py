@@ -327,12 +327,39 @@ def analytics_by_date_user(
                 "email": ukey,
                 "tier": tier or "free",
                 "cats": {},
+                "docs": [],
                 "total": 0,
             }
         cat_key = next((ev["key"] for ev in ANALYTICS_EVENTS if etype in ev["types"]), None)
         if cat_key:
             data[day][ukey]["cats"][cat_key] = data[day][ukey]["cats"].get(cat_key, 0) + cnt
         data[day][ukey]["total"] += cnt
+
+    # Second pass: attach individual document names/types from upload event metas.
+    upload_types = [t for ev in ANALYTICS_EVENTS if ev["key"] == "uploads" for t in ev["types"]]
+    if upload_types and data:
+        meta_q = (
+            db.query(
+                func.strftime("%Y-%m-%d", Event.created_at).label("day"),
+                User.email,
+                Event.meta,
+            )
+            .outerjoin(User, User.id == Event.user_id)
+            .filter(Event.event_type.in_(upload_types), Event.ok == 1)
+        )
+        if days:
+            meta_q = meta_q.filter(Event.created_at >= _since(days))
+        for mday, memail, mmeta in meta_q.all():
+            ukey = memail or "unknown"
+            if mday in data and ukey in data[mday]:
+                try:
+                    m = json.loads(mmeta) if mmeta else {}
+                except Exception:
+                    m = {}
+                fname = m.get("filename") or m.get("title") or ""
+                mime = m.get("mime") or ""
+                if fname or mime:
+                    data[mday][ukey]["docs"].append({"name": fname, "mime": mime})
 
     result = []
     for day in sorted(data.keys(), reverse=True):

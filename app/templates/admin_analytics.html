@@ -110,6 +110,8 @@
         <tr>
           <th class="an-th-date">Date</th>
           <th>User</th>
+          <th>Documents</th>
+          <th>Types</th>
           <th>Tier</th>
           {% for ev in analytics_events %}<th class="an-th-cat">{{ ev.label }}</th>{% endfor %}
           <th>Total</th>
@@ -130,6 +132,16 @@
                 {%- if u.name %}<div class="an-user-name">{{ u.name }}</div>{%- endif %}
                 <div class="an-user-email">{{ u.email }}</div>
               </td>
+              <td class="an-docs-cell">
+                {%- if u.docs %}
+                  {%- for d in u.docs %}<div class="an-doc-name">{{ d.name or "—" }}</div>{%- endfor %}
+                {%- else %}<span class="an-detail-empty">—</span>{%- endif %}
+              </td>
+              <td class="an-docs-cell">
+                {%- if u.docs %}
+                  {%- for d in u.docs %}<div class="an-doc-type">{{ d.mime or "—" }}</div>{%- endfor %}
+                {%- else %}<span class="an-detail-empty">—</span>{%- endif %}
+              </td>
               <td>
                 {%- if u.tier and u.tier != "free" %}
                 <span class="an-tier-tag an-tier-{{ u.tier }}">{{ u.tier }}</span>
@@ -143,7 +155,7 @@
             {% endfor %}
           {% endfor %}
         {% else %}
-        <tr><td colspan="{{ analytics_events | length + 4 }}" class="admin-empty">No activity in this period.</td></tr>
+        <tr><td colspan="{{ analytics_events | length + 6 }}" class="admin-empty">No activity in this period.</td></tr>
         {% endif %}
       </tbody>
     </table>
@@ -288,9 +300,12 @@
 .an-date-cell { font-family: monospace; font-size: .82rem; white-space: nowrap; }
 .an-tier-free { font-size: .72rem; color: var(--text-muted); }
 
-/* Document name / type columns */
+/* Document name / type columns (Recent Activity + grouped table) */
 .an-doc-name { font-size: .8rem; word-break: break-all; max-width: 180px; }
 .an-doc-type { font-family: monospace; font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
+.an-docs-cell { vertical-align: top; }
+.an-docs-cell .an-doc-name { margin-bottom: .1rem; }
+.an-docs-cell .an-doc-type { margin-bottom: .2rem; }
 
 /* User cell */
 .an-user-cell { vertical-align: top; }
