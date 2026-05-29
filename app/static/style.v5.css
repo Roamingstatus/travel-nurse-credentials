@@ -2656,6 +2656,7 @@ body.dpm-open { overflow: hidden; }
   .sidebar { display: none; }
   .app-main { margin-left: 0; }
   .app-content { padding: 16px 16px 88px; }
+  html, body { overflow-x: hidden; max-width: 100vw; }
 }
 
 /* ── Credential page: constrained centered column ── */
@@ -3349,6 +3350,19 @@ body.dpm-open { overflow: hidden; }
   .vault-tab-shell,
   .vault-empty-banner {
     width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+  }
+
+  /* 1b. Prevent vault tab scroll from pushing page wider */
+  .vault-tabs-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .vault-tabs {
+    min-width: 0;
   }
 
   /* 2. Page header: keep title + button on one line, allow wrap */
