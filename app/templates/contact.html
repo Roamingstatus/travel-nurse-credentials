@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Contact · Credanta{% endblock %}
+{% block content %}
+<div class="info-page">
+  <div class="info-page-inner">
+    <header class="info-header">
+      <p class="info-breadcrumb"><a href="/">Credanta</a> / Contact</p>
+      <h1>Contact Credanta</h1>
+      <p class="info-lead">For support, privacy questions, security concerns, or beta feedback — we're here to help.</p>
+    </header>
+
+    <div class="info-body">
+      <div class="contact-cards">
+        <div class="contact-card">
+          <div class="contact-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3>General Support</h3>
+          <p>Having trouble with your account, uploads, or sharing? Reach out and we'll help you get sorted.</p>
+          <a href="mailto:support@credanta.app" class="contact-email">support@credanta.app</a>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3>Privacy Questions</h3>
+          <p>Questions about how your data is handled, requests to delete your account, or data access inquiries.</p>
+          <a href="mailto:support@credanta.app" class="contact-email">support@credanta.app</a>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Security Concerns</h3>
+          <p>If you believe you've found a security issue, please report it responsibly. We take all security reports seriously.</p>
+          <a href="mailto:support@credanta.app" class="contact-email">support@credanta.app</a>
+        </div>
+
+        <div class="contact-card">
+          <div class="contact-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <h3>Beta Feedback</h3>
+          <p>Using Credanta during beta? Share what's working, what isn't, and what you'd love to see added.</p>
+          <a href="mailto:support@credanta.app" class="contact-email">support@credanta.app</a>
+        </div>
+      </div>
+
+      <div class="info-section" style="margin-top:48px;">
+        <h2>Send a Message</h2>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">You can reach us directly at <a href="mailto:support@credanta.app">support@credanta.app</a>. We typically respond within one business day.</p>
+        <div class="contact-form-placeholder">
+          <div class="contact-form-row">
+            <input class="contact-input" type="text" placeholder="Your name" disabled />
+            <input class="contact-input" type="email" placeholder="Your email" disabled />
+          </div>
+          <textarea class="contact-input contact-textarea" placeholder="Your message…" disabled></textarea>
+          <div class="contact-form-note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Contact form coming soon — please email us directly in the meantime.
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h2>About NexusGarden</h2>
+        <p>Credanta is built by <strong>NexusGarden</strong>, a product studio focused on practical tools for working professionals. For general NexusGarden enquiries, use the same address above.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

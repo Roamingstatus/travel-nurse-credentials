@@ -1519,6 +1519,35 @@ def admin_analytics(
 
 
 # ---------------------------------------------------------------------------
+# Public informational / trust pages
+# ---------------------------------------------------------------------------
+
+@app.get("/privacy", response_class=HTMLResponse)
+def page_privacy(request: Request):
+    return render(request, "privacy.html")
+
+
+@app.get("/security-overview", response_class=HTMLResponse)
+def page_security_overview(request: Request):
+    return render(request, "security_overview.html")
+
+
+@app.get("/about", response_class=HTMLResponse)
+def page_about(request: Request):
+    return render(request, "about.html")
+
+
+@app.get("/document-security", response_class=HTMLResponse)
+def page_document_security(request: Request):
+    return render(request, "document_security.html")
+
+
+@app.get("/contact", response_class=HTMLResponse)
+def page_contact(request: Request):
+    return render(request, "contact.html")
+
+
+# ---------------------------------------------------------------------------
 # Dev-only tier toggle (disabled in ENV=production)
 # ---------------------------------------------------------------------------
 

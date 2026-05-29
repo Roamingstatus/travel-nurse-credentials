@@ -1,0 +1,237 @@
+Update the existing Credanta app.
+
+Goal:
+Add trust-building informational pages because users upload sensitive professional documents.
+
+Do NOT rebuild the app.
+Do NOT change authentication, storage, billing, or upload logic.
+Only add public informational pages and footer/nav links.
+
+Create these pages:
+
+1. Privacy Policy
+Route:
+/privacy
+
+2. Security Overview
+Route:
+/security
+
+3. About Credanta
+Route:
+/about
+
+4. How Your Documents Are Secured
+Route:
+/document-security
+
+5. Contact
+Route:
+/contact
+
+────────────────────────
+NAVIGATION / FOOTER
+────────────────────────
+
+Add footer links to all public/landing pages:
+
+- Privacy
+- Security
+- About
+- Document Security
+- Contact
+
+If logged-in app layout has a footer or settings/help area, add the same links there too.
+
+Do not clutter the main dashboard navigation.
+
+────────────────────────
+PAGE STYLE
+────────────────────────
+
+Use current Credanta branding.
+
+Style:
+- minimalist SaaS
+- clean typography
+- centered content container
+- max-width around 800px
+- generous spacing
+- readable paragraphs
+- light background
+- white cards if needed
+- mobile responsive
+
+Do not make these pages look legal-heavy or cluttered.
+
+────────────────────────
+PRIVACY POLICY PAGE
+────────────────────────
+
+Title:
+Privacy Policy
+
+Content should clearly explain:
+
+- Credanta helps users store and manage professional documents.
+- Users may upload resumes, certifications, licenses, IDs, onboarding records, and related professional documents.
+- Credanta only collects information needed to operate the service.
+- Uploaded documents are private to the user unless the user creates a share link.
+- Credanta does not sell user documents.
+- Credanta does not use uploaded documents for advertising.
+- Users can request account deletion.
+- Users can contact Credanta for privacy questions.
+
+Add disclaimer:
+This page is a general privacy summary and should be reviewed by legal counsel before full public launch.
+
+────────────────────────
+SECURITY OVERVIEW PAGE
+────────────────────────
+
+Title:
+Security Overview
+
+Content sections:
+
+- Secure sign-in
+- Private document storage
+- Temporary share links
+- Expiration reminders
+- Account protection
+- Responsible data handling
+
+Explain in plain language:
+Credanta is designed to keep documents private, organized, and accessible only to authorized users.
+
+Avoid exaggerated claims like:
+“bank-level security”
+“100% secure”
+“HIPAA compliant”
+unless actually verified.
+
+────────────────────────
+ABOUT CREDANTA PAGE
+────────────────────────
+
+Title:
+About Credanta
+
+Content:
+Credanta is a professional credential and document management platform built to help modern professionals organize, monitor, and share important career documents.
+
+Mention:
+- credentials
+- resumes
+- licenses
+- certifications
+- onboarding documents
+- expiration tracking
+- recruiter/application packet support
+
+Tone:
+modern, practical, trustworthy.
+
+Include:
+“Built by NexusGarden.”
+
+────────────────────────
+HOW YOUR DOCUMENTS ARE SECURED PAGE
+────────────────────────
+
+Title:
+How Your Documents Are Secured
+
+Explain the document security workflow:
+
+1. User uploads a document
+2. Document is stored in private storage
+3. Metadata is used to organize and monitor the document
+4. Access is limited to the account owner
+5. Share links are temporary and controlled by the user
+6. Users can revoke share links where supported
+
+Include clear trust language:
+- Your documents are not public by default.
+- Share links should only expose selected documents.
+- Expired links should no longer allow access.
+- Sensitive files should never be indexed publicly.
+
+Add note:
+Do not upload patient records, protected health information, or documents you are not authorized to store.
+
+────────────────────────
+CONTACT PAGE
+────────────────────────
+
+Title:
+Contact Credanta
+
+Add simple contact content:
+
+For support, privacy, security, or beta feedback, contact:
+
+support@nexusgarden.com
+
+If that email is not final, use placeholder:
+
+support@credanta.app
+
+Add sections:
+- Support
+- Privacy questions
+- Security concerns
+- Beta feedback
+
+Optional:
+Add a simple contact form placeholder, but do not implement backend email sending unless already available.
+
+────────────────────────
+TRUST CALLOUTS
+────────────────────────
+
+On the Credanta landing page, add a small trust section near the footer:
+
+Title:
+Built with document privacy in mind.
+
+Three small cards:
+1. Private by Default
+Your documents are not public unless you choose to share them.
+
+2. Controlled Sharing
+Create share links only for selected documents.
+
+3. Clear Ownership
+Your professional documents remain yours.
+
+Add links:
+Learn more about security → /security
+How documents are secured → /document-security
+
+────────────────────────
+IMPORTANT LEGAL DISCLAIMERS
+────────────────────────
+
+Add subtle disclaimer where appropriate:
+
+Credanta is not an employer, recruiter, credentialing agency, or legal compliance service. Users are responsible for confirming document requirements with employers, agencies, schools, or licensing bodies.
+
+Do not claim:
+- HIPAA compliance
+- SOC 2 compliance
+- legal compliance certification
+- guaranteed hiring
+- guaranteed credential acceptance
+
+────────────────────────
+TESTING
+────────────────────────
+
+Verify:
+- all routes load
+- footer links work
+- mobile layout works
+- pages match Credanta branding
+- no app functionality breaks
+- contact email displays correctly

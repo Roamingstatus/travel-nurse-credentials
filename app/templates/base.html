@@ -84,10 +84,31 @@
 {# ─── close wrapper ────────────────────────────────── #}
 {% if user and not public_view %}
     </main>
+    <footer class="site-footer site-footer--app">
+      <nav class="site-footer-links">
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/security-overview">Security</a>
+        <a href="/document-security">Doc Security</a>
+        <a href="/contact">Contact</a>
+      </nav>
+    </footer>
   </div>
 </div>
 {% else %}
 </main>
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <span class="site-footer-copy">© 2025 NexusGarden</span>
+    <nav class="site-footer-links">
+      <a href="/about">About</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/security-overview">Security</a>
+      <a href="/document-security">Document Security</a>
+      <a href="/contact">Contact</a>
+    </nav>
+  </div>
+</footer>
 {% endif %}
 
 {# ─── mobile bottom nav ────────────────────────────── #}

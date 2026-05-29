@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}How Your Documents Are Secured · Credanta{% endblock %}
+{% block content %}
+<div class="info-page">
+  <div class="info-page-inner">
+    <header class="info-header">
+      <p class="info-breadcrumb"><a href="/">Credanta</a> / Document Security</p>
+      <h1>How Your Documents Are Secured</h1>
+      <p class="info-lead">A plain-language walkthrough of how Credanta handles your files from the moment you upload them to the moment you share or delete them.</p>
+    </header>
+
+    <div class="info-body">
+
+      <div class="info-steps">
+        <div class="info-step">
+          <div class="info-step-num">1</div>
+          <div class="info-step-body">
+            <h3>You upload a document</h3>
+            <p>Files are uploaded directly to your account over an encrypted connection. Credanta accepts common document formats including PDF, Word documents, and images.</p>
+          </div>
+        </div>
+        <div class="info-step">
+          <div class="info-step-num">2</div>
+          <div class="info-step-body">
+            <h3>Documents are stored in private storage</h3>
+            <p>Each user's files are stored in a private, isolated location. Documents belonging to one account are not accessible to other users. Files are not publicly hosted or indexed.</p>
+          </div>
+        </div>
+        <div class="info-step">
+          <div class="info-step-num">3</div>
+          <div class="info-step-body">
+            <h3>Metadata is used to organize your documents</h3>
+            <p>Credanta stores metadata — such as document title, category, and expiration date — to help you stay organized. This metadata powers the dashboard, expiration alerts, and checklist views.</p>
+          </div>
+        </div>
+        <div class="info-step">
+          <div class="info-step-num">4</div>
+          <div class="info-step-body">
+            <h3>Access is limited to the account owner</h3>
+            <p>Only you can view, download, or manage your documents. No other user, recruiter, or third party has access to your files unless you create a share link.</p>
+          </div>
+        </div>
+        <div class="info-step">
+          <div class="info-step-num">5</div>
+          <div class="info-step-body">
+            <h3>Share links are temporary and controlled by you</h3>
+            <p>If you choose to share documents with a recruiter or employer, Credanta generates a private link. You control when and whether to share this link. The recipient can view the selected documents but cannot modify or delete them.</p>
+          </div>
+        </div>
+        <div class="info-step">
+          <div class="info-step-num">6</div>
+          <div class="info-step-body">
+            <h3>You can revoke access at any time</h3>
+            <p>Share links can be revoked from your account. Once revoked, the link no longer grants access to any documents. Expired or revoked links return an access-denied response.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section" style="margin-top:40px;">
+        <h2>Important Trust Commitments</h2>
+        <ul class="info-trust-list">
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Your documents are <strong>not public by default</strong>. They require an explicit share action to be visible to anyone other than you.</span>
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Share links should only expose the <strong>selected documents</strong> for that share session.</span>
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Expired or revoked links <strong>no longer allow access</strong> to any files.</span>
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Sensitive files are <strong>never publicly indexed</strong> or discoverable by search engines.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-section">
+        <h2>What You Should Not Upload</h2>
+        <p>Credanta is designed for professional career documents. Please do not upload:</p>
+        <ul>
+          <li>Patient records or protected health information (PHI)</li>
+          <li>Documents you are not authorized to store or share</li>
+          <li>Personally identifiable information belonging to other people</li>
+          <li>Classified, confidential, or legally restricted records</li>
+        </ul>
+        <p>Credanta is not a HIPAA-compliant platform and should not be used to store regulated health records.</p>
+      </div>
+
+      <div class="info-disclaimer">
+        Credanta is not an employer, recruiter, credentialing agency, or legal compliance service. Users are responsible for confirming document requirements with employers, agencies, schools, or licensing bodies.
+      </div>
+
+      <div class="info-cta-row">
+        <a href="/security-overview" class="btn ghost">Security Overview →</a>
+        <a href="/privacy" class="btn ghost">Privacy Policy →</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
