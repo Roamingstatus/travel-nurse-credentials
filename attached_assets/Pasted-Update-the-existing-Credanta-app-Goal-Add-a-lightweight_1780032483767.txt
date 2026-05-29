@@ -1,0 +1,288 @@
+Update the existing Credanta app.
+
+Goal:
+Add a lightweight Analytics panel inside the existing Admin panel.
+
+Do NOT rebuild the app.
+Do NOT add PostHog or external analytics.
+Do NOT modify unrelated app functionality.
+
+────────────────────────
+ADMIN ANALYTICS PANEL
+────────────────────────
+
+Add a new section/page in the admin panel:
+
+Title:
+“Analytics”
+
+Subtitle:
+“Lightweight product usage tracking for Credanta.”
+
+If admin navigation exists, add:
+Analytics
+
+Route suggestion:
+/admin/analytics
+
+Protect this route so only admin users can access it.
+
+────────────────────────
+EVENTS TO TRACK
+────────────────────────
+
+Track these events:
+
+1. uploads
+Event name:
+document_uploaded
+
+2. previews
+Event name:
+document_previewed
+
+3. packet generation
+Event name:
+packet_generated
+
+4. premium clicks
+Event name:
+premium_clicked
+
+5. reminders enabled
+Event name:
+reminders_enabled
+
+6. checklist usage
+Event name:
+checklist_used
+
+────────────────────────
+EVENT DATABASE
+────────────────────────
+
+Create or reuse an events table.
+
+Fields:
+
+- id
+- user_id
+- event_type
+- event_data
+- created_at
+
+event_type examples:
+- document_uploaded
+- document_previewed
+- packet_generated
+- premium_clicked
+- reminders_enabled
+- checklist_used
+
+event_data should be JSON if supported.
+
+Example event_data:
+{
+  "document_id": "123",
+  "category": "Certification",
+  "source": "credentials_page"
+}
+
+────────────────────────
+EVENT LOGGING HELPER
+────────────────────────
+
+Create reusable helper:
+
+log_event(user_id, event_type, event_data=None)
+
+Requirements:
+- should never crash the user-facing app
+- if logging fails, write warning to server logs only
+- do not expose technical errors to user
+- keep implementation lightweight
+
+Use this helper throughout the app.
+
+────────────────────────
+WHERE TO LOG EVENTS
+────────────────────────
+
+Log document_uploaded when:
+- user successfully uploads a document
+
+Log document_previewed when:
+- user opens preview modal
+- user hovers preview if hover preview exists
+- avoid duplicate spam by throttling hover previews if possible
+
+Log packet_generated when:
+- user successfully generates PDF/ZIP packet
+
+Log premium_clicked when:
+- user clicks upgrade button
+- user clicks locked premium feature
+- user clicks Premium or Premium+ feature card
+
+Log reminders_enabled when:
+- user enables email reminders
+- user enables SMS reminders
+- user saves reminder settings as enabled
+
+Log checklist_used when:
+- user generates smart checklist
+- user views checklist results
+
+────────────────────────
+ANALYTICS DASHBOARD UI
+────────────────────────
+
+Inside /admin/analytics, show simple metric cards:
+
+- Uploads
+- Previews
+- Packets Generated
+- Premium Clicks
+- Reminders Enabled
+- Checklist Usage
+
+Each card should show:
+- total count
+- count in last 7 days
+- count in last 30 days
+
+Example:
+Uploads
+Total: 128
+7 days: 24
+30 days: 77
+
+────────────────────────
+RECENT ACTIVITY TABLE
+────────────────────────
+
+Add table:
+
+Columns:
+- Time
+- User
+- Event
+- Details
+
+Show latest 50 events.
+
+Format event names into readable labels:
+
+document_uploaded → Document Uploaded
+document_previewed → Document Previewed
+packet_generated → Packet Generated
+premium_clicked → Premium Clicked
+reminders_enabled → Reminders Enabled
+checklist_used → Checklist Used
+
+If user email exists, show email.
+If unavailable, show user_id.
+
+────────────────────────
+FEATURE USAGE SUMMARY
+────────────────────────
+
+Add a simple feature usage summary table:
+
+Columns:
+- Feature
+- Total Uses
+- Last 7 Days
+- Last 30 Days
+
+Features:
+- Uploads
+- Previews
+- Packet Generation
+- Premium Clicks
+- Reminders Enabled
+- Checklist Usage
+
+No complex charts required.
+
+Optional:
+Add simple bar indicators if easy.
+
+────────────────────────
+FILTERS
+────────────────────────
+
+Add lightweight filters:
+
+- Date range:
+  - All time
+  - Last 7 days
+  - Last 30 days
+
+- Event type dropdown:
+  - All
+  - Uploads
+  - Previews
+  - Packet Generation
+  - Premium Clicks
+  - Reminders Enabled
+  - Checklist Usage
+
+Do not overbuild analytics.
+
+────────────────────────
+ADMIN SECURITY
+────────────────────────
+
+Protect analytics page.
+
+Only admin users can access.
+
+If no admin system exists:
+- add temporary admin check by email allowlist using environment variable:
+
+ADMIN_EMAILS
+
+Example:
+ADMIN_EMAILS=owner@example.com,admin@example.com
+
+Do not expose analytics publicly.
+
+────────────────────────
+PRIVACY
+────────────────────────
+
+Do not store document contents in event_data.
+Do not store sensitive extracted text.
+Do not store full file URLs.
+Only store safe metadata:
+- document_id
+- category
+- feature name
+- source page
+- subscription tier
+
+────────────────────────
+TESTING
+────────────────────────
+
+Add tests if test suite exists.
+
+Test:
+- log_event creates event
+- analytics counts return correct totals
+- recent events load
+- non-admin users are blocked
+- admin users can access analytics
+- logging failure does not crash app
+
+────────────────────────
+IMPORTANT
+────────────────────────
+
+Keep this lightweight.
+No external services.
+No heavy dashboards.
+No complex charts.
+No user surveillance features.
+This is founder intelligence for early product validation.

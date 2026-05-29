@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Analytics · Admin · Credanta{% endblock %}
+{% block content %}
+
+<div class="admin-header">
+  <div>
+    <h1 class="admin-title">Product Usage Analytics</h1>
+    <p class="admin-sub">Lightweight usage tracking · {{ now }}</p>
+  </div>
+  <div class="admin-nav-links">
+    <a href="/admin" class="admin-nav-link">Overview</a>
+    <a href="/admin/analytics" class="admin-nav-link admin-nav-link--active">Product Usage</a>
+  </div>
+</div>
+
+<!-- ── Filters ──────────────────────────────────────── -->
+<form method="get" action="/admin/analytics" class="an-filters">
+  <div class="an-filter-group">
+    <label class="an-filter-label">Date range</label>
+    <div class="an-filter-btns">
+      <a href="/admin/analytics?range=all&event={{ selected_event }}"
+         class="an-filter-btn {% if selected_range == 'all' %}an-filter-btn--active{% endif %}">All time</a>
+      <a href="/admin/analytics?range=7&event={{ selected_event }}"
+         class="an-filter-btn {% if selected_range == '7' %}an-filter-btn--active{% endif %}">Last 7 days</a>
+      <a href="/admin/analytics?range=30&event={{ selected_event }}"
+         class="an-filter-btn {% if selected_range == '30' %}an-filter-btn--active{% endif %}">Last 30 days</a>
+    </div>
+  </div>
+  <div class="an-filter-group">
+    <label class="an-filter-label">Event type</label>
+    <div class="an-filter-btns">
+      {% set event_opts = [
+        ("all", "All"),
+        ("uploads", "Uploads"),
+        ("previews", "Previews"),
+        ("packets", "Packets"),
+        ("premium", "Premium Clicks"),
+        ("reminders", "Reminders"),
+        ("checklist", "Checklist"),
+      ] %}
+      {% for key, lbl in event_opts %}
+      <a href="/admin/analytics?range={{ selected_range }}&event={{ key }}"
+         class="an-filter-btn {% if selected_event == key %}an-filter-btn--active{% endif %}">{{ lbl }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</form>
+
+<!-- ── Metric cards ─────────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Feature Usage</h2>
+  <div class="an-metric-grid">
+    {% for m in metrics %}
+    <div class="an-metric-card">
+      <div class="an-metric-title">{{ m.label }}</div>
+      <div class="an-metric-total">{{ m.total }}</div>
+      <div class="an-metric-sub">
+        <span class="an-metric-row"><span class="an-period">7d</span> <strong>{{ m.d7 }}</strong></span>
+        <span class="an-metric-divider">·</span>
+        <span class="an-metric-row"><span class="an-period">30d</span> <strong>{{ m.d30 }}</strong></span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ── Feature usage summary table ─────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Summary Table</h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Total Uses</th>
+          <th>Last 7 Days</th>
+          <th>Last 30 Days</th>
+          <th style="width:160px;">Activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in metrics %}
+        {% set bar_pct = [((m.d30 / [m.total, 1] | max) * 100) | int, 100] | min %}
+        <tr>
+          <td><strong>{{ m.label }}</strong></td>
+          <td>{{ m.total }}</td>
+          <td>{{ m.d7 }}</td>
+          <td>{{ m.d30 }}</td>
+          <td>
+            <div class="an-bar-track">
+              <div class="an-bar-fill" style="width:{{ bar_pct }}%;"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── Recent activity ──────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">
+    Recent Activity
+    <span class="admin-count-badge">{{ recent | length }}</span>
+  </h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Time</th><th>User</th><th>Event</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        {% for ev in recent %}
+        <tr>
+          <td class="admin-ts">{{ ev.created_at.strftime("%b %d %H:%M") if ev.created_at else "—" }}</td>
+          <td class="admin-email">
+            {{ ev.user_email or "—" }}
+            {% if ev.user_tier and ev.user_tier != "free" %}
+            <span class="an-tier-tag an-tier-{{ ev.user_tier }}">{{ ev.user_tier }}</span>
+            {% endif %}
+          </td>
+          <td><span class="an-event-label">{{ ev.event_label }}</span></td>
+          <td class="admin-meta">{{ ev.meta or "—" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="admin-empty">No events match the selected filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<style>
+/* Filters */
+.an-filters {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.an-filter-group { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.an-filter-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); width: 72px; flex-shrink: 0; }
+.an-filter-btns { display: flex; gap: .3rem; flex-wrap: wrap; }
+.an-filter-btn {
+  padding: .25rem .65rem;
+  border-radius: 6px;
+  font-size: .8rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.an-filter-btn:hover { background: var(--border); color: var(--text); }
+.an-filter-btn--active { background: var(--accent, #6366f1); color: #fff; border-color: transparent; }
+
+/* Metric cards */
+.an-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: .75rem;
+}
+.an-metric-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+.an-metric-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: .4rem; }
+.an-metric-total { font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: .4rem; }
+.an-metric-sub { display: flex; align-items: center; gap: .3rem; font-size: .8rem; color: var(--text-muted); }
+.an-metric-row { display: flex; align-items: center; gap: .2rem; }
+.an-period { font-size: .7rem; background: var(--border); border-radius: 3px; padding: .05rem .25rem; }
+.an-metric-divider { color: var(--border); }
+
+/* Bar indicator */
+.an-bar-track { height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.an-bar-fill { height: 100%; background: var(--accent, #6366f1); border-radius: 999px; }
+
+/* Event label */
+.an-event-label { font-size: .8rem; font-weight: 600; }
+
+/* Tier tags */
+.an-tier-tag {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: .05rem .4rem;
+  margin-left: .25rem;
+  vertical-align: middle;
+}
+.an-tier-premium { background: #dbeafe; color: #1d4ed8; }
+.an-tier-premium_plus { background: #ede9fe; color: #6d28d9; }
+[data-theme="dark"] .an-tier-premium { background: rgba(37,99,235,.2); color: #93c5fd; }
+[data-theme="dark"] .an-tier-premium_plus { background: rgba(109,40,217,.2); color: #c4b5fd; }
+
+/* Admin nav links (shared with admin.html) */
+.admin-nav-links { display: flex; gap: .4rem; margin-top: .5rem; }
+.admin-nav-link {
+  padding: .3rem .8rem;
+  border-radius: 7px;
+  font-size: .8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  text-decoration: none;
+}
+.admin-nav-link:hover { background: var(--border); color: var(--text); }
+.admin-nav-link--active { background: var(--accent, #6366f1); color: #fff; border-color: transparent; }
+</style>
+{% endblock %}

@@ -847,7 +847,8 @@ def share_packet_pdf(token: str, db: Session = Depends(get_session)):
 
 @app.get("/premium", response_class=HTMLResponse)
 def premium_page(request: Request):
-    require_user(request)
+    user = require_user(request)
+    log_event("premium_clicked", user_id=user.id, meta={"source": "premium_page"})
     ids = price_ids()
     return render(
         request,
@@ -897,6 +898,8 @@ def reminders_settings_post(
     import logging
     if settings.sms_enabled and not os.environ.get("TWILIO_ACCOUNT_SID"):
         logging.info("[Reminders] SMS reminder provider not configured — skipping SMS setup.")
+    if settings.email_enabled or settings.sms_enabled:
+        log_event("reminders_enabled", user_id=user.id, meta={"email": bool(settings.email_enabled), "sms": bool(settings.sms_enabled)}, db=db)
     request.session["flash"] = "Reminder settings saved."
     return RedirectResponse("/premium/reminders/settings", status_code=302)
 
@@ -1464,6 +1467,28 @@ def admin_dashboard(request: Request, db: Session = Depends(get_session)):
         recent=recent_events(db),
         failed=failed_events(db),
         misc=misc_metrics(db),
+    )
+
+
+@app.get("/admin/analytics", response_class=HTMLResponse)
+def admin_analytics(
+    request: Request,
+    range: str = "all",
+    event: str = "all",
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    require_admin(user)
+    from .admin import analytics_metrics, analytics_recent
+    days = {"7": 7, "30": 30}.get(range)
+    return render(
+        request,
+        "admin_analytics.html",
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        metrics=analytics_metrics(db),
+        recent=analytics_recent(db, limit=50, days=days, event_filter=event),
+        selected_range=range,
+        selected_event=event,
     )
 
 

@@ -2,6 +2,51 @@
 Analytics queries for the admin dashboard.
 All queries read from existing tables — no heavy aggregations.
 """
+# ---------------------------------------------------------------------------
+# Analytics event definitions
+# ---------------------------------------------------------------------------
+
+ANALYTICS_EVENTS = [
+    {
+        "key": "uploads",
+        "label": "Uploads",
+        "types": ["document_upload", "document_uploaded"],
+        "event_label": "Document Uploaded",
+    },
+    {
+        "key": "previews",
+        "label": "Previews",
+        "types": ["document_previewed"],
+        "event_label": "Document Previewed",
+    },
+    {
+        "key": "packets",
+        "label": "Packets Generated",
+        "types": ["packet_download", "packet_pdf", "packet_generated"],
+        "event_label": "Packet Generated",
+    },
+    {
+        "key": "premium",
+        "label": "Premium Clicks",
+        "types": ["premium_clicked"],
+        "event_label": "Premium Clicked",
+    },
+    {
+        "key": "reminders",
+        "label": "Reminders Enabled",
+        "types": ["reminders_enabled"],
+        "event_label": "Reminders Enabled",
+    },
+    {
+        "key": "checklist",
+        "label": "Checklist Usage",
+        "types": ["checklist_generate", "checklist_used"],
+        "event_label": "Checklist Used",
+    },
+]
+
+_ALL_ANALYTICS_TYPES = [t for ev in ANALYTICS_EVENTS for t in ev["types"]]
+_EVENT_LABEL_MAP = {t: ev["event_label"] for ev in ANALYTICS_EVENTS for t in ev["types"]}
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, text
@@ -180,6 +225,50 @@ def failed_events(db: Session, limit: int = 20) -> list:
 # ---------------------------------------------------------------------------
 # Misc counts
 # ---------------------------------------------------------------------------
+
+def analytics_metrics(db: Session) -> list:
+    """Counts for the 6 tracked analytics event categories."""
+    result = []
+    for ev in ANALYTICS_EVENTS:
+        types = ev["types"]
+        total = db.query(func.count(Event.id)).filter(Event.event_type.in_(types), Event.ok == 1).scalar() or 0
+        d7 = db.query(func.count(Event.id)).filter(Event.event_type.in_(types), Event.ok == 1, Event.created_at >= _since(7)).scalar() or 0
+        d30 = db.query(func.count(Event.id)).filter(Event.event_type.in_(types), Event.ok == 1, Event.created_at >= _since(30)).scalar() or 0
+        result.append({"key": ev["key"], "label": ev["label"], "total": total, "d7": d7, "d30": d30})
+    return result
+
+
+def analytics_recent(db: Session, limit: int = 50, days: int | None = None, event_filter: str | None = None) -> list:
+    """Recent analytics events with optional date-range and event-type filter."""
+    type_map = {ev["key"]: ev["types"] for ev in ANALYTICS_EVENTS}
+
+    if event_filter and event_filter != "all" and event_filter in type_map:
+        types = type_map[event_filter]
+    else:
+        types = _ALL_ANALYTICS_TYPES
+
+    q = (
+        db.query(Event, User)
+        .outerjoin(User, User.id == Event.user_id)
+        .filter(Event.event_type.in_(types), Event.ok == 1)
+    )
+    if days:
+        q = q.filter(Event.created_at >= _since(days))
+
+    rows = q.order_by(Event.created_at.desc()).limit(limit).all()
+    result = []
+    for ev, user in rows:
+        result.append({
+            "id": ev.id,
+            "event_type": ev.event_type,
+            "event_label": _EVENT_LABEL_MAP.get(ev.event_type, ev.event_type),
+            "created_at": ev.created_at,
+            "user_email": user.email if user else f"user#{ev.user_id}",
+            "user_tier": user.subscription_tier if user else None,
+            "meta": ev.meta,
+        })
+    return result
+
 
 def misc_metrics(db: Session) -> dict:
     active_share_links = (
