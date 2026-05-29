@@ -3224,10 +3224,11 @@ body.dpm-open { overflow: hidden; }
 }
 
 .login-card-logo {
-  height: 56px;
-  width: auto;
+  width: 100%;
+  max-width: 340px;
+  height: auto;
   display: block;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   image-rendering: -webkit-optimize-contrast;
 }
 
