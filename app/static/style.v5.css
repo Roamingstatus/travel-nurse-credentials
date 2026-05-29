@@ -3321,6 +3321,18 @@ body.dpm-open { overflow: hidden; }
 }
 .login-footer-links a:hover { color: var(--text); }
 .login-footer-links span { font-size: 11px; color: var(--line-strong); }
+.login-theme-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 0 2px;
+  line-height: 1;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+.login-theme-btn:hover { color: var(--text); }
 
 /* ═══════════════════════════════════════════════════════
    CREDENTIALS PAGE — MOBILE FIXES
