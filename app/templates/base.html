@@ -8,7 +8,7 @@
 <script src="/static/theme.js?v=1"></script>
 <link rel="stylesheet" href="/static/style.v5.css" />
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 
 {# ─── open wrapper ─────────────────────────────────── #}
 {% if user and not public_view %}

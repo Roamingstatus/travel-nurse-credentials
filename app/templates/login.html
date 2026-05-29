@@ -1,63 +1,78 @@
 {% extends "base.html" %}
 {% block title %}Sign in · Credanta{% endblock %}
+{% block body_class %}login-pg{% endblock %}
 {% block content %}
-<div class="center-card">
-  <img class="brand-logo brand-logo--hero" src="/static/credanta-wordmark-nobg.png" alt="Credanta" />
-  <h1 class="login-lead">A calm place for licenses, IDs, and career documents — organized, searchable, and easy to share when you need to.</h1>
 
-  {% if google_ready %}
-    <a class="google-btn" href="/auth/google">
-      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.6-8 19.6-20 0-1.3-.1-2.3-.4-3.5z"/>
-        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
-        <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.4-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
-        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
-      </svg>
-      Continue with Google
-    </a>
-  {% else %}
-    <div class="notice" style="text-align:left;margin-top:20px;">
-      Google sign-in isn’t configured yet. Add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to the environment.
+<div class="login-wrap">
+
+  <div class="login-hero" aria-hidden="true">
+    <div class="login-hero-inner">
+      <img class="login-hero-logo" src="/static/credanta-wordmark-nobg.png" alt="Credanta" />
+      <p class="login-hero-tagline">credentials secured, monitored and easily shared</p>
+      <ul class="login-hero-bullets">
+        <li>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Secure document vault
+        </li>
+        <li>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Expiration monitoring
+        </li>
+        <li>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Shareable credential packets
+        </li>
+        <li>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Credential checklist tracking
+        </li>
+      </ul>
     </div>
-  {% endif %}
+  </div>
+
+  <div class="login-card-wrap">
+    <div class="login-card">
+
+      <img class="login-card-logo" src="/static/credanta-wordmark-nobg.png" alt="Credanta" />
+
+      <h1 class="login-headline">Your credentials, ready anywhere.</h1>
+      <p class="login-sub">Securely organize, monitor, and share your professional documents.</p>
+
+      {% if flash %}
+      <div class="flash login-flash">{{ flash }}</div>
+      {% endif %}
+
+      {% if google_ready %}
+      <a class="google-signin-btn" href="/auth/google">
+        <svg class="google-signin-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.6-8 19.6-20 0-1.3-.1-2.3-.4-3.5z"/>
+          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+          <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.4-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+          <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
+        </svg>
+        Continue with Google
+      </a>
+      {% else %}
+      <div class="notice login-notice">
+        Google sign-in isn't configured yet. Add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to the environment.
+      </div>
+      {% endif %}
+
+      <p class="login-trust-note">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Secure sign-in. No password needed.
+      </p>
+
+      <nav class="login-footer-links">
+        <a href="/privacy">Privacy</a>
+        <span aria-hidden="true">•</span>
+        <a href="/security-overview">Security</a>
+        <span aria-hidden="true">•</span>
+        <a href="/contact">Contact</a>
+      </nav>
+
+    </div>
+  </div>
+
 </div>
-
-<nav class="login-info-links">
-  <a href="/about">About</a>
-  <a href="/privacy">Privacy</a>
-  <a href="/security-overview">Security</a>
-  <a href="/document-security">Doc Security</a>
-  <a href="/contact">Contact</a>
-</nav>
-
-<section class="trust-section">
-  <h2 class="trust-section-title">Built with document privacy in mind.</h2>
-  <div class="trust-cards">
-    <div class="trust-card">
-      <div class="trust-card-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      </div>
-      <h3>Private by Default</h3>
-      <p>Your documents are not public unless you choose to share them.</p>
-    </div>
-    <div class="trust-card">
-      <div class="trust-card-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-      </div>
-      <h3>Controlled Sharing</h3>
-      <p>Create share links only for selected documents, revoke anytime.</p>
-    </div>
-    <div class="trust-card">
-      <div class="trust-card-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      </div>
-      <h3>Clear Ownership</h3>
-      <p>Your professional documents remain yours — we don't sell or share them.</p>
-    </div>
-  </div>
-  <div class="trust-links">
-    <a href="/security-overview">Learn more about security →</a>
-    <a href="/document-security">How documents are secured →</a>
-  </div>
-</section>
 {% endblock %}
