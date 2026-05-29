@@ -3321,3 +3321,99 @@ body.dpm-open { overflow: hidden; }
 }
 .login-footer-links a:hover { color: var(--text); }
 .login-footer-links span { font-size: 11px; color: var(--line-strong); }
+
+/* ═══════════════════════════════════════════════════════
+   CREDENTIALS PAGE — MOBILE FIXES
+   ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* 1. Remove 75% width constraint — fills full available width */
+  .content-page-head,
+  .vault-search,
+  .vault-tab-shell,
+  .vault-empty-banner {
+    width: 100%;
+  }
+
+  /* 2. Page header: keep title + button on one line, allow wrap */
+  .content-page-head {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .content-page-title h1 { font-size: 19px; }
+
+  /* 3. Vault tabs: smaller text, tighter padding */
+  .vault-tab {
+    font-size: 12px;
+    padding: 8px 10px 10px;
+  }
+  .vault-tab-label { max-width: 110px; }
+
+  /* 4. Doc card: horizontal row layout */
+  .doc-card {
+    flex-direction: row;
+    align-items: center;
+    min-height: unset;
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  /* 5. Doc icon: restore to a real touch-friendly size */
+  .doc-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+  }
+  .doc-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  /* 6. Body fills remaining space */
+  .doc-card-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .doc-card-name { font-size: 13px; }
+  .doc-card-sub  { font-size: 11px; }
+
+  /* 7. End column: pill on top, actions below — no hover needed */
+  .doc-card-end {
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    align-self: stretch;
+    width: auto;
+    margin-top: 0;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  /* 8. Action buttons always visible on touch (no hover state) */
+  .doc-card-actions {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  /* 9. Hide drag handle — not usable on touch */
+  .drag-handle { display: none; }
+
+  /* 10. Page actions bar: stack vertically */
+  .page-actions-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .page-actions-bar .btn { text-align: center; justify-content: center; }
+
+  /* 11. Search input comfortable tap height */
+  .vault-search input[type="search"] {
+    padding: 11px 14px;
+    font-size: 16px; /* prevents iOS zoom-on-focus */
+  }
+}
