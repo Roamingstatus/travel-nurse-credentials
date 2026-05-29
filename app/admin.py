@@ -277,6 +277,109 @@ def analytics_recent(db: Session, limit: int = 50, days: int | None = None, even
     return result
 
 
+def analytics_by_user(
+    db: Session,
+    days: int | None = None,
+    event_filter: str | None = None,
+) -> list:
+    """Events grouped by user — total count + per-category breakdown."""
+    type_map = {ev["key"]: ev["types"] for ev in ANALYTICS_EVENTS}
+    if event_filter and event_filter != "all" and event_filter in type_map:
+        types = type_map[event_filter]
+    else:
+        types = _ALL_ANALYTICS_TYPES
+
+    q = (
+        db.query(
+            User.id,
+            User.name,
+            User.email,
+            User.subscription_tier,
+            func.count(Event.id).label("total"),
+        )
+        .join(Event, Event.user_id == User.id)
+        .filter(Event.event_type.in_(types), Event.ok == 1)
+    )
+    if days:
+        q = q.filter(Event.created_at >= _since(days))
+
+    rows = q.group_by(User.id).order_by(text("total desc")).limit(100).all()
+
+    user_ids = [r[0] for r in rows]
+    if not user_ids:
+        return []
+
+    cat_q = (
+        db.query(
+            Event.user_id,
+            Event.event_type,
+            func.count(Event.id).label("cnt"),
+        )
+        .filter(Event.user_id.in_(user_ids), Event.event_type.in_(types), Event.ok == 1)
+    )
+    if days:
+        cat_q = cat_q.filter(Event.created_at >= _since(days))
+    cat_rows = cat_q.group_by(Event.user_id, Event.event_type).all()
+
+    by_user: dict = {}
+    for uid, etype, cnt in cat_rows:
+        by_user.setdefault(uid, {})
+        key = next((ev["key"] for ev in ANALYTICS_EVENTS if etype in ev["types"]), None)
+        if key:
+            by_user[uid][key] = by_user[uid].get(key, 0) + cnt
+
+    result = []
+    for uid, name, email, tier, total in rows:
+        cats = by_user.get(uid, {})
+        result.append({
+            "name": name,
+            "email": email,
+            "tier": tier or "free",
+            "total": total,
+            "cats": cats,
+        })
+    return result
+
+
+def analytics_by_date(
+    db: Session,
+    days: int | None = None,
+    event_filter: str | None = None,
+) -> list:
+    """Events grouped by calendar day — total + per-category counts."""
+    type_map = {ev["key"]: ev["types"] for ev in ANALYTICS_EVENTS}
+    if event_filter and event_filter != "all" and event_filter in type_map:
+        types = type_map[event_filter]
+    else:
+        types = _ALL_ANALYTICS_TYPES
+
+    date_expr = func.strftime("%Y-%m-%d", Event.created_at).label("day")
+    q = (
+        db.query(date_expr, Event.event_type, func.count(Event.id).label("cnt"))
+        .filter(Event.event_type.in_(types), Event.ok == 1)
+    )
+    if days:
+        q = q.filter(Event.created_at >= _since(days))
+
+    rows = (
+        q.group_by(func.strftime("%Y-%m-%d", Event.created_at), Event.event_type)
+        .order_by(text("day desc"))
+        .limit(500)
+        .all()
+    )
+
+    days_map: dict = {}
+    for day, etype, cnt in rows:
+        if day not in days_map:
+            days_map[day] = {"date": day, "total": 0, "cats": {}}
+        days_map[day]["total"] += cnt
+        key = next((ev["key"] for ev in ANALYTICS_EVENTS if etype in ev["types"]), None)
+        if key:
+            days_map[day]["cats"][key] = days_map[day]["cats"].get(key, 0) + cnt
+
+    return sorted(days_map.values(), key=lambda d: d["date"], reverse=True)[:60]
+
+
 def misc_metrics(db: Session) -> dict:
     active_share_links = (
         db.query(func.count(ShareLink.id))

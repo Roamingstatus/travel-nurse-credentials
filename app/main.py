@@ -1479,7 +1479,7 @@ def admin_analytics(
 ):
     user = require_user(request)
     require_admin(user)
-    from .admin import analytics_metrics, analytics_recent
+    from .admin import analytics_metrics, analytics_recent, analytics_by_user, analytics_by_date
     days = {"7": 7, "30": 30}.get(range)
     return render(
         request,
@@ -1487,6 +1487,9 @@ def admin_analytics(
         now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
         metrics=analytics_metrics(db),
         recent=analytics_recent(db, limit=50, days=days, event_filter=event),
+        by_user=analytics_by_user(db, days=days, event_filter=event),
+        by_date=analytics_by_date(db, days=days, event_filter=event),
+        analytics_events=__import__("app.admin", fromlist=["ANALYTICS_EVENTS"]).ANALYTICS_EVENTS,
         selected_range=range,
         selected_event=event,
     )
