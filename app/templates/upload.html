@@ -77,7 +77,7 @@
 </section>
 
 <!-- ── Scan overlay ─────────────────────────────────── -->
-<div id="scan-overlay" class="scan-overlay" hidden aria-live="polite">
+<div id="scan-overlay" class="scan-overlay" aria-live="polite">
   <div class="scan-terminal">
     <div class="scan-header">
       <div class="scan-dots">
@@ -115,15 +115,18 @@
 <style>
 /* ── Scan overlay ────────────────────────────────────── */
 .scan-overlay {
+  display: none;
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(0,0,0,.72);
   backdrop-filter: blur(4px);
   animation: scan-fadein .2s ease;
+}
+.scan-overlay.is-active {
+  display: flex;
 }
 @keyframes scan-fadein { from { opacity:0 } to { opacity:1 } }
 
@@ -243,13 +246,16 @@
 
 /* Result */
 .scan-result {
+  display: none;
   padding: 1rem 1.25rem 1.25rem;
   border-top: 1px solid #21262d;
-  display: flex;
   flex-direction: column;
   align-items: center;
   gap: .35rem;
   text-align: center;
+}
+.scan-result.is-active {
+  display: flex;
 }
 .scan-result-icon {
   font-size: 2.2rem;
@@ -401,7 +407,7 @@
 
   function showResult(clean, threat) {
     beam.classList.remove("active");
-    scanResult.hidden = false;
+    scanResult.classList.add("is-active");
 
     var icon = document.getElementById("scan-result-icon");
     var text = document.getElementById("scan-result-text");
@@ -423,7 +429,7 @@
       btn.className = "scan-result-btn scan-result-btn--fail";
       btn.textContent = "Dismiss";
       btn.addEventListener("click", function () {
-        overlay.hidden = true;
+        overlay.classList.remove("is-active");
         submitBtn.disabled = false;
         submitBtn.textContent = "Save to vault";
       });
@@ -434,7 +440,7 @@
   function runScanUI(file, onClean) {
     /* Reset */
     scanLog.innerHTML = "";
-    scanResult.hidden = true;
+    scanResult.classList.remove("is-active");
     while (scanResult.querySelectorAll("button").length) {
       scanResult.removeChild(scanResult.querySelector("button"));
     }
@@ -444,7 +450,7 @@
     document.getElementById("scan-filesize").textContent = fmtBytes(file.size);
 
     /* Show overlay */
-    overlay.hidden = false;
+    overlay.classList.add("is-active");
     beam.classList.add("active");
 
     /* POST the file for server-side scan */
@@ -521,14 +527,14 @@
             if (sub) sub.textContent = "Saved!";
             setTimeout(function(){ window.location.href = "/documents"; }, 400);
           } else {
-            overlay.hidden = true;
+            overlay.classList.remove("is-active");
             submitBtn.disabled = false;
             submitBtn.textContent = "Save to vault";
           }
         });
 
         xhr.addEventListener("error", function() {
-          overlay.hidden = true;
+          overlay.classList.remove("is-active");
           submitBtn.disabled = false;
           submitBtn.textContent = "Save to vault";
         });
