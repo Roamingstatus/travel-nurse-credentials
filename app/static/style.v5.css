@@ -18,8 +18,8 @@
   --muted: #71717a;
   --line: #e4e4e7;
   --line-strong: #d4d4d8;
-  --accent: #2563eb;
-  --accent-soft: #eff6ff;
+  --accent: #0e7490;
+  --accent-soft: #ecfeff;
   --good: #15803d;
   --good-bg: #dcfce7;
   --warn: #b45309;
@@ -30,6 +30,8 @@
   --topbar-border: var(--line);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --brand-gradient: linear-gradient(90deg, #0891b2 0%, #7c3aed 100%);
+  --brand-glow: 0 4px 20px rgba(8,145,178,0.30);
 }
 
 [data-theme="dark"] {
@@ -40,8 +42,8 @@
   --muted: #a1a1aa;
   --line: #27272a;
   --line-strong: #3f3f46;
-  --accent: #60a5fa;
-  --accent-soft: #1e3a5f;
+  --accent: #22d3ee;
+  --accent-soft: #083344;
   --good: #4ade80;
   --good-bg: #14532d;
   --warn: #fbbf24;
@@ -52,6 +54,8 @@
   --topbar-border: #27272a;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --brand-gradient: linear-gradient(90deg, #22d3ee 0%, #a855f7 100%);
+  --brand-glow: 0 4px 20px rgba(34,211,238,0.25);
 }
 
 * {
@@ -211,12 +215,13 @@ a:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }
 .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--brand-gradient);
+  border-color: transparent;
   color: #fff;
 }
 .btn.primary:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.08);
+  box-shadow: var(--brand-glow);
 }
 .btn.danger {
   background: transparent;
@@ -277,9 +282,9 @@ a:hover {
   width: 100%;
   padding: 20px 24px;
   border-radius: 16px;
-  background: var(--accent);
+  background: var(--brand-gradient);
   border: none;
-  box-shadow: 0 4px 24px color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: var(--brand-glow);
   color: #fff;
   text-decoration: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
@@ -2550,7 +2555,8 @@ body.dpm-open { overflow: hidden; }
 /* Sidebar brand / logo */
 .sidebar-brand {
   padding: 18px 16px 14px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 2px solid transparent;
+  border-image: var(--brand-gradient) 1;
   flex-shrink: 0;
 }
 .sidebar-brand-link { display: block; }
