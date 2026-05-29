@@ -2656,7 +2656,7 @@ body.dpm-open { overflow: hidden; }
   .sidebar { display: none; }
   .app-main { margin-left: 0; }
   .app-content { padding: 16px 16px 88px; }
-  html, body { overflow-x: hidden; max-width: 100vw; }
+  .app-shell { overflow-x: clip; }
 }
 
 /* ── Credential page: constrained centered column (desktop only) ── */
@@ -3407,10 +3407,15 @@ body.dpm-open { overflow: hidden; }
     flex-shrink: 0;
   }
 
-  /* 8. Action buttons always visible on touch (no hover state) */
+  /* 8. Action buttons always visible on touch — bigger tap targets */
   .doc-card-actions {
     opacity: 1 !important;
     pointer-events: auto !important;
+    gap: 6px;
+  }
+  .doc-card-actions .btn-icon {
+    width: 36px;
+    height: 36px;
   }
 
   /* 9. Hide drag handle — not usable on touch */
