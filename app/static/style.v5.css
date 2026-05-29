@@ -667,13 +667,13 @@ a:hover {
   height: 10px !important;
   min-width: 10px !important;
   border-radius: 3px !important;
-  background: #f1f3f5 !important;
-  color: #a1a1aa !important;
+  background: transparent !important;
+  color: #9ca3af !important;
   transition: background 0.22s ease, color 0.22s ease, transform 0.18s ease !important;
 }
 [data-theme="dark"] .doc-icon--sm {
-  background: rgba(255,255,255,0.07) !important;
-  color: #71717a !important;
+  background: transparent !important;
+  color: #52525b !important;
 }
 .doc-card:hover .doc-icon--sm {
   transform: scale(1.25) !important;
