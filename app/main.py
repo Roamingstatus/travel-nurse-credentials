@@ -513,7 +513,7 @@ async def upload_submit(
     )
     db.add(doc)
     db.commit()
-    log_event("document_upload", user_id=user.id, meta={"category": doc.category, "mime": doc.mime_type}, db=db)
+    log_event("document_upload", user_id=user.id, meta={"filename": doc.original_filename, "title": doc.title, "category": doc.category, "mime": doc.mime_type}, db=db)
     request.session["flash"] = f"Saved \"{doc.title}\"."
     return RedirectResponse("/documents", status_code=302)
 

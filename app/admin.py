@@ -47,6 +47,7 @@ ANALYTICS_EVENTS = [
 
 _ALL_ANALYTICS_TYPES = [t for ev in ANALYTICS_EVENTS for t in ev["types"]]
 _EVENT_LABEL_MAP = {t: ev["event_label"] for ev in ANALYTICS_EVENTS for t in ev["types"]}
+import json
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, text
@@ -258,14 +259,20 @@ def analytics_recent(db: Session, limit: int = 50, days: int | None = None, even
     rows = q.order_by(Event.created_at.desc()).limit(limit).all()
     result = []
     for ev, user in rows:
+        try:
+            meta_parsed = json.loads(ev.meta) if ev.meta else {}
+        except Exception:
+            meta_parsed = {}
         result.append({
             "id": ev.id,
             "event_type": ev.event_type,
             "event_label": _EVENT_LABEL_MAP.get(ev.event_type, ev.event_type),
             "created_at": ev.created_at,
+            "user_name": user.name if user else None,
             "user_email": user.email if user else f"user#{ev.user_id}",
             "user_tier": user.subscription_tier if user else None,
             "meta": ev.meta,
+            "meta_parsed": meta_parsed,
         })
     return result
 

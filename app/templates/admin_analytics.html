@@ -113,14 +113,34 @@
         {% for ev in recent %}
         <tr>
           <td class="admin-ts">{{ ev.created_at.strftime("%b %d %H:%M") if ev.created_at else "—" }}</td>
-          <td class="admin-email">
-            {{ ev.user_email or "—" }}
-            {% if ev.user_tier and ev.user_tier != "free" %}
+          <td class="an-user-cell">
+            {%- if ev.user_name %}<div class="an-user-name">{{ ev.user_name }}</div>{%- endif %}
+            <div class="an-user-email">{{ ev.user_email or "—" }}</div>
+            {%- if ev.user_tier and ev.user_tier != "free" %}
             <span class="an-tier-tag an-tier-{{ ev.user_tier }}">{{ ev.user_tier }}</span>
-            {% endif %}
+            {%- endif %}
           </td>
           <td><span class="an-event-label">{{ ev.event_label }}</span></td>
-          <td class="admin-meta">{{ ev.meta or "—" }}</td>
+          <td class="an-detail-cell">
+            {%- set m = ev.meta_parsed %}
+            {%- if m.get("filename") %}
+            <div class="an-detail-row"><span class="an-detail-key">File</span> <span class="an-detail-val">{{ m.filename }}</span></div>
+            {%- elif m.get("title") %}
+            <div class="an-detail-row"><span class="an-detail-key">Title</span> <span class="an-detail-val">{{ m.title }}</span></div>
+            {%- endif %}
+            {%- if m.get("mime") %}
+            <div class="an-detail-row"><span class="an-detail-key">Type</span> <span class="an-detail-val an-mime">{{ m.mime }}</span></div>
+            {%- endif %}
+            {%- if m.get("category") %}
+            <div class="an-detail-row"><span class="an-detail-key">Category</span> <span class="an-detail-val">{{ m.category }}</span></div>
+            {%- endif %}
+            {%- if m.get("source") %}
+            <div class="an-detail-row"><span class="an-detail-key">Source</span> <span class="an-detail-val">{{ m.source }}</span></div>
+            {%- endif %}
+            {%- if not m %}
+            <span class="an-detail-empty">—</span>
+            {%- endif %}
+          </td>
         </tr>
         {% else %}
         <tr><td colspan="4" class="admin-empty">No events match the selected filters.</td></tr>
@@ -197,6 +217,27 @@
 .an-tier-premium_plus { background: #ede9fe; color: #6d28d9; }
 [data-theme="dark"] .an-tier-premium { background: rgba(37,99,235,.2); color: #93c5fd; }
 [data-theme="dark"] .an-tier-premium_plus { background: rgba(109,40,217,.2); color: #c4b5fd; }
+
+/* User cell */
+.an-user-cell { vertical-align: top; }
+.an-user-name { font-weight: 600; font-size: .82rem; }
+.an-user-email { font-size: .78rem; color: var(--text-muted); }
+
+/* Detail cell */
+.an-detail-cell { vertical-align: top; font-size: .8rem; }
+.an-detail-row { display: flex; gap: .35rem; align-items: baseline; line-height: 1.6; }
+.an-detail-key {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  width: 52px;
+  flex-shrink: 0;
+}
+.an-detail-val { word-break: break-all; }
+.an-mime { font-family: monospace; font-size: .75rem; color: var(--text-muted); }
+.an-detail-empty { color: var(--text-muted); }
 
 /* Admin nav links (shared with admin.html) */
 .admin-nav-links { display: flex; gap: .4rem; margin-top: .5rem; }
