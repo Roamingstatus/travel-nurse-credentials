@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from collections import defaultdict
@@ -42,6 +43,7 @@ from .db import (
     Document,
     Event,
     ReminderSettings,
+    SessionLocal,
     ShareLink,
     User,
     get_session,
@@ -91,7 +93,41 @@ BASE_DIR = Path(__file__).parent
 
 app = FastAPI(title="Credanta")
 
+_MFA_EXEMPT_PREFIXES = (
+    "/login",
+    "/auth/",
+    "/logout",
+    "/static/",
+    "/healthz",
+    "/s/",
+    "/security/mfa/setup",
+    "/security/mfa/confirm",
+    "/security/mfa/challenge",
+    "/security/mfa/verify-recovery",
+)
+
+
+class EnforceMFAMiddleware(BaseHTTPMiddleware):
+    """Redirect authenticated users without MFA set up to the MFA setup page."""
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path == "/" or any(path.startswith(p) for p in _MFA_EXEMPT_PREFIXES):
+            return await call_next(request)
+        user_id = request.session.get("user_id")
+        if user_id:
+            db = SessionLocal()
+            try:
+                user = db.get(User, user_id)
+                if user and not getattr(user, "mfa_enabled", False):
+                    return RedirectResponse("/security/mfa/setup", status_code=302)
+            finally:
+                db.close()
+        return await call_next(request)
+
+
 _is_production = os.environ.get("ENV", "").lower() == "production"
+app.add_middleware(EnforceMFAMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     SessionMiddleware,
@@ -253,6 +289,8 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
     log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
     request.session["user_id"] = user.id
     request.session["flash"] = f"Signed in as {user.email}"
+    if not getattr(user, "mfa_enabled", False):
+        return RedirectResponse("/security/mfa/setup", status_code=302)
     return RedirectResponse("/dashboard", status_code=302)
 
 
@@ -1081,22 +1119,14 @@ async def mfa_confirm(
     request.session["mfa_recovery_codes_display"] = plain_codes
     log_event("mfa_enabled", user_id=user.id, db=db)
     request.session["flash"] = "Two-step verification enabled."
-    return RedirectResponse("/security", status_code=302)
+    return RedirectResponse("/dashboard", status_code=302)
 
 
 @app.post("/security/mfa/disable")
 async def mfa_disable(request: Request, db: Session = Depends(get_session)):
-    user = require_user(request)
-    db_user = db.get(User, user.id)
-    db_user.mfa_enabled = False
-    db_user.mfa_method = None
-    db_user.mfa_totp_secret = None
-    db_user.mfa_recovery_codes = None
-    db.commit()
-    request.session.pop("mfa_verified_at", None)
-    log_event("mfa_disabled", user_id=user.id, db=db)
-    request.session["flash"] = "Two-step verification disabled."
-    return RedirectResponse("/security", status_code=302)
+    require_user(request)
+    request.session["flash"] = "Two-step verification is required and cannot be disabled."
+    return RedirectResponse("/dashboard", status_code=302)
 
 
 @app.get("/security/mfa/challenge", response_class=HTMLResponse)
