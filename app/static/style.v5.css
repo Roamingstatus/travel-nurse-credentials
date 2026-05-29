@@ -3225,10 +3225,10 @@ body.dpm-open { overflow: hidden; }
 
 .login-card-logo {
   width: 100%;
-  max-width: 340px;
+  max-width: 440px;
   height: auto;
   display: block;
-  margin-bottom: 24px;
+  margin-bottom: 36px;
   image-rendering: -webkit-optimize-contrast;
 }
 
