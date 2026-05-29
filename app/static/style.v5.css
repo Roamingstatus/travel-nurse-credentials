@@ -662,6 +662,12 @@ a:hover {
   transition: opacity 0.15s;
 }
 .doc-icon:hover { opacity: 0.82; }
+.doc-icon--sm {
+  width: 10px !important;
+  height: 10px !important;
+  min-width: 10px !important;
+  border-radius: 3px !important;
+}
 .doc-icon--red    { background: #fee2e2; color: #dc2626; }
 .doc-icon--orange { background: #ffedd5; color: #ea580c; }
 .doc-icon--blue   { background: #dbeafe; color: #2563eb; }
