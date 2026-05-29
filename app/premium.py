@@ -3,6 +3,12 @@ import os
 from fastapi import HTTPException
 from .db import User
 
+# ── Beta mode ────────────────────────────────────────────────────────────────
+# When True every signed-in user gets full Premium Plus access for free.
+# Flip to False (or set env var BETA_MODE=false) when paid tiers go live.
+_BETA_MODE: bool = os.environ.get("BETA_MODE", "true").lower() != "false"
+# ─────────────────────────────────────────────────────────────────────────────
+
 PREMIUM_FEATURES = [
     {
         "key": "expiration_reminders",
@@ -70,6 +76,8 @@ PREMIUM_PLUS_FEATURES = [
 def has_premium(user: "User | None") -> bool:
     if not user:
         return False
+    if _BETA_MODE:
+        return True
     tier = getattr(user, "subscription_tier", "free") or "free"
     return tier in ("premium", "premium_plus")
 
@@ -77,6 +85,8 @@ def has_premium(user: "User | None") -> bool:
 def has_premium_plus(user: "User | None") -> bool:
     if not user:
         return False
+    if _BETA_MODE:
+        return True
     tier = getattr(user, "subscription_tier", "free") or "free"
     return tier == "premium_plus"
 
