@@ -1234,6 +1234,21 @@ def account_page(request: Request, db: Session = Depends(get_session)):
     )
     reminder_settings = db.query(ReminderSettings).filter_by(user_id=user.id).first()
 
+    from datetime import datetime as _dt
+    _now = _dt.utcnow()
+    active_share_links = (
+        db.query(ShareLink)
+        .filter(
+            ShareLink.user_id == user.id,
+            ShareLink.revoked_at.is_(None),
+        )
+        .all()
+    )
+    active_share_links_count = sum(
+        1 for sl in active_share_links
+        if sl.expires_at is None or sl.expires_at > _now
+    )
+
     return render(
         request,
         "account.html",
@@ -1245,6 +1260,7 @@ def account_page(request: Request, db: Session = Depends(get_session)):
         storage_limit_label=_STORAGE_LIMIT_LABEL.get(tier, "500 MB"),
         last_login=last_login,
         reminder_settings=reminder_settings,
+        active_share_links_count=active_share_links_count,
     )
 
 
