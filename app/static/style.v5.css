@@ -655,10 +655,10 @@ a:hover {
 
 /* Colored 40×40 type/status icon */
 .doc-icon {
-  width: 7px;
-  height: 7px;
-  min-width: 7px;
-  border-radius: 2px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3346,11 +3346,13 @@ body.dpm-open { overflow: hidden; }
 
 @media (max-width: 768px) {
 
-  /* 1. Clamp vault tab scroll to viewport */
+  /* ── Vault tabs: scrollable, tighter ── */
   .vault-tabs-scroll { max-width: 100%; overflow-x: auto; }
   .vault-tabs { min-width: 0; }
+  .vault-tab { font-size: 12px; padding: 8px 10px 10px; }
+  .vault-tab-label { max-width: 100px; }
 
-  /* 2. Page header: keep title + button on one line, allow wrap */
+  /* ── Page header ── */
   .content-page-head {
     flex-wrap: wrap;
     align-items: center;
@@ -3359,80 +3361,82 @@ body.dpm-open { overflow: hidden; }
   }
   .content-page-title h1 { font-size: 19px; }
 
-  /* 3. Vault tabs: smaller text, tighter padding */
-  .vault-tab {
-    font-size: 12px;
-    padding: 8px 10px 10px;
-  }
-  .vault-tab-label { max-width: 110px; }
+  /* ── Doc card: wrapping flex layout ──
+     Row 1: [icon] [body text]   (icon + body share the line)
+     Row 2: [pill]  [actions]    (end snaps to its own full-width row)
+  ── */
+  .drag-handle { display: none; }
 
-  /* 4. Doc card: horizontal row layout */
   .doc-card {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     min-height: unset;
-    padding: 12px 14px;
-    gap: 12px;
+    padding: 14px;
+    gap: 0;
+    row-gap: 10px;
+    column-gap: 12px;
   }
 
-  /* 5. Doc icon: restore to a real touch-friendly size */
+  /* Icon: left anchor of row 1 */
   .doc-icon {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
     border-radius: 10px;
+    flex-shrink: 0;
   }
-  .doc-icon svg {
-    width: 18px !important;
-    height: 18px !important;
-  }
+  .doc-icon svg { width: 20px !important; height: 20px !important; }
 
-  /* 6. Body fills remaining space */
+  /* Body: fills remainder of row 1 */
   .doc-card-body {
     flex: 1;
     min-width: 0;
   }
-  .doc-card-name { font-size: 13px; }
-  .doc-card-sub  { font-size: 11px; }
+  .doc-card-name { font-size: 14px; }
+  .doc-card-sub  { font-size: 12px; white-space: normal; }
 
-  /* 7. End column: pill on top, actions below — no hover needed */
+  /* End: forced onto row 2, full width, pill left / actions right */
   .doc-card-end {
-    flex-direction: column;
-    align-items: flex-end;
+    flex: 0 0 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
     justify-content: space-between;
-    align-self: stretch;
-    width: auto;
     margin-top: 0;
-    gap: 6px;
-    flex-shrink: 0;
+    gap: 8px;
   }
 
-  /* 8. Action buttons always visible on touch — bigger tap targets */
   .doc-card-actions {
     opacity: 1 !important;
     pointer-events: auto !important;
-    gap: 6px;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
   }
   .doc-card-actions .btn-icon {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
   }
+  .doc-card-actions .btn-icon svg { width: 16px; height: 16px; }
 
-  /* 9. Hide drag handle — not usable on touch */
-  .drag-handle { display: none; }
-
-  /* 10. Page actions bar: stack vertically */
+  /* ── Page actions bar: full-width stacked buttons ── */
   .page-actions-bar {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
-    margin-top: 20px;
+    gap: 10px;
+    margin-top: 24px;
   }
-  .page-actions-bar .btn { text-align: center; justify-content: center; }
+  .page-actions-bar .btn {
+    text-align: center;
+    justify-content: center;
+    padding: 14px 16px;
+    font-size: 15px;
+  }
 
-  /* 11. Search input comfortable tap height */
+  /* ── Search input ── */
   .vault-search input[type="search"] {
-    padding: 11px 14px;
-    font-size: 16px; /* prevents iOS zoom-on-focus */
+    padding: 12px 14px;
+    font-size: 16px;
   }
 }
