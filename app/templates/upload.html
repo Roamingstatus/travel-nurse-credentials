@@ -494,7 +494,10 @@
   if (form) {
     form.addEventListener("submit", function(e) {
       e.preventDefault();
-      if (!input.files || !input.files.length) { form.submit(); return; }
+      if (!input.files || !input.files.length) {
+        form.reportValidity();
+        return;
+      }
 
       submitBtn.disabled = true;
       submitBtn.textContent = "Scanning…";
