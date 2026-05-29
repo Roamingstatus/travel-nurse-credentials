@@ -111,6 +111,8 @@ class EnforceMFAMiddleware(BaseHTTPMiddleware):
     """Redirect authenticated users without MFA set up to the MFA setup page."""
 
     async def dispatch(self, request: Request, call_next):
+        if not _is_production:
+            return await call_next(request)
         path = request.url.path
         if path == "/" or any(path.startswith(p) for p in _MFA_EXEMPT_PREFIXES):
             return await call_next(request)
@@ -289,7 +291,7 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
     log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
     request.session["user_id"] = user.id
     request.session["flash"] = f"Signed in as {user.email}"
-    if not getattr(user, "mfa_enabled", False):
+    if _is_production and not getattr(user, "mfa_enabled", False):
         return RedirectResponse("/security/mfa/setup", status_code=302)
     return RedirectResponse("/dashboard", status_code=302)
 
@@ -1054,6 +1056,8 @@ def _is_mfa_verified(request: Request) -> bool:
 
 def _mfa_gate(request: Request, user: User) -> Optional[RedirectResponse]:
     """Return a redirect to the MFA challenge page if needed, else None."""
+    if not _is_production:
+        return None
     if getattr(user, "mfa_enabled", False) and not _is_mfa_verified(request):
         request.session["mfa_next"] = str(request.url)
         return RedirectResponse("/security/mfa/challenge", status_code=302)
