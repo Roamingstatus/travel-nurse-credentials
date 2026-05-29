@@ -159,11 +159,12 @@
   <div class="admin-table-wrap">
     <table class="admin-table">
       <thead>
-        <tr><th>Time</th><th>User</th><th>Event</th><th>Details</th></tr>
+        <tr><th>Time</th><th>User</th><th>Document</th><th>Type</th><th>Event</th><th>Details</th></tr>
       </thead>
       <tbody>
         {% for ev in recent %}
         <tr>
+          {%- set m = ev.meta_parsed %}
           <td class="admin-ts">{{ ev.created_at.strftime("%b %d %H:%M") if ev.created_at else "—" }}</td>
           <td class="an-user-cell">
             {%- if ev.user_name %}<div class="an-user-name">{{ ev.user_name }}</div>{%- endif %}
@@ -172,30 +173,23 @@
             <span class="an-tier-tag an-tier-{{ ev.user_tier }}">{{ ev.user_tier }}</span>
             {%- endif %}
           </td>
+          <td class="an-doc-name">{{ m.get("filename") or m.get("title") or "—" }}</td>
+          <td class="an-doc-type">{{ m.get("mime") or "—" }}</td>
           <td><span class="an-event-label">{{ ev.event_label }}</span></td>
           <td class="an-detail-cell">
-            {%- set m = ev.meta_parsed %}
-            {%- if m.get("filename") %}
-            <div class="an-detail-row"><span class="an-detail-key">File</span> <span class="an-detail-val">{{ m.filename }}</span></div>
-            {%- elif m.get("title") %}
-            <div class="an-detail-row"><span class="an-detail-key">Title</span> <span class="an-detail-val">{{ m.title }}</span></div>
-            {%- endif %}
-            {%- if m.get("mime") %}
-            <div class="an-detail-row"><span class="an-detail-key">Type</span> <span class="an-detail-val an-mime">{{ m.mime }}</span></div>
-            {%- endif %}
             {%- if m.get("category") %}
             <div class="an-detail-row"><span class="an-detail-key">Category</span> <span class="an-detail-val">{{ m.category }}</span></div>
             {%- endif %}
             {%- if m.get("source") %}
             <div class="an-detail-row"><span class="an-detail-key">Source</span> <span class="an-detail-val">{{ m.source }}</span></div>
             {%- endif %}
-            {%- if not m %}
+            {%- if not m.get("category") and not m.get("source") %}
             <span class="an-detail-empty">—</span>
             {%- endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="admin-empty">No events match the selected filters.</td></tr>
+        <tr><td colspan="6" class="admin-empty">No events match the selected filters.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -293,6 +287,10 @@
 
 .an-date-cell { font-family: monospace; font-size: .82rem; white-space: nowrap; }
 .an-tier-free { font-size: .72rem; color: var(--text-muted); }
+
+/* Document name / type columns */
+.an-doc-name { font-size: .8rem; word-break: break-all; max-width: 180px; }
+.an-doc-type { font-family: monospace; font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
 
 /* User cell */
 .an-user-cell { vertical-align: top; }
