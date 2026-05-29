@@ -3130,11 +3130,12 @@ body.dpm-open { overflow: hidden; }
 @media (min-width: 820px) {
   .login-hero {
     display: flex;
-    flex: 1;
+    flex: 0 0 25%;
+    width: 25%;
     align-items: center;
     justify-content: center;
     background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 60%, #0f3460 100%);
-    padding: 60px 48px;
+    padding: 60px 32px;
     position: relative;
     overflow: hidden;
   }
@@ -3152,7 +3153,7 @@ body.dpm-open { overflow: hidden; }
 .login-hero-inner {
   position: relative;
   z-index: 1;
-  max-width: 340px;
+  max-width: 220px;
 }
 
 /* Hero panel logo (white-inverted, tightly cropped PNG) */
@@ -3207,7 +3208,8 @@ body.dpm-open { overflow: hidden; }
 }
 @media (min-width: 820px) {
   .login-card-wrap {
-    width: 460px;
+    flex: 1;
+    width: 75%;
     min-height: 100vh;
     border-left: 1px solid var(--line);
   }
@@ -3215,17 +3217,17 @@ body.dpm-open { overflow: hidden; }
 
 .login-card {
   width: 100%;
-  max-width: 380px;
+  max-width: 460px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
 }
 
 .login-card-logo {
-  height: 32px;
+  height: 56px;
   width: auto;
   display: block;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
   image-rendering: -webkit-optimize-contrast;
 }
 
