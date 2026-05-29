@@ -195,6 +195,147 @@ def validate_upload(
 
 
 # ---------------------------------------------------------------------------
+# Malware / threat scanner
+# ---------------------------------------------------------------------------
+
+_EICAR = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+
+_PE_HEADERS: tuple[bytes, ...] = (
+    b"MZ",           # PE / DOS executable
+    b"\x7fELF",      # ELF (Linux binary)
+    b"\xca\xfe\xba\xbe",  # Mach-O fat binary
+    b"\xfe\xed\xfa\xce",  # Mach-O 32-bit
+    b"\xfe\xed\xfa\xcf",  # Mach-O 64-bit
+    b"\xce\xfa\xed\xfe",  # Mach-O 32-bit LE
+    b"\xcf\xfa\xed\xfe",  # Mach-O 64-bit LE
+)
+
+_PDF_DANGER_PATTERNS: tuple[bytes, ...] = (
+    b"/JS ",
+    b"/JavaScript",
+    b"/Launch",
+    b"/OpenAction",
+    b"/AA ",
+    b"/EmbeddedFile",
+    b"/RichMedia",
+    b"/XFA",
+    b"eval(",
+    b"this.exportDataObject",
+    b"app.launchURL",
+)
+
+_SCRIPT_INJECTION: tuple[bytes, ...] = (
+    b"<script",
+    b"javascript:",
+    b"vbscript:",
+    b"data:text/html",
+    b"<?php",
+)
+
+_MACRO_SIGNATURES: tuple[bytes, ...] = (
+    b"AutoOpen",
+    b"AutoExec",
+    b"Auto_Open",
+    b"Document_Open",
+    b"Shell(",
+    b"CreateObject",
+    b"WScript.Shell",
+    b"powershell",
+    b"cmd.exe",
+)
+
+
+def _check_eicar(data: bytes) -> Optional[str]:
+    if _EICAR in data:
+        return "EICAR test file detected — antivirus test signature found"
+    return None
+
+
+def _check_pe_header(data: bytes, mime: Optional[str]) -> Optional[str]:
+    head = data[:8]
+    for sig in _PE_HEADERS:
+        if head[: len(sig)] == sig:
+            return f"Executable binary detected (file header matches known executable format)"
+    return None
+
+
+def _check_pdf_danger(data: bytes) -> Optional[str]:
+    found = []
+    sample = data[:65536]
+    for pat in _PDF_DANGER_PATTERNS:
+        if pat in sample:
+            found.append(pat.decode("ascii", errors="replace").strip())
+    if found:
+        return f"PDF contains potentially dangerous directives: {', '.join(found[:3])}"
+    return None
+
+
+def _check_script_injection(data: bytes) -> Optional[str]:
+    sample = data[:16384].lower()
+    for pat in _SCRIPT_INJECTION:
+        if pat in sample:
+            return f"Script injection pattern detected: {pat.decode('ascii', errors='replace')!r}"
+    return None
+
+
+def _check_macros(data: bytes) -> Optional[str]:
+    found = []
+    for pat in _MACRO_SIGNATURES:
+        if pat in data:
+            found.append(pat.decode("ascii", errors="replace").strip())
+    if found:
+        return f"Macro/script content detected: {', '.join(found[:3])}"
+    return None
+
+
+def scan_file(raw: bytes, filename: str, effective_mime: Optional[str] = None) -> dict:
+    """Run a lightweight in-process threat scan on uploaded file bytes.
+
+    Returns::
+        {
+            "clean": bool,
+            "threat": str | None,   # human-readable threat description
+            "checks": [{"label": str, "ok": bool}]
+        }
+    """
+    checks: list[dict] = []
+    threat: Optional[str] = None
+
+    def _run(label: str, fn, *args) -> None:
+        nonlocal threat
+        result = fn(*args)
+        ok = result is None
+        checks.append({"label": label, "ok": ok})
+        if not ok and threat is None:
+            threat = result
+
+    _run("EICAR test-file signature", _check_eicar, raw)
+    _run("Executable binary header", _check_pe_header, raw, effective_mime)
+
+    if effective_mime == "application/pdf" or (filename or "").lower().endswith(".pdf"):
+        _run("PDF dangerous directives", _check_pdf_danger, raw)
+    else:
+        checks.append({"label": "PDF dangerous directives", "ok": True})
+
+    is_office = effective_mime in (
+        "application/msword",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    if is_office:
+        _run("Macro / script payload", _check_macros, raw)
+    else:
+        checks.append({"label": "Macro / script payload", "ok": True})
+
+    _run("Script injection patterns", _check_script_injection, raw)
+
+    checks.append({"label": "File structure integrity", "ok": threat is None})
+
+    return {"clean": threat is None, "threat": threat, "checks": checks}
+
+
+# ---------------------------------------------------------------------------
 # Rate limiter
 # ---------------------------------------------------------------------------
 

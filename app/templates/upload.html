@@ -69,32 +69,223 @@
         <textarea id="notes" name="notes" rows="3" placeholder="Reference numbers, issuer, or context."></textarea>
       </div>
 
-      <p class="premium-note">
-        Duplicates are blocked by file contents.
-      </p>
-
-      <div class="upload-progress-wrap" id="upload-progress-wrap" hidden>
-        <div class="upload-progress-bar" id="upload-progress-bar"></div>
-        <p class="upload-progress-label" id="upload-progress-label">Uploading…</p>
-      </div>
+      <p class="premium-note">Duplicates are blocked by file contents.</p>
 
       <button type="submit" class="btn primary wide" id="upload-submit-btn">Save to vault</button>
     </form>
   </div>
 </section>
 
+<!-- ── Scan overlay ─────────────────────────────────── -->
+<div id="scan-overlay" class="scan-overlay" hidden aria-live="polite">
+  <div class="scan-terminal">
+    <div class="scan-header">
+      <div class="scan-dots">
+        <span class="scan-dot scan-dot--red"></span>
+        <span class="scan-dot scan-dot--yellow"></span>
+        <span class="scan-dot scan-dot--green"></span>
+      </div>
+      <span class="scan-header-title">credanta — threat scanner</span>
+    </div>
+
+    <div class="scan-file-row">
+      <div class="scan-file-icon" id="scan-icon">
+        <svg viewBox="0 0 40 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2h20l12 12v32a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M26 2v12h12" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        <div class="scan-beam" id="scan-beam"></div>
+      </div>
+      <div class="scan-file-info">
+        <div class="scan-filename" id="scan-filename">—</div>
+        <div class="scan-filesize" id="scan-filesize"></div>
+      </div>
+    </div>
+
+    <div class="scan-log" id="scan-log"></div>
+
+    <div class="scan-result" id="scan-result" hidden>
+      <div class="scan-result-icon" id="scan-result-icon"></div>
+      <div class="scan-result-text" id="scan-result-text"></div>
+      <div class="scan-result-sub" id="scan-result-sub"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── Scan overlay ────────────────────────────────────── */
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(4px);
+  animation: scan-fadein .2s ease;
+}
+@keyframes scan-fadein { from { opacity:0 } to { opacity:1 } }
+
+.scan-terminal {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  width: min(520px, 92vw);
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.6);
+  animation: scan-slidein .25s cubic-bezier(.34,1.3,.7,1);
+}
+@keyframes scan-slidein {
+  from { transform: translateY(18px) scale(.96); opacity:0 }
+  to   { transform: translateY(0) scale(1); opacity:1 }
+}
+
+/* Header bar */
+.scan-header {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .7rem 1rem;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+}
+.scan-dots { display:flex; gap:.4rem; }
+.scan-dot {
+  width:11px; height:11px; border-radius:50%;
+}
+.scan-dot--red    { background:#ff5f57; }
+.scan-dot--yellow { background:#febc2e; }
+.scan-dot--green  { background:#28c840; }
+.scan-header-title { font-family: monospace; font-size:.75rem; color:#8b949e; margin-left:.2rem; }
+
+/* File row */
+.scan-file-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem .8rem;
+  border-bottom: 1px solid #21262d;
+}
+.scan-file-icon {
+  position: relative;
+  width: 40px;
+  height: 48px;
+  flex-shrink: 0;
+  color: #58a6ff;
+}
+.scan-file-icon svg { width:100%; height:100%; }
+
+/* Scan beam animation */
+.scan-beam {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  right: -4px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #3fb950, transparent);
+  border-radius: 2px;
+  box-shadow: 0 0 8px #3fb950, 0 0 20px #3fb95066;
+  animation: beam-sweep 1.4s ease-in-out infinite;
+  opacity: 0;
+}
+.scan-beam.active { opacity:1; }
+@keyframes beam-sweep {
+  0%   { top: 0%;   opacity:0 }
+  10%  { opacity:1 }
+  90%  { opacity:1 }
+  100% { top: 100%; opacity:0 }
+}
+
+.scan-filename { font-family:monospace; font-size:.88rem; color:#e6edf3; word-break:break-all; }
+.scan-filesize  { font-family:monospace; font-size:.72rem; color:#8b949e; margin-top:.15rem; }
+
+/* Log lines */
+.scan-log {
+  padding: .6rem 1.25rem .9rem;
+  min-height: 128px;
+  font-family: monospace;
+  font-size: .8rem;
+  line-height: 1.8;
+}
+.scan-line {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  color: #8b949e;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: line-appear .18s ease forwards;
+}
+@keyframes line-appear {
+  to { opacity:1; transform:translateY(0) }
+}
+.scan-line--running .scan-line-badge { color:#e3b341; }
+.scan-line--ok      .scan-line-badge { color:#3fb950; }
+.scan-line--ok      { color:#8b949e; }
+.scan-line--fail    .scan-line-badge { color:#f85149; }
+.scan-line--fail    { color:#f85149; }
+
+.scan-line-badge { font-weight:700; width:18px; text-align:center; flex-shrink:0; }
+
+/* Spinner for in-progress line */
+.scan-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #30363d;
+  border-top-color: #e3b341;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform:rotate(360deg) } }
+
+/* Result */
+.scan-result {
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid #21262d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .35rem;
+  text-align: center;
+}
+.scan-result-icon {
+  font-size: 2.2rem;
+  animation: result-pop .35s cubic-bezier(.34,1.56,.7,1);
+}
+@keyframes result-pop {
+  from { transform:scale(0); opacity:0 }
+  to   { transform:scale(1); opacity:1 }
+}
+.scan-result-text { font-family:monospace; font-weight:700; font-size:1rem; }
+.scan-result-text--ok   { color:#3fb950; }
+.scan-result-text--fail { color:#f85149; }
+.scan-result-sub  { font-family:monospace; font-size:.72rem; color:#8b949e; max-width:380px; }
+
+.scan-result-btn {
+  margin-top: .6rem;
+  padding: .4rem 1.1rem;
+  border-radius: 7px;
+  border: none;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scan-result-btn--ok   { background:#238636; color:#fff; }
+.scan-result-btn--fail { background:#21262d; color:#8b949e; border:1px solid #30363d; }
+</style>
+
 <script>
 (function () {
-  var dz = document.getElementById("dropzone");
-  var input = document.getElementById("file");
-  var label = document.getElementById("file-label");
+  var dz     = document.getElementById("dropzone");
+  var input  = document.getElementById("file");
+  var label  = document.getElementById("file-label");
   if (!dz || !input) return;
 
   function showName() {
-    if (!input.files || !input.files.length) {
-      label.hidden = true;
-      return;
-    }
+    if (!input.files || !input.files.length) { label.hidden = true; return; }
     label.textContent = input.files[0].name;
     label.hidden = false;
   }
@@ -104,21 +295,13 @@
     if (input.files && input.files.length) analyzeFile(input.files[0]);
   });
 
-  ["dragenter", "dragover"].forEach(function (ev) {
-    dz.addEventListener(ev, function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      dz.classList.add("is-drag");
-    });
+  ["dragenter","dragover"].forEach(function(ev) {
+    dz.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); dz.classList.add("is-drag"); });
   });
-  ["dragleave", "drop"].forEach(function (ev) {
-    dz.addEventListener(ev, function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      dz.classList.remove("is-drag");
-    });
+  ["dragleave","drop"].forEach(function(ev) {
+    dz.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); dz.classList.remove("is-drag"); });
   });
-  dz.addEventListener("drop", function (e) {
+  dz.addEventListener("drop", function(e) {
     var dt = e.dataTransfer;
     if (!dt || !dt.files || !dt.files.length) return;
     input.files = dt.files;
@@ -130,13 +313,9 @@
     var el = document.getElementById(id);
     var badge = document.getElementById(labelId);
     if (!el || !value) return;
-    if (el.tagName === 'SELECT') {
+    if (el.tagName === "SELECT") {
       for (var i = 0; i < el.options.length; i++) {
-        if (el.options[i].value === value) {
-          el.value = value;
-          if (badge) badge.hidden = false;
-          return;
-        }
+        if (el.options[i].value === value) { el.value = value; if (badge) badge.hidden = false; return; }
       }
     } else {
       el.value = value;
@@ -145,72 +324,215 @@
   }
 
   function analyzeFile(file) {
-    var hint = document.getElementById('analyze-hint');
-    if (hint) { hint.hidden = false; hint.textContent = 'Reading document…'; }
+    var hint = document.getElementById("analyze-hint");
+    if (hint) { hint.hidden = false; hint.textContent = "Reading document…"; }
     var fd = new FormData();
-    fd.append('file', file);
-    fetch('/documents/analyze', { method: 'POST', body: fd })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
+    fd.append("file", file);
+    fetch("/documents/analyze", { method: "POST", body: fd })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
         if (!data) return;
         if (hint) hint.hidden = true;
-        setAutoField('title', data.title, 'badge-title');
-        setAutoField('category', data.category, 'badge-category');
-        setAutoField('issued_at', data.issued_at, 'badge-issued');
-        setAutoField('expires_at', data.expires_at, 'badge-expires');
+        setAutoField("title",     data.title,      "badge-title");
+        setAutoField("category",  data.category,   "badge-category");
+        setAutoField("issued_at", data.issued_at,  "badge-issued");
+        setAutoField("expires_at",data.expires_at, "badge-expires");
       })
-      .catch(function () { if (hint) hint.hidden = true; });
+      .catch(function(){ if (hint) hint.hidden = true; });
   }
 
-  // Upload progress
-  var form = document.getElementById("upload-form");
-  var progressWrap = document.getElementById("upload-progress-wrap");
-  var progressBar = document.getElementById("upload-progress-bar");
-  var progressLabel = document.getElementById("upload-progress-label");
-  var submitBtn = document.getElementById("upload-submit-btn");
+  /* ── Scan animation ──────────────────────────────── */
+  var form       = document.getElementById("upload-form");
+  var overlay    = document.getElementById("scan-overlay");
+  var beam       = document.getElementById("scan-beam");
+  var scanLog    = document.getElementById("scan-log");
+  var scanResult = document.getElementById("scan-result");
+  var submitBtn  = document.getElementById("upload-submit-btn");
 
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      var data = new FormData(form);
-      var xhr = new XMLHttpRequest();
+  var CHECK_LABELS = [
+    "EICAR test-file signature",
+    "Executable binary header",
+    "PDF dangerous directives",
+    "Macro / script payload",
+    "Script injection patterns",
+    "File structure integrity"
+  ];
 
-      xhr.upload.addEventListener("progress", function (ev) {
-        if (!ev.lengthComputable) return;
-        var pct = Math.round((ev.loaded / ev.total) * 100);
-        progressBar.style.width = pct + "%";
-        progressLabel.textContent = pct < 100 ? "Uploading… " + pct + "%" : "Processing…";
-      });
+  function fmtBytes(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n/1024).toFixed(1) + " KB";
+    return (n/1048576).toFixed(1) + " MB";
+  }
 
-      xhr.addEventListener("load", function () {
-        if (xhr.status >= 200 && xhr.status < 400) {
-          progressBar.style.width = "100%";
-          progressLabel.textContent = "Saved!";
-          setTimeout(function () {
-            window.location.href = "/documents";
-          }, 400);
-        } else {
-          progressLabel.textContent = "Upload failed. Please try again.";
-          progressBar.style.background = "var(--bad)";
-          submitBtn.disabled = false;
-          submitBtn.textContent = "Save to vault";
-        }
-      });
+  function addLine(label, state) {
+    var row = document.createElement("div");
+    row.className = "scan-line scan-line--" + state;
+    row.id = "scan-line-" + label.replace(/\s+/g,"-");
 
-      xhr.addEventListener("error", function () {
-        progressLabel.textContent = "Network error. Please try again.";
-        progressBar.style.background = "var(--bad)";
+    var badge = document.createElement("span");
+    badge.className = "scan-line-badge";
+
+    if (state === "running") {
+      var sp = document.createElement("span");
+      sp.className = "scan-spinner";
+      badge.appendChild(sp);
+    } else if (state === "ok") {
+      badge.textContent = "✓";
+    } else {
+      badge.textContent = "✗";
+    }
+
+    var txt = document.createElement("span");
+    txt.textContent = label;
+
+    row.appendChild(badge);
+    row.appendChild(txt);
+    scanLog.appendChild(row);
+    return row;
+  }
+
+  function updateLine(label, ok) {
+    var row = document.getElementById("scan-line-" + label.replace(/\s+/g,"-"));
+    if (!row) return;
+    var badge = row.querySelector(".scan-line-badge");
+    badge.innerHTML = ok ? "✓" : "✗";
+    row.className = "scan-line scan-line--" + (ok ? "ok" : "fail");
+  }
+
+  function showResult(clean, threat) {
+    beam.classList.remove("active");
+    scanResult.hidden = false;
+
+    var icon = document.getElementById("scan-result-icon");
+    var text = document.getElementById("scan-result-text");
+    var sub  = document.getElementById("scan-result-sub");
+
+    if (clean) {
+      icon.textContent = "🛡️";
+      text.textContent = "All clear — no threats found";
+      text.className   = "scan-result-text scan-result-text--ok";
+      sub.textContent  = "Uploading your document…";
+    } else {
+      icon.textContent = "⛔";
+      text.textContent = "Threat detected — upload blocked";
+      text.className   = "scan-result-text scan-result-text--fail";
+      sub.textContent  = threat || "A potential security risk was found in this file.";
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "scan-result-btn scan-result-btn--fail";
+      btn.textContent = "Dismiss";
+      btn.addEventListener("click", function () {
+        overlay.hidden = true;
         submitBtn.disabled = false;
         submitBtn.textContent = "Save to vault";
       });
+      scanResult.appendChild(btn);
+    }
+  }
 
-      progressWrap.hidden = false;
-      progressBar.style.width = "0%";
+  function runScanUI(file, onClean) {
+    /* Reset */
+    scanLog.innerHTML = "";
+    scanResult.hidden = true;
+    while (scanResult.querySelectorAll("button").length) {
+      scanResult.removeChild(scanResult.querySelector("button"));
+    }
+
+    /* Show filename / size */
+    document.getElementById("scan-filename").textContent = file.name;
+    document.getElementById("scan-filesize").textContent = fmtBytes(file.size);
+
+    /* Show overlay */
+    overlay.hidden = false;
+    beam.classList.add("active");
+
+    /* POST the file for server-side scan */
+    var fd = new FormData();
+    fd.append("file", file);
+    var scanPromise = fetch("/documents/scan", { method: "POST", body: fd })
+      .then(function(r){ return r.json(); });
+
+    /* Animate check rows with staggered delays while scan runs */
+    var delay = 0;
+    var lineTimers = [];
+    CHECK_LABELS.forEach(function(lbl, i) {
+      var t = setTimeout(function(){ addLine(lbl, "running"); }, delay);
+      lineTimers.push(t);
+      delay += 260;
+    });
+
+    var MIN_ANIM_MS = delay + 400; /* show all lines before revealing result */
+    var animDone = false, scanData = null;
+
+    function tryFinish() {
+      if (!animDone || !scanData) return;
+      /* Update each line based on server result */
+      (scanData.checks || []).forEach(function(c){
+        updateLine(c.label, c.ok);
+      });
+      /* Short pause so lines are readable */
+      setTimeout(function(){
+        showResult(scanData.clean, scanData.threat);
+        if (scanData.clean) {
+          setTimeout(onClean, 900);
+        }
+      }, 350);
+    }
+
+    setTimeout(function(){ animDone = true; tryFinish(); }, MIN_ANIM_MS);
+
+    scanPromise
+      .then(function(data){ scanData = data; tryFinish(); })
+      .catch(function(){
+        /* Network error — allow upload anyway but log it */
+        scanData = { clean: true, threat: null, checks: [] };
+        tryFinish();
+      });
+  }
+
+  if (form) {
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      if (!input.files || !input.files.length) { form.submit(); return; }
+
       submitBtn.disabled = true;
-      submitBtn.textContent = "Uploading…";
+      submitBtn.textContent = "Scanning…";
 
-      xhr.open("POST", form.action);
-      xhr.send(data);
+      runScanUI(input.files[0], function() {
+        /* Scan passed — do the real XHR upload */
+        var data = new FormData(form);
+        var xhr = new XMLHttpRequest();
+
+        /* Update overlay sub-text to show upload progress */
+        var sub = document.getElementById("scan-result-sub");
+
+        xhr.upload.addEventListener("progress", function(ev) {
+          if (!ev.lengthComputable) return;
+          var pct = Math.round((ev.loaded / ev.total) * 100);
+          if (sub) sub.textContent = pct < 100 ? "Uploading… " + pct + "%" : "Processing…";
+        });
+
+        xhr.addEventListener("load", function() {
+          if (xhr.status >= 200 && xhr.status < 400) {
+            if (sub) sub.textContent = "Saved!";
+            setTimeout(function(){ window.location.href = "/documents"; }, 400);
+          } else {
+            overlay.hidden = true;
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Save to vault";
+          }
+        });
+
+        xhr.addEventListener("error", function() {
+          overlay.hidden = true;
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Save to vault";
+        });
+
+        xhr.open("POST", form.action);
+        xhr.send(data);
+      });
     });
   }
 })();

@@ -416,6 +416,29 @@ def _parse_date(value: str) -> Optional[datetime]:
         return None
 
 
+@app.post("/documents/scan")
+async def scan_upload(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """Pre-upload threat scan. Returns JSON so the client can animate the result."""
+    require_user(request)
+    from .security import scan_file, validate_upload
+    raw = await file.read()
+    if not raw:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"clean": False, "threat": "Empty file.", "checks": []})
+    fname = file.filename or ""
+    try:
+        effective_mime = validate_upload(raw, fname, file.content_type)
+    except HTTPException as exc:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"clean": False, "threat": exc.detail, "checks": []})
+    result = scan_file(raw, fname, effective_mime)
+    from fastapi.responses import JSONResponse
+    return JSONResponse(result)
+
+
 @app.post("/documents/upload")
 async def upload_submit(
     request: Request,
