@@ -51,6 +51,9 @@
       <span class="sidebar-user" title="{{ user.email }}">{{ user.email }}</span>
       <div class="sidebar-foot-actions">
         <button type="button" class="btn small ghost sidebar-theme-btn" data-theme-toggle title="Toggle theme">◐</button>
+        {% if is_dev %}
+        <a href="/dev/set-tier" class="btn small ghost" title="Switch tier (dev only)" style="font-size:11px;">🛠 {{ subscription_tier }}</a>
+        {% endif %}
         <form method="post" action="/logout" style="margin:0;">
           <button type="submit" class="btn small ghost">Sign out</button>
         </form>

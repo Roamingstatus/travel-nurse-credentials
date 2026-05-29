@@ -219,6 +219,7 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
         ctx.setdefault("ai_features_enabled", is_prem and ai_enabled())
     else:
         ctx.setdefault("ai_features_enabled", False)
+    ctx.setdefault("is_dev", not _is_production)
     return templates.TemplateResponse(request, template, ctx)
 
 
