@@ -3147,12 +3147,28 @@ body.dpm-open { overflow: hidden; }
   max-width: 340px;
 }
 
-.login-hero-logo {
-  height: 48px;
-  width: auto;
+/* CSS wordmark used on both login panels */
+.login-wordmark {
   display: block;
-  margin-bottom: 20px;
-  filter: brightness(0) invert(1) drop-shadow(0 2px 12px rgba(255,255,255,0.25));
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  margin-bottom: 24px;
+  background: linear-gradient(90deg, #06b6d4 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* On the dark hero panel, use white */
+.login-hero .login-wordmark {
+  background: none;
+  -webkit-text-fill-color: #ffffff;
+  color: #ffffff;
+  font-size: 32px;
+  text-shadow: 0 2px 16px rgba(255,255,255,0.18);
+  margin-bottom: 8px;
 }
 
 .login-hero-tagline {
