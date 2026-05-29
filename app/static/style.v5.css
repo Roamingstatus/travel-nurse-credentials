@@ -121,11 +121,11 @@ a:hover {
   font-size: 17px;
 }
 .brand-logo {
-  height: 40px;
+  height: 32px;
   width: auto;
-  max-width: 300px;
-  object-fit: contain;
+  max-width: 220px;
   display: block;
+  image-rendering: -webkit-optimize-contrast;
 }
 .brand-logo--hero {
   height: auto;
@@ -2555,9 +2555,11 @@ body.dpm-open { overflow: hidden; }
 }
 .sidebar-brand-link { display: block; }
 .sidebar-logo-img {
-  height: 24px;
+  height: 38px;
   width: auto;
+  max-width: 160px;
   display: block;
+  image-rendering: -webkit-optimize-contrast;
 }
 
 /* Sidebar nav links */
