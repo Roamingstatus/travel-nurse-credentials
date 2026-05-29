@@ -3148,11 +3148,11 @@ body.dpm-open { overflow: hidden; }
 }
 
 .login-hero-logo {
-  height: 32px;
+  height: 48px;
   width: auto;
   display: block;
   margin-bottom: 20px;
-  filter: brightness(0) invert(1);
+  filter: brightness(0) invert(1) drop-shadow(0 2px 12px rgba(255,255,255,0.25));
 }
 
 .login-hero-tagline {
@@ -3212,13 +3212,10 @@ body.dpm-open { overflow: hidden; }
 }
 
 .login-card-logo {
-  height: 28px;
+  height: 36px;
   width: auto;
   display: block;
   margin-bottom: 28px;
-}
-@media (min-width: 820px) {
-  .login-card-logo { display: none; }
 }
 
 .login-headline {
