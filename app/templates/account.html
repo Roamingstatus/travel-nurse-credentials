@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}Account — Credanta{% endblock %}
+{% block content %}
+<div class="vault-header">
+  <div>
+    <h1 class="vault-title">Account</h1>
+    <p class="acct-subtitle">Manage your profile, subscription, storage, and security settings.</p>
+  </div>
+</div>
+
+<div class="acct-grid">
+
+  <!-- Profile -->
+  <div class="acct-card">
+    <h2 class="acct-card-title">Profile</h2>
+    <div class="acct-rows">
+      <div class="acct-row">
+        <span class="acct-label">Name</span>
+        <span class="acct-val">{{ user.name or "—" }}</span>
+      </div>
+      <div class="acct-row">
+        <span class="acct-label">Email</span>
+        <span class="acct-val">{{ user.email }}</span>
+      </div>
+      <div class="acct-row">
+        <span class="acct-label">Member Since</span>
+        <span class="acct-val">{{ user.created_at.strftime("%B %Y") if user.created_at else "—" }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subscription -->
+  <div class="acct-card">
+    <h2 class="acct-card-title">Subscription</h2>
+    <div class="acct-rows">
+      <div class="acct-row">
+        <span class="acct-label">Current Plan</span>
+        <span class="acct-val">
+          <span class="tier-badge tier-{{ subscription_tier }}">
+            {%- if subscription_tier == "premium_plus" %}Premium+
+            {%- elif subscription_tier == "premium" %}Premium
+            {%- else %}Free{%- endif %}
+          </span>
+        </span>
+      </div>
+      <div class="acct-row">
+        <span class="acct-label">Status</span>
+        <span class="acct-val"><span class="acct-dot acct-dot-green"></span> Active</span>
+      </div>
+    </div>
+    <div class="acct-actions">
+      <a href="/billing/portal" class="btn ghost small">Manage Subscription</a>
+      {%- if subscription_tier == "free" %}
+      <a href="/premium" class="btn primary small">Upgrade Plan</a>
+      {%- elif subscription_tier == "premium" %}
+      <a href="/premium" class="btn primary small">Upgrade to Premium+</a>
+      {%- endif %}
+    </div>
+  </div>
+
+  <!-- Storage -->
+  <div class="acct-card">
+    <h2 class="acct-card-title">Storage</h2>
+    <div class="acct-storage-used">
+      {{ total_bytes_fmt }}<span class="acct-of"> / {{ storage_limit_label }}</span>
+    </div>
+    <div class="acct-progress-track">
+      <div class="acct-progress-fill" style="width:{{ storage_pct }}%; background:{% if storage_pct > 90 %}#dc2626{% elif storage_pct > 70 %}#ea580c{% else %}var(--accent,#6366f1){% endif %};"></div>
+    </div>
+    <div class="acct-rows" style="margin-top:.75rem;">
+      <div class="acct-row">
+        <span class="acct-label">Documents Stored</span>
+        <span class="acct-val">{{ summary.total }}</span>
+      </div>
+      <div class="acct-row">
+        <span class="acct-label">Space Used</span>
+        <span class="acct-val">{{ storage_pct }}%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document Status -->
+  <div class="acct-card">
+    <h2 class="acct-card-title">Document Status</h2>
+    <div class="acct-stat-grid">
+      <div class="acct-stat">
+        <span class="acct-stat-num">{{ summary.total }}</span>
+        <span class="acct-stat-lbl">Total</span>
+      </div>
+      <div class="acct-stat acct-stat-green">
+        <span class="acct-stat-num">{{ valid_count }}</span>
+        <span class="acct-stat-lbl">Valid</span>
+      </div>
+      <div class="acct-stat acct-stat-orange">
+        <span class="acct-stat-num">{{ summary.expiring | length }}</span>
+        <span class="acct-stat-lbl">Expiring Soon</span>
+      </div>
+      <div class="acct-stat acct-stat-red">
+        <span class="acct-stat-num">{{ summary.expired | length }}</span>
+        <span class="acct-stat-lbl">Expired</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Security -->
+  <div class="acct-card">
+    <h2 class="acct-card-title">Security</h2>
+    <div class="acct-rows">
+      <div class="acct-row">
+        <span class="acct-label">Google Sign-In</span>
+        <span class="acct-val"><span class="acct-badge acct-badge-green">Enabled</span></span>
+      </div>
+      <div class="acct-row">
+        <span class="acct-label">Two-Step Verification</span>
+        <span class="acct-val">
+          {%- if user.mfa_enabled %}
+          <span class="acct-badge acct-badge-green">Enabled</span>
+          {%- else %}
+          <span class="acct-badge acct-badge-gray">Not Set Up</span>
+          {%- endif %}
+        </span>
+      </div>
+      {%- if last_login %}
+      <div class="acct-row">
+        <span class="acct-label">Last Login</span>
+        <span class="acct-val">{{ last_login.created_at.strftime("%b %d, %Y") }}</span>
+      </div>
+      {%- endif %}
+    </div>
+  </div>
+
+  <!-- Connected Services -->
+  <div class="acct-card">
+    <h2 class="acct-card-title">Connected Services</h2>
+    <div class="acct-rows">
+      <div class="acct-row">
+        <span class="acct-label">Google Account</span>
+        <span class="acct-val"><span class="acct-badge acct-badge-green">Connected</span></span>
+      </div>
+      <div class="acct-row">
+        <span class="acct-label">Calendar Sync</span>
+        <span class="acct-val">
+          {%- if is_premium_plus %}
+          <span class="acct-badge acct-badge-green">Available</span>
+          {%- else %}
+          <span class="acct-badge acct-badge-gray">Premium+ only</span>
+          {%- endif %}
+        </span>
+      </div>
+      <div class="acct-row">
+        <span class="acct-label">Email Notifications</span>
+        <span class="acct-val">
+          {%- if reminder_settings and reminder_settings.email_enabled %}
+          <span class="acct-badge acct-badge-green">Enabled</span>
+          {%- else %}
+          <span class="acct-badge acct-badge-gray">Disabled</span>
+          {%- endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preferences -->
+  <div class="acct-card">
+    <h2 class="acct-card-title">Preferences</h2>
+    <form method="post" action="/account/preferences" id="prefs-form">
+      <input type="hidden" name="email_enabled" id="email_enabled_val"
+             value="{{ 1 if reminder_settings and reminder_settings.email_enabled else 0 }}">
+      <div class="acct-toggle-row">
+        <div>
+          <div class="acct-toggle-label">Email Reminders</div>
+          <div class="acct-toggle-desc">Get notified before credentials expire</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" {% if reminder_settings and reminder_settings.email_enabled %}checked{% endif %}
+                 onchange="submitPref(this.checked ? 1 : 0)">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </form>
+    <div class="acct-toggle-row">
+      <div>
+        <div class="acct-toggle-label">Expiration Alerts</div>
+        <div class="acct-toggle-desc">Dashboard warnings for expiring documents</div>
+      </div>
+      <span class="acct-badge acct-badge-gray" style="flex-shrink:0;">Always on</span>
+    </div>
+    <div class="acct-toggle-row" style="border-bottom:none;">
+      <div>
+        <div class="acct-toggle-label">Marketing Emails</div>
+        <div class="acct-toggle-desc">Product updates and announcements</div>
+      </div>
+      <span class="acct-badge acct-badge-gray" style="flex-shrink:0;">Coming soon</span>
+    </div>
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="acct-card acct-card-danger">
+    <h2 class="acct-card-title acct-title-danger">Danger Zone</h2>
+    <p class="acct-danger-desc">Permanently delete your account and all associated documents. This cannot be undone.</p>
+    <button type="button" class="btn acct-btn-danger small"
+            onclick="document.getElementById('delete-modal').showModal()">
+      Delete Account
+    </button>
+  </div>
+
+</div>
+
+<!-- Delete Modal -->
+<dialog id="delete-modal" class="acct-modal">
+  <div class="acct-modal-inner">
+    <h3 class="acct-modal-title">Delete your account?</h3>
+    <p class="acct-modal-desc">This will permanently remove your account, all uploaded documents, and credentials. This action cannot be undone.</p>
+    <div class="acct-modal-actions">
+      <button type="button" class="btn ghost" onclick="document.getElementById('delete-modal').close()">Cancel</button>
+      <form method="post" action="/account/delete" style="margin:0;">
+        <button type="submit" class="btn acct-btn-danger">Yes, Delete My Account</button>
+      </form>
+    </div>
+  </div>
+</dialog>
+
+<script>
+function submitPref(val) {
+  document.getElementById('email_enabled_val').value = val;
+  document.getElementById('prefs-form').submit();
+}
+</script>
+
+<style>
+.acct-subtitle { color: var(--text-muted); margin: .25rem 0 0; font-size: .875rem; }
+
+.acct-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+@media (max-width: 700px) { .acct-grid { grid-template-columns: 1fr; } }
+
+.acct-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+.acct-card-title {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 .9rem;
+}
+.acct-card-danger { border-color: #fca5a5; }
+[data-theme="dark"] .acct-card-danger { border-color: rgba(220,38,38,.35); }
+.acct-title-danger { color: #dc2626; }
+
+.acct-rows { display: flex; flex-direction: column; gap: .55rem; }
+.acct-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .875rem; }
+.acct-label { color: var(--text-muted); flex-shrink: 0; }
+.acct-val { font-weight: 500; text-align: right; }
+
+.acct-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+
+/* Tier badges */
+.tier-badge {
+  display: inline-block;
+  padding: .2rem .65rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+}
+.tier-free { background: #f3f4f6; color: #6b7280; }
+.tier-premium { background: #dbeafe; color: #1d4ed8; }
+.tier-premium_plus { background: #ede9fe; color: #6d28d9; }
+[data-theme="dark"] .tier-free { background: rgba(107,114,128,.18); color: #9ca3af; }
+[data-theme="dark"] .tier-premium { background: rgba(37,99,235,.2); color: #93c5fd; }
+[data-theme="dark"] .tier-premium_plus { background: rgba(109,40,217,.2); color: #c4b5fd; }
+
+/* Status badges */
+.acct-badge {
+  display: inline-block;
+  padding: .15rem .55rem;
+  border-radius: 999px;
+  font-size: .73rem;
+  font-weight: 600;
+}
+.acct-badge-green { background: #dcfce7; color: #16a34a; }
+.acct-badge-gray  { background: #f3f4f6; color: #6b7280; }
+[data-theme="dark"] .acct-badge-green { background: rgba(22,163,74,.18); color: #86efac; }
+[data-theme="dark"] .acct-badge-gray  { background: rgba(107,114,128,.15); color: #9ca3af; }
+
+/* Status dot */
+.acct-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.acct-dot-green { background: #16a34a; }
+
+/* Storage */
+.acct-storage-used { font-size: 1.25rem; font-weight: 700; margin-bottom: .5rem; }
+.acct-of { font-size: .85rem; color: var(--text-muted); font-weight: 400; }
+.acct-progress-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: .25rem;
+}
+.acct-progress-fill { height: 100%; border-radius: 999px; transition: width .3s; }
+
+/* Document stat grid */
+.acct-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+}
+.acct-stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .7rem .5rem;
+  text-align: center;
+}
+.acct-stat-num { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1; }
+.acct-stat-lbl { display: block; font-size: .7rem; color: var(--text-muted); margin-top: .2rem; }
+.acct-stat-green .acct-stat-num { color: #16a34a; }
+.acct-stat-orange .acct-stat-num { color: #ea580c; }
+.acct-stat-red   .acct-stat-num { color: #dc2626; }
+
+/* Preference toggles */
+.acct-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.acct-toggle-label { font-size: .875rem; font-weight: 500; }
+.acct-toggle-desc  { font-size: .75rem; color: var(--text-muted); margin-top: .1rem; }
+.toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; cursor: pointer; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: #d1d5db;
+  border-radius: 999px;
+  transition: background .2s;
+}
+.toggle-track::before {
+  content: "";
+  position: absolute;
+  width: 14px; height: 14px;
+  left: 3px; top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.toggle-switch input:checked + .toggle-track { background: var(--accent, #6366f1); }
+.toggle-switch input:checked + .toggle-track::before { transform: translateX(16px); }
+
+/* Danger */
+.acct-danger-desc { font-size: .875rem; color: var(--text-muted); margin: 0 0 1rem; line-height: 1.5; }
+.acct-btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+}
+.acct-btn-danger:hover { background: #b91c1c; color: #fff; }
+
+/* Modal */
+.acct-modal {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text);
+  padding: 0;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.15);
+}
+.acct-modal::backdrop { background: rgba(0,0,0,.45); }
+.acct-modal-inner { padding: 1.75rem; }
+.acct-modal-title { font-size: 1rem; font-weight: 700; margin: 0 0 .5rem; }
+.acct-modal-desc { font-size: .875rem; color: var(--text-muted); margin: 0 0 1.5rem; line-height: 1.55; }
+.acct-modal-actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+</style>
+{% endblock %}

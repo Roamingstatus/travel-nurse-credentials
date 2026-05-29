@@ -1192,6 +1192,87 @@ async def regenerate_recovery_codes(request: Request, db: Session = Depends(get_
 
 
 # ---------------------------------------------------------------------------
+# Account
+# ---------------------------------------------------------------------------
+
+def _fmt_bytes(n: int) -> str:
+    if n < 1_024:
+        return f"{n} B"
+    if n < 1_048_576:
+        return f"{n / 1_024:.1f} KB"
+    if n < 1_073_741_824:
+        return f"{n / 1_048_576:.1f} MB"
+    return f"{n / 1_073_741_824:.2f} GB"
+
+
+_STORAGE_LIMIT_BYTES = {"free": 500 * 1_048_576, "premium": 2 * 1_073_741_824, "premium_plus": 10 * 1_073_741_824}
+_STORAGE_LIMIT_LABEL = {"free": "500 MB", "premium": "2 GB", "premium_plus": "10 GB"}
+
+
+@app.get("/account", response_class=HTMLResponse)
+def account_page(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    db_user = db.get(User, user.id)
+    mfa_check = _mfa_gate(request, db_user)
+    if mfa_check:
+        return mfa_check
+
+    docs = db.query(Document).filter_by(user_id=user.id).all()
+    summary = summarize(docs)
+    valid_count = len(summary["current"]) + len(summary["no_expiry"])
+
+    total_bytes = sum(d.size_bytes or 0 for d in docs)
+    tier = getattr(db_user, "subscription_tier", "free")
+    lim = _STORAGE_LIMIT_BYTES.get(tier, _STORAGE_LIMIT_BYTES["free"])
+    storage_pct = min(100, int(total_bytes / lim * 100)) if lim else 0
+
+    last_login = (
+        db.query(Event)
+        .filter(Event.user_id == user.id, Event.event_type == "user_login")
+        .order_by(Event.created_at.desc())
+        .first()
+    )
+    reminder_settings = db.query(ReminderSettings).filter_by(user_id=user.id).first()
+
+    return render(
+        request,
+        "account.html",
+        user=db_user,
+        summary=summary,
+        valid_count=valid_count,
+        total_bytes_fmt=_fmt_bytes(total_bytes),
+        storage_pct=storage_pct,
+        storage_limit_label=_STORAGE_LIMIT_LABEL.get(tier, "500 MB"),
+        last_login=last_login,
+        reminder_settings=reminder_settings,
+    )
+
+
+@app.post("/account/preferences")
+async def account_preferences(
+    request: Request,
+    email_enabled: int = Form(0),
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    s = db.query(ReminderSettings).filter_by(user_id=user.id).first()
+    if not s:
+        s = ReminderSettings(user_id=user.id)
+        db.add(s)
+    s.email_enabled = email_enabled
+    db.commit()
+    request.session["flash"] = "Preferences saved."
+    return RedirectResponse("/account", status_code=302)
+
+
+@app.post("/account/delete")
+async def account_delete_request(request: Request):
+    require_user(request)
+    request.session["flash"] = "Account deletion request submitted. Our team will be in touch within 30 days."
+    return RedirectResponse("/account", status_code=302)
+
+
+# ---------------------------------------------------------------------------
 # Billing (Stripe)
 # ---------------------------------------------------------------------------
 
