@@ -651,7 +651,7 @@ def packet_pdf(request: Request, db: Session = Depends(get_session)):
 @app.get("/calendar/expiring.ics")
 def calendar_expiring_ics(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_premium(user)
+    require_premium_plus(user)
     docs = db.query(Document).filter_by(user_id=user.id).all()
     body = build_expiring_ics(docs, calendar_name="Expiring credentials")
     return Response(
@@ -864,7 +864,7 @@ def reminders_settings_post(
 @app.get("/premium/calendar/export")
 def premium_calendar_export(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_premium(user)
+    require_premium_plus(user)
     docs = db.query(Document).filter_by(user_id=user.id).all()
     body = build_expiring_ics(docs, calendar_name="Credanta — Expiring Credentials")
     log_event("calendar_export", user_id=user.id, meta={"doc_count": len(docs)}, db=db)
