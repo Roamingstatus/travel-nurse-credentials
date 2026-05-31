@@ -120,6 +120,167 @@
 
 {# ─── mobile bottom nav ────────────────────────────── #}
 {% if user and not public_view %}
+<!-- ── Beta Feedback button + modal ── -->
+<button id="fb-fab" type="button" class="fb-fab" aria-label="Send feedback" title="Beta feedback">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <span>Feedback</span>
+</button>
+
+<div id="fb-overlay" class="fb-overlay" role="dialog" aria-modal="true" aria-label="Send beta feedback" hidden>
+  <div class="fb-modal">
+    <div class="fb-modal-head">
+      <div>
+        <h2 class="fb-modal-title">Beta Feedback</h2>
+        <p class="fb-modal-sub">Help us improve Credanta</p>
+      </div>
+      <button type="button" id="fb-close" class="fb-close" aria-label="Close">✕</button>
+    </div>
+    <form id="fb-form" class="fb-form" enctype="multipart/form-data">
+      <input type="hidden" name="page_url" id="fb-page-url">
+      <input type="hidden" name="user_agent_field" id="fb-ua">
+      <input type="hidden" name="screen_size" id="fb-screen">
+
+      <div class="fb-row-2">
+        <div class="fb-field">
+          <label for="fb-type">Type</label>
+          <select id="fb-type" name="feedback_type" required>
+            <option value="">— select —</option>
+            <option>Bug</option>
+            <option>Confusing</option>
+            <option>Missing Feature</option>
+            <option>Improvement</option>
+            <option>Praise</option>
+          </select>
+        </div>
+        <div class="fb-field">
+          <label for="fb-area">Feature area</label>
+          <select id="fb-area" name="feature_area" required>
+            <option value="">— select —</option>
+            <option>Uploads</option>
+            <option>Previews</option>
+            <option>Expiration Tracking</option>
+            <option>Packet Generation</option>
+            <option>Premium</option>
+            <option>Reminders</option>
+            <option>Account</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fb-field">
+        <label>Severity</label>
+        <div class="fb-severity-row">
+          <label class="fb-sev-opt"><input type="radio" name="severity" value="Low"> Low</label>
+          <label class="fb-sev-opt"><input type="radio" name="severity" value="Medium" checked> Medium</label>
+          <label class="fb-sev-opt"><input type="radio" name="severity" value="High"> High</label>
+        </div>
+      </div>
+
+      <div class="fb-field">
+        <label for="fb-msg">Message <span class="required-star">*</span></label>
+        <textarea id="fb-msg" name="message" rows="4" placeholder="Describe what you noticed…" required></textarea>
+      </div>
+
+      <div class="fb-field">
+        <label for="fb-screenshot" class="fb-file-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Attach screenshot <span class="optional">(optional)</span>
+        </label>
+        <input type="file" id="fb-screenshot" name="screenshot" accept="image/*" style="display:none">
+        <span id="fb-file-name" class="fb-file-chosen" hidden></span>
+      </div>
+
+      <div id="fb-error" class="fb-error" hidden></div>
+
+      <div class="fb-actions">
+        <button type="button" id="fb-cancel" class="btn ghost">Cancel</button>
+        <button type="submit" id="fb-submit" class="btn primary">Send feedback</button>
+      </div>
+    </form>
+
+    <div id="fb-success" class="fb-success" hidden>
+      <div class="fb-success-icon">🎉</div>
+      <p class="fb-success-msg">Thanks for the feedback! We read every submission.</p>
+      <button type="button" id="fb-done" class="btn primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fab     = document.getElementById("fb-fab");
+  var overlay = document.getElementById("fb-overlay");
+  var form    = document.getElementById("fb-form");
+  var success = document.getElementById("fb-success");
+  var errEl   = document.getElementById("fb-error");
+  var submitBtn = document.getElementById("fb-submit");
+  var fileInput = document.getElementById("fb-screenshot");
+  var fileName  = document.getElementById("fb-file-name");
+
+  function open() {
+    document.getElementById("fb-page-url").value = window.location.href;
+    document.getElementById("fb-ua").value = navigator.userAgent;
+    document.getElementById("fb-screen").value = window.screen.width + "x" + window.screen.height;
+    overlay.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+  function close() {
+    overlay.hidden = true;
+    document.body.style.overflow = "";
+    form.reset();
+    form.hidden = false;
+    success.hidden = true;
+    errEl.hidden = true;
+    if (fileName) { fileName.hidden = true; fileName.textContent = ""; }
+  }
+
+  fab.addEventListener("click", open);
+  document.getElementById("fb-close").addEventListener("click", close);
+  document.getElementById("fb-cancel").addEventListener("click", close);
+  document.getElementById("fb-done").addEventListener("click", close);
+  overlay.addEventListener("click", function(e){ if (e.target === overlay) close(); });
+
+  if (fileInput) {
+    fileInput.addEventListener("change", function(){
+      if (fileInput.files && fileInput.files.length) {
+        fileName.textContent = "📎 " + fileInput.files[0].name;
+        fileName.hidden = false;
+      } else {
+        fileName.hidden = true;
+      }
+    });
+    document.getElementById("fb-file-label") && document.querySelector(".fb-file-label").addEventListener("click", function(){
+      fileInput.click();
+    });
+    document.querySelector(".fb-file-label").style.cursor = "pointer";
+  }
+
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    errEl.hidden = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending…";
+    var fd = new FormData(form);
+    fetch("/feedback", { method: "POST", body: fd })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.ok) {
+          form.hidden = true;
+          success.hidden = false;
+        } else {
+          errEl.textContent = data.error || "Something went wrong.";
+          errEl.hidden = false;
+        }
+      })
+      .catch(function(){ errEl.textContent = "Network error — please try again."; errEl.hidden = false; })
+      .finally(function(){ submitBtn.disabled = false; submitBtn.textContent = "Send feedback"; });
+  });
+
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape") close(); });
+})();
+</script>
+
 <nav class="bottom-nav" aria-label="Main navigation">
   <a href="/dashboard" class="bottom-nav-item {% if request.url.path == '/dashboard' %}active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>

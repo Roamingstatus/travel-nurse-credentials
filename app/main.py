@@ -1554,6 +1554,167 @@ def admin_analytics(
 
 
 # ---------------------------------------------------------------------------
+# Beta Feedback
+# ---------------------------------------------------------------------------
+
+_FEEDBACK_TYPES  = ("Bug", "Confusing", "Missing Feature", "Improvement", "Praise")
+_FEATURE_AREAS   = ("Uploads", "Previews", "Expiration Tracking", "Packet Generation",
+                    "Premium", "Reminders", "Account", "Other")
+_SEVERITIES      = ("Low", "Medium", "High")
+_FEEDBACK_STATUS = ("new", "reviewing", "fixed", "closed")
+
+_FEEDBACK_DIR = BASE_DIR / "uploads" / "feedback"
+_FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.post("/feedback")
+async def submit_feedback(
+    request: Request,
+    feedback_type: str = Form(...),
+    feature_area: str = Form(...),
+    severity: str = Form("Medium"),
+    message: str = Form(...),
+    page_url: str = Form(""),
+    user_agent_field: str = Form(""),
+    screen_size: str = Form(""),
+    screenshot: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_session),
+):
+    from .db import BetaFeedback
+    user = require_user(request)
+
+    if feedback_type not in _FEEDBACK_TYPES:
+        feedback_type = "Other"
+    if feature_area not in _FEATURE_AREAS:
+        feature_area = "Other"
+    if severity not in _SEVERITIES:
+        severity = "Medium"
+    message = (message or "").strip()
+    if not message:
+        return JSONResponse({"ok": False, "error": "Message is required."}, status_code=400)
+
+    screenshot_filename = None
+    if screenshot and screenshot.filename:
+        raw = await screenshot.read(5 * 1024 * 1024)
+        if raw:
+            import secrets as _sec
+            ext = Path(screenshot.filename).suffix.lower()
+            if ext not in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+                ext = ".png"
+            fname = _sec.token_urlsafe(12) + ext
+            (_FEEDBACK_DIR / fname).write_bytes(raw)
+            screenshot_filename = fname
+
+    fb = BetaFeedback(
+        user_id=user.id,
+        user_email=user.email,
+        feedback_type=feedback_type,
+        feature_area=feature_area,
+        severity=severity,
+        message=message,
+        screenshot_filename=screenshot_filename,
+        page_url=page_url[:500] if page_url else None,
+        user_agent=user_agent_field[:300] if user_agent_field else None,
+        screen_size=screen_size[:30] if screen_size else None,
+        status="new",
+    )
+    db.add(fb)
+    db.commit()
+    log_event("feedback_submitted", user_id=user.id,
+              meta={"type": feedback_type, "area": feature_area, "severity": severity}, db=db)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/admin/feedback", response_class=HTMLResponse)
+def admin_feedback(
+    request: Request,
+    ftype: str = "",
+    area: str = "",
+    severity: str = "",
+    status: str = "",
+    db: Session = Depends(get_session),
+):
+    from .db import BetaFeedback
+    user = require_user(request)
+    require_admin(user)
+
+    q = db.query(BetaFeedback)
+    if ftype:
+        q = q.filter(BetaFeedback.feedback_type == ftype)
+    if area:
+        q = q.filter(BetaFeedback.feature_area == area)
+    if severity:
+        q = q.filter(BetaFeedback.severity == severity)
+    if status:
+        q = q.filter(BetaFeedback.status == status)
+    items = q.order_by(BetaFeedback.created_at.desc()).limit(200).all()
+
+    total  = db.query(BetaFeedback).count()
+    new_ct = db.query(BetaFeedback).filter(BetaFeedback.status == "new").count()
+    high_ct = db.query(BetaFeedback).filter(BetaFeedback.severity == "High").count()
+
+    return render(
+        request,
+        "admin_feedback.html",
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        items=items,
+        total=total,
+        new_count=new_ct,
+        high_count=high_ct,
+        feedback_types=_FEEDBACK_TYPES,
+        feature_areas=_FEATURE_AREAS,
+        severities=_SEVERITIES,
+        feedback_statuses=_FEEDBACK_STATUS,
+        sel_type=ftype,
+        sel_area=area,
+        sel_severity=severity,
+        sel_status=status,
+    )
+
+
+@app.post("/admin/feedback/{fb_id}/status")
+def admin_feedback_status(
+    fb_id: int,
+    request: Request,
+    status: str = Form(...),
+    db: Session = Depends(get_session),
+):
+    from .db import BetaFeedback
+    user = require_user(request)
+    require_admin(user)
+    fb = db.get(BetaFeedback, fb_id)
+    if not fb:
+        raise HTTPException(404)
+    if status in _FEEDBACK_STATUS:
+        fb.status = status
+        db.commit()
+    return RedirectResponse(request.headers.get("referer", "/admin/feedback"), status_code=302)
+
+
+@app.get("/admin/feedback/{fb_id}/screenshot")
+def admin_feedback_screenshot(fb_id: int, request: Request, db: Session = Depends(get_session)):
+    from .db import BetaFeedback
+    user = require_user(request)
+    require_admin(user)
+    fb = db.get(BetaFeedback, fb_id)
+    if not fb or not fb.screenshot_filename:
+        raise HTTPException(404)
+    p = _FEEDBACK_DIR / Path(fb.screenshot_filename).name
+    if not p.exists():
+        raise HTTPException(404)
+    mime = "image/png"
+    ext = Path(fb.screenshot_filename).suffix.lower()
+    if ext in {".jpg", ".jpeg"}:
+        mime = "image/jpeg"
+    elif ext == ".gif":
+        mime = "image/gif"
+    elif ext == ".webp":
+        mime = "image/webp"
+    return Response(content=p.read_bytes(), media_type=mime,
+                    headers={"Cache-Control": "private, max-age=3600"})
+
+
+# ---------------------------------------------------------------------------
 # Public informational / trust pages
 # ---------------------------------------------------------------------------
 

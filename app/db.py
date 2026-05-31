@@ -159,6 +159,24 @@ class ChecklistResult(Base):
             return []
 
 
+class BetaFeedback(Base):
+    __tablename__ = "beta_feedback"
+
+    id               = Column(Integer, primary_key=True)
+    user_id          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_email       = Column(String, nullable=True)
+    feedback_type    = Column(String, nullable=False)
+    feature_area     = Column(String, nullable=False)
+    severity         = Column(String, nullable=False, default="medium")
+    message          = Column(Text, nullable=False)
+    screenshot_filename = Column(String, nullable=True)
+    page_url         = Column(String, nullable=True)
+    user_agent       = Column(String, nullable=True)
+    screen_size      = Column(String, nullable=True)
+    status           = Column(String, nullable=False, default="new")
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
     _ensure_sqlite_columns()
@@ -228,6 +246,29 @@ def _ensure_sqlite_columns() -> None:
             with engine.begin() as conn:
                 if "profile_id" not in cols:
                     conn.execute(text("ALTER TABLE share_links ADD COLUMN profile_id INTEGER"))
+
+        if "beta_feedback" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS beta_feedback ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,"
+                    "  user_email VARCHAR,"
+                    "  feedback_type VARCHAR NOT NULL,"
+                    "  feature_area VARCHAR NOT NULL,"
+                    "  severity VARCHAR NOT NULL DEFAULT 'medium',"
+                    "  message TEXT NOT NULL,"
+                    "  screenshot_filename VARCHAR,"
+                    "  page_url VARCHAR,"
+                    "  user_agent VARCHAR,"
+                    "  screen_size VARCHAR,"
+                    "  status VARCHAR NOT NULL DEFAULT 'new',"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_beta_feedback_user_id ON beta_feedback (user_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_beta_feedback_status ON beta_feedback (status)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_beta_feedback_created_at ON beta_feedback (created_at)"))
     except Exception:
         pass
 

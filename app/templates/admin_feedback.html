@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Beta Feedback · Credanta{% endblock %}
+{% block content %}
+
+<div class="admin-header">
+  <div>
+    <h1 class="admin-title">Beta Feedback</h1>
+    <p class="admin-sub">User submissions · {{ now }}</p>
+  </div>
+  <div class="admin-nav-links">
+    <a href="/admin" class="admin-nav-link">Overview</a>
+    <a href="/admin/analytics" class="admin-nav-link">Product Usage</a>
+    <a href="/admin/feedback" class="admin-nav-link admin-nav-link--active">Feedback</a>
+  </div>
+</div>
+
+<!-- ── Summary cards ──────────────────────────── -->
+<section class="admin-section">
+  <div class="admin-cards">
+    <div class="admin-card">
+      <div class="admin-card-value">{{ total }}</div>
+      <div class="admin-card-label">Total submissions</div>
+    </div>
+    <div class="admin-card" style="border-left:3px solid var(--accent);">
+      <div class="admin-card-value">{{ new_count }}</div>
+      <div class="admin-card-label">New (unreviewed)</div>
+    </div>
+    <div class="admin-card" style="border-left:3px solid #ef4444;">
+      <div class="admin-card-value">{{ high_count }}</div>
+      <div class="admin-card-label">High severity</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Filters ────────────────────────────────── -->
+<section class="admin-section">
+  <form method="get" action="/admin/feedback" class="fb-filter-row">
+    <select name="ftype" onchange="this.form.submit()">
+      <option value="">All types</option>
+      {% for t in feedback_types %}
+      <option value="{{ t }}" {% if sel_type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <select name="area" onchange="this.form.submit()">
+      <option value="">All areas</option>
+      {% for a in feature_areas %}
+      <option value="{{ a }}" {% if sel_area == a %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+    <select name="severity" onchange="this.form.submit()">
+      <option value="">All severities</option>
+      {% for s in severities %}
+      <option value="{{ s }}" {% if sel_severity == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      {% for st in feedback_statuses %}
+      <option value="{{ st }}" {% if sel_status == st %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+    {% if sel_type or sel_area or sel_severity or sel_status %}
+    <a href="/admin/feedback" class="btn small ghost">Clear</a>
+    {% endif %}
+  </form>
+</section>
+
+<!-- ── Submissions table ──────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">
+    Submissions <span class="admin-count-badge">{{ items | length }}</span>
+  </h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>User</th>
+          <th>Type</th>
+          <th>Area</th>
+          <th>Severity</th>
+          <th>Message</th>
+          <th>Page</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fb in items %}
+        <tr class="fb-row fb-row--{{ fb.severity | lower }}">
+          <td class="admin-ts">{{ fb.created_at | dt }}</td>
+          <td class="admin-email">{{ fb.user_email or "—" }}</td>
+          <td><span class="fb-type-badge fb-type--{{ fb.feedback_type | lower | replace(' ', '-') }}">{{ fb.feedback_type }}</span></td>
+          <td class="fb-area">{{ fb.feature_area }}</td>
+          <td>
+            {% if fb.severity == "High" %}<span class="pill bad">High</span>
+            {% elif fb.severity == "Medium" %}<span class="pill warn">Medium</span>
+            {% else %}<span class="pill neutral">Low</span>{% endif %}
+          </td>
+          <td class="fb-message">
+            {{ fb.message }}
+            {% if fb.screenshot_filename %}
+            <a href="/admin/feedback/{{ fb.id }}/screenshot" target="_blank" class="fb-screenshot-link" title="View screenshot">📷</a>
+            {% endif %}
+          </td>
+          <td class="fb-page" title="{{ fb.page_url or '' }}">{{ (fb.page_url or "—") | truncate(30) }}</td>
+          <td>
+            <span class="fb-status fb-status--{{ fb.status }}">{{ fb.status }}</span>
+          </td>
+          <td>
+            <form method="post" action="/admin/feedback/{{ fb.id }}/status" class="fb-status-form">
+              <select name="status" onchange="this.form.submit()" class="fb-status-select">
+                {% for st in feedback_statuses %}
+                <option value="{{ st }}" {% if fb.status == st %}selected{% endif %}>{{ st }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="admin-empty">No feedback submissions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<style>
+.fb-filter-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.fb-filter-row select { padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font-size:13px; }
+
+.fb-row--high td { background: rgba(239,68,68,.04); }
+
+.fb-type-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.fb-type--bug { background:#fee2e2; color:#b91c1c; }
+.fb-type--confusing { background:#fef9c3; color:#92400e; }
+.fb-type--missing-feature { background:#ede9fe; color:#5b21b6; }
+.fb-type--improvement { background:#dbeafe; color:#1d4ed8; }
+.fb-type--praise { background:#dcfce7; color:#15803d; }
+[data-theme="dark"] .fb-type--bug { background:rgba(239,68,68,.2); color:#fca5a5; }
+[data-theme="dark"] .fb-type--confusing { background:rgba(234,179,8,.2); color:#fde047; }
+[data-theme="dark"] .fb-type--missing-feature { background:rgba(139,92,246,.2); color:#c4b5fd; }
+[data-theme="dark"] .fb-type--improvement { background:rgba(59,130,246,.2); color:#93c5fd; }
+[data-theme="dark"] .fb-type--praise { background:rgba(34,197,94,.2); color:#86efac; }
+
+.fb-message { max-width:260px; white-space:pre-wrap; word-break:break-word; font-size:13px; }
+.fb-area { font-size:12px; color:var(--muted); }
+.fb-page { font-size:11px; color:var(--muted); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fb-screenshot-link { margin-left:4px; text-decoration:none; }
+
+.fb-status { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; text-transform:capitalize; }
+.fb-status--new       { background:#dbeafe; color:#1e40af; }
+.fb-status--reviewing { background:#fef9c3; color:#92400e; }
+.fb-status--fixed     { background:#dcfce7; color:#166534; }
+.fb-status--closed    { background:var(--surface-alt); color:var(--muted); }
+[data-theme="dark"] .fb-status--new       { background:rgba(59,130,246,.2); color:#93c5fd; }
+[data-theme="dark"] .fb-status--reviewing { background:rgba(234,179,8,.2); color:#fde047; }
+[data-theme="dark"] .fb-status--fixed     { background:rgba(34,197,94,.2); color:#86efac; }
+
+.fb-status-select { padding:4px 6px; border:1px solid var(--border); border-radius:5px; background:var(--surface); color:var(--text); font-size:12px; cursor:pointer; }
+.fb-status-form { margin:0; }
+</style>
+
+{% endblock %}
