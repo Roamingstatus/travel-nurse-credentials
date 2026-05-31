@@ -73,6 +73,10 @@ from .security import (
     upload_limiter,
     auth_limiter,
     share_limiter,
+    preview_limiter,
+    verify_turnstile,
+    make_download_token,
+    verify_download_token,
 )
 import itsdangerous as _itsd
 from .mfa import (
@@ -404,6 +408,7 @@ def upload_form(request: Request, category: Optional[str] = None):
         us_states=US_STATES,
         preset_category=category or "",
         advanced_ai_available=user_has_premium(user) and ai_enabled(),
+        cf_turnstile_site_key=os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""),
     )
 
 
@@ -450,10 +455,17 @@ async def upload_submit(
     notes: str = Form(""),
     issuing_state: str = Form(""),
     file: UploadFile = File(...),
+    cf_turnstile_response: str = Form(""),
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
     upload_limiter.check(request)
+    if not has_premium(user):
+        ip = (request.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip() or (request.client.host if request.client else "")
+        if not verify_turnstile(cf_turnstile_response, ip):
+            log_event("upload_blocked_turnstile", user_id=user.id, ok=False, db=db)
+            request.session["flash"] = "Bot-protection check failed — please try again."
+            return RedirectResponse("/documents/upload", status_code=302)
     raw = await file.read()
     if not raw:
         request.session["flash"] = "Please choose a file to upload."
@@ -547,6 +559,7 @@ def document_thumb(doc_id: int, request: Request, db: Session = Depends(get_sess
     user = require_user(request)
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
+        log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "thumb"}, db=db)
         raise HTTPException(404)
     mime = doc.mime_type or ""
     if not mime.startswith("image/"):
@@ -579,6 +592,7 @@ def edit_document_form(doc_id: int, request: Request, db: Session = Depends(get_
     user = require_user(request)
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
+        log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "edit"}, db=db)
         raise HTTPException(404)
     return render(request, "edit_document.html", doc=doc, categories=CREDENTIAL_CATEGORIES, us_states=US_STATES)
 
@@ -598,6 +612,7 @@ def edit_document_submit(
     user = require_user(request)
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
+        log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "edit_post"}, db=db)
         raise HTTPException(404)
     doc.title = title.strip() or doc.title
     doc.category = category if category in CREDENTIAL_CATEGORIES else doc.category
@@ -618,6 +633,7 @@ def delete_document(doc_id: int, request: Request, db: Session = Depends(get_ses
         return mfa_check
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
+        log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "delete"}, db=db)
         raise HTTPException(404)
     delete_file(user.id, doc.stored_filename)
     db.delete(doc)
@@ -629,8 +645,10 @@ def delete_document(doc_id: int, request: Request, db: Session = Depends(get_ses
 @app.get("/documents/{doc_id}/view")
 def view_document(doc_id: int, request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    preview_limiter.check(request)
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
+        log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "view"}, db=db)
         raise HTTPException(404)
     p = file_path(user.id, doc.stored_filename)
     if not p.exists():
@@ -651,8 +669,10 @@ def view_document(doc_id: int, request: Request, db: Session = Depends(get_sessi
 @app.get("/documents/{doc_id}/download")
 def download_document(doc_id: int, request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    preview_limiter.check(request)
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
+        log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "download"}, db=db)
         raise HTTPException(404)
     p = file_path(user.id, doc.stored_filename)
     if not p.exists():
@@ -802,9 +822,11 @@ def _resolve_share(token: str, db: Session) -> tuple[ShareLink, User]:
 
 @app.get("/s/{token}", response_class=HTMLResponse)
 def share_view(token: str, request: Request, db: Session = Depends(get_session)):
+    share_limiter.check(request)
     link, owner = _resolve_share(token, db)
     docs = db.query(Document).filter_by(user_id=owner.id).order_by(Document.category.asc(), Document.title.asc()).all()
     summary = summarize(docs)
+    dl_tokens = {d.id: make_download_token(d.id, token) for d in docs}
     return render(
         request,
         "share_view.html",
@@ -816,22 +838,35 @@ def share_view(token: str, request: Request, db: Session = Depends(get_session))
         days_until=days_until,
         ui_status_label=ui_status_label,
         public_view=True,
+        dl_tokens=dl_tokens,
     )
 
 
 @app.get("/s/{token}/download/{doc_id}")
-def share_download(token: str, doc_id: int, db: Session = Depends(get_session)):
+def share_download(token: str, doc_id: int, request: Request, dl: str = "", db: Session = Depends(get_session)):
+    preview_limiter.check(request)
     link, owner = _resolve_share(token, db)
+    if dl and not verify_download_token(dl, doc_id, token):
+        log_event("share_download_denied", user_id=owner.id, ok=False,
+                  meta={"doc_id": doc_id, "reason": "invalid_dl_token"}, db=db)
+        raise HTTPException(403, "This download link has expired. Reload the share page to get a fresh link.")
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != owner.id:
+        log_event("share_download_denied", user_id=owner.id, ok=False,
+                  meta={"doc_id": doc_id, "reason": "wrong_owner"}, db=db)
         raise HTTPException(404)
     p = file_path(owner.id, doc.stored_filename)
     if not p.exists():
         raise HTTPException(404)
+    log_event("share_download", user_id=owner.id, meta={"doc_id": doc_id, "share_token": token[:8]}, db=db)
     return Response(
         content=p.read_bytes(),
         media_type=doc.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{doc.original_filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{doc.original_filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
     )
 
 

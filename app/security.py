@@ -5,15 +5,22 @@ Covers:
   - Environment variable validation at startup
   - File upload validation: MIME allow-list, magic-byte detection, extension block-list
   - In-memory sliding-window rate limiting (per client IP)
+  - Cloudflare Turnstile bot-protection verification
+  - HMAC-signed time-limited download tokens for public share links
   - Security HTTP headers middleware
   - Path traversal guard for file serving
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import logging
 import os
 import threading
 import time
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 from typing import Optional
@@ -70,6 +77,11 @@ def validate_env() -> None:
         logger.warning("[security] GOOGLE_CLIENT_ID not set — OAuth login will be disabled.")
     if not os.environ.get("GOOGLE_CLIENT_SECRET"):
         logger.warning("[security] GOOGLE_CLIENT_SECRET not set — OAuth login will be disabled.")
+
+    if not os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY"):
+        logger.warning("[security] CLOUDFLARE_TURNSTILE_SITE_KEY not set — Turnstile bot protection disabled.")
+    if not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
+        logger.warning("[security] CLOUDFLARE_TURNSTILE_SECRET_KEY not set — Turnstile verification disabled.")
 
     logger.info("[security] Environment validation complete (ENV=%s).", env)
 
@@ -372,9 +384,86 @@ class _RateLimiter:
             self._buckets[key] = hits
 
 
-upload_limiter = _RateLimiter(max_calls=10, window_seconds=60, name="upload")
-auth_limiter   = _RateLimiter(max_calls=20, window_seconds=60, name="auth")
-share_limiter  = _RateLimiter(max_calls=15, window_seconds=60, name="share")
+upload_limiter  = _RateLimiter(max_calls=10, window_seconds=60,  name="upload")
+auth_limiter    = _RateLimiter(max_calls=20, window_seconds=60,  name="auth")
+share_limiter   = _RateLimiter(max_calls=15, window_seconds=60,  name="share")
+preview_limiter = _RateLimiter(max_calls=60, window_seconds=60,  name="preview")
+
+
+# ---------------------------------------------------------------------------
+# Cloudflare Turnstile bot-protection
+# ---------------------------------------------------------------------------
+
+_TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+
+def verify_turnstile(response_token: str, remote_ip: str = "") -> bool:
+    """Verify a Cloudflare Turnstile challenge response server-side.
+
+    Returns True if verification passes, or if Turnstile is not configured
+    (i.e. the secret key env var is absent) so development always works.
+    Returns False if the token is missing or Cloudflare rejects it.
+    Fails open (returns True) on network errors to avoid blocking legit users.
+    """
+    secret = os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY", "")
+    if not secret:
+        return True
+    if not response_token:
+        logger.warning("[security] Turnstile: missing response token from client")
+        return False
+    payload = urllib.parse.urlencode(
+        {"secret": secret, "response": response_token, "remoteip": remote_ip}
+    ).encode()
+    req = urllib.request.Request(_TURNSTILE_VERIFY_URL, data=payload)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read())
+        success = bool(result.get("success"))
+        if not success:
+            logger.warning(
+                "[security] Turnstile challenge failed: codes=%s",
+                result.get("error-codes"),
+            )
+        return success
+    except Exception as exc:
+        logger.warning("[security] Turnstile network error (%s) — failing open", exc)
+        return True
+
+
+# ---------------------------------------------------------------------------
+# HMAC-signed time-limited download tokens (for public share-link downloads)
+# ---------------------------------------------------------------------------
+
+_DL_TOKEN_TTL = 86400  # 24 hours
+
+
+def _dl_secret() -> bytes:
+    return os.environ.get("SESSION_SECRET", "dev-insecure").encode()
+
+
+def make_download_token(doc_id: int, share_token: str, ttl: int = _DL_TOKEN_TTL) -> str:
+    """Return a signed token granting download access to *doc_id* via *share_token*.
+
+    Format: ``<expires_epoch>.<hex_signature>``
+    """
+    expires = int(time.time()) + ttl
+    payload = f"{doc_id}:{share_token}:{expires}".encode()
+    sig = hmac.new(_dl_secret(), payload, hashlib.sha256).hexdigest()
+    return f"{expires}.{sig}"
+
+
+def verify_download_token(token_str: str, doc_id: int, share_token: str) -> bool:
+    """Return True if *token_str* is a valid, unexpired token for *doc_id* / *share_token*."""
+    try:
+        expires_s, sig = token_str.split(".", 1)
+        expires = int(expires_s)
+    except (ValueError, AttributeError):
+        return False
+    if time.time() > expires:
+        return False
+    payload = f"{doc_id}:{share_token}:{expires}".encode()
+    expected = hmac.new(_dl_secret(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, sig)
 
 
 # ---------------------------------------------------------------------------

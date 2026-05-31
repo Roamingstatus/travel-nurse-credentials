@@ -31,7 +31,7 @@
             {% elif us == 'expiring_soon' %}<span class="pill warn">Expiring soon</span>
             {% else %}<span class="pill good">Valid</span>{% endif %}
           </td>
-          <td class="right"><a class="btn small ghost" href="/s/{{ link.token }}/download/{{ d.id }}">Download</a></td>
+          <td class="right"><a class="btn small ghost" href="/s/{{ link.token }}/download/{{ d.id }}?dl={{ dl_tokens[d.id] }}">Download</a></td>
         </tr>
         {% endfor %}
       </tbody>
