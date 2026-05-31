@@ -3470,6 +3470,7 @@ body.dpm-open { overflow: hidden; }
 }
 
 /* ── Feedback modal overlay ─────────────────────────────────────────────── */
+.fb-overlay[hidden] { display: none; }
 .fb-overlay {
   position: fixed;
   inset: 0;
