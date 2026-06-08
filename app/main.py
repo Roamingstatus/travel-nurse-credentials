@@ -994,10 +994,14 @@ def premium_packet_generate(request: Request, db: Session = Depends(get_session)
     )
 
 
+@app.get("/resume", response_class=HTMLResponse)
+def resume_redirect(request: Request):
+    return RedirectResponse("/premium/resume/enhance", status_code=301)
+
+
 @app.get("/premium/resume/enhance", response_class=HTMLResponse)
 def resume_enhance_get(request: Request):
     user = require_user(request)
-    require_premium(user)
     return render(request, "premium_resume.html", suggestions=None, filename=None)
 
 
@@ -1008,7 +1012,6 @@ async def resume_enhance_post(
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
-    require_premium(user)
     raw = await file.read()
     if not raw:
         request.session["flash"] = "Please choose a resume file to upload."
