@@ -43,4 +43,240 @@
 </section>
 
 <p class="share-foot muted">Private link — the owner can revoke access anytime.</p>
+
+{# ── Recruiter feedback card ───────────────────────────── #}
+<div style="margin-top:32px;max-width:560px;">
+  <div style="background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:20px 24px;">
+    <p style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px;">Powered by Credanta</p>
+    <h3 style="margin:0 0 8px;font-size:15px;font-weight:600;color:var(--text);">Help make future submissions smoother</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--muted);line-height:1.6;">
+      Recruiters and credentialing teams can suggest the documents usually required for this type of role.
+      Your feedback helps Credanta build better agency templates and reduce back-and-forth.
+    </p>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <button class="btn primary small" id="btn-open-feedback">Suggest Required Documents</button>
+      <a href="/about" target="_blank" rel="noopener" style="font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);">What is Credanta?</a>
+    </div>
+  </div>
+</div>
+
+{# ── Feedback modal ────────────────────────────────────── #}
+<div id="feedback-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;overflow-y:auto;padding:24px 16px;">
+  <div id="feedback-modal" style="background:var(--card,#fff);border-radius:16px;max-width:560px;margin:0 auto;padding:28px 28px 24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,.18);">
+    <button onclick="closeFeedback()" style="position:absolute;top:16px;right:18px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1;" aria-label="Close">✕</button>
+
+    {# Step indicator #}
+    <div style="display:flex;gap:6px;margin-bottom:20px;" id="step-dots">
+      <div class="step-dot active" data-step="1"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-dot" data-step="3"></div>
+      <div class="step-dot" data-step="4"></div>
+    </div>
+
+    {# Step 1: Role type #}
+    <div id="step-1" class="fb-step">
+      <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;">What type of role is this for?</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted);">Select the best match.</p>
+      <div class="chip-group" id="role-chips">
+        {% for r in ["Travel Nurse","Per Diem Nurse","Staff Nurse","Allied Health","CNA/LVN/LPN","Other Healthcare"] %}
+        <button class="chip" data-value="{{ r }}" data-group="role">{{ r }}</button>
+        {% endfor %}
+      </div>
+      <div style="margin-top:20px;text-align:right;">
+        <button class="btn primary small" onclick="nextStep(2)" id="btn-next-1" disabled>Next →</button>
+      </div>
+    </div>
+
+    {# Step 2: Required documents #}
+    <div id="step-2" class="fb-step" style="display:none;">
+      <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;">Which documents do you typically require?</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted);">Select all that apply.</p>
+      <div class="chip-group" id="doc-chips">
+        {% for d in ["Resume","State License","Compact License","BLS","ACLS","PALS","NIHSS","TNCC","ENPC","Skills Checklist","Physical Exam","TB Test","Fit Test","Immunization Records","COVID Vaccine","Flu Vaccine","Hep B","MMR","Varicella","Tdap","Drug Screen","Background Check","I-9","W-4","Direct Deposit","References","Driver License","Social Security Card","CPR Card","Nursys Verification","Unit Competency Exam"] %}
+        <button class="chip chip-multi" data-value="{{ d }}" data-group="docs">{{ d }}</button>
+        {% endfor %}
+      </div>
+      <div style="margin-top:20px;display:flex;justify-content:space-between;">
+        <button class="btn ghost small" onclick="nextStep(1)">← Back</button>
+        <button class="btn primary small" onclick="nextStep(3)" id="btn-next-2">Next →</button>
+      </div>
+    </div>
+
+    {# Step 3: Timing #}
+    <div id="step-3" class="fb-step" style="display:none;">
+      <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;">When are documents typically required?</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted);">Select one.</p>
+      <div class="chip-group" id="timing-chips">
+        {% for t in ["Before submission","After offer","Before start date","Varies by facility"] %}
+        <button class="chip" data-value="{{ t }}" data-group="timing">{{ t }}</button>
+        {% endfor %}
+      </div>
+      <div style="margin-top:20px;display:flex;justify-content:space-between;">
+        <button class="btn ghost small" onclick="nextStep(2)">← Back</button>
+        <button class="btn primary small" onclick="nextStep(4)" id="btn-next-3" disabled>Next →</button>
+      </div>
+    </div>
+
+    {# Step 4: Agency type #}
+    <div id="step-4" class="fb-step" style="display:none;">
+      <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;">What best describes your organization?</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:var(--muted);">Select one.</p>
+      <div class="chip-group" id="agency-chips">
+        {% for a in ["Travel agency","Per diem registry","Hospital HR","Credentialing team","MSP/VMS","Other"] %}
+        <button class="chip" data-value="{{ a }}" data-group="agency">{{ a }}</button>
+        {% endfor %}
+      </div>
+      <div style="margin-top:20px;display:flex;justify-content:space-between;">
+        <button class="btn ghost small" onclick="nextStep(3)">← Back</button>
+        <button class="btn primary small" onclick="submitFeedback()" id="btn-submit" disabled>Submit Template Suggestion</button>
+      </div>
+    </div>
+
+    {# Success #}
+    <div id="step-success" style="display:none;text-align:center;padding:12px 0;">
+      <div style="font-size:36px;margin-bottom:12px;">✓</div>
+      <h3 style="margin:0 0 8px;font-size:16px;font-weight:600;">Thank you.</h3>
+      <p style="font-size:14px;color:var(--muted);margin:0 0 24px;">Your feedback helps improve future credential packets.</p>
+      <div id="email-followup">
+        <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Want us to follow up?</p>
+        <div style="display:flex;gap:8px;max-width:320px;margin:0 auto;">
+          <input type="email" id="followup-email" placeholder="Email (optional)" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--card);color:var(--text);" />
+          <button class="btn primary small" onclick="submitFollowupEmail()">Send</button>
+        </div>
+        <p id="email-sent-msg" style="display:none;font-size:12px;color:var(--muted);margin-top:8px;">Got it — we'll be in touch.</p>
+      </div>
+    </div>
+
+    {# Turnstile (if configured) #}
+    {% if cf_turnstile_site_key %}
+    <div id="cf-turnstile-widget" style="margin-top:8px;"></div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.chip-group { display:flex; flex-wrap:wrap; gap:8px; }
+.chip {
+  padding:7px 14px; border:1.5px solid var(--border,#e5e7eb); border-radius:20px;
+  background:var(--card,#fff); color:var(--text); font-size:13px; cursor:pointer;
+  transition:border-color .15s, background .15s;
+}
+.chip:hover { border-color:var(--accent,#4f46e5); }
+.chip.selected { border-color:var(--accent,#4f46e5); background:var(--accent,#4f46e5); color:#fff; }
+.step-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:var(--border,#e5e7eb); transition:background .2s;
+}
+.step-dot.active { background:var(--accent,#4f46e5); }
+</style>
+
+<script>
+const SHARE_TOKEN = "{{ link.token }}";
+const TURNSTILE_SITE_KEY = "{{ cf_turnstile_site_key }}";
+let cfTurnstileToken = "";
+let currentStep = 1;
+const sel = { role: null, docs: [], timing: null, agency: null };
+
+document.getElementById('btn-open-feedback').addEventListener('click', () => {
+  document.getElementById('feedback-overlay').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  if (TURNSTILE_SITE_KEY && window.turnstile) {
+    window.turnstile.render('#cf-turnstile-widget', {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token) => { cfTurnstileToken = token; },
+    });
+  }
+  logFeedbackOpened();
+});
+
+function closeFeedback() {
+  document.getElementById('feedback-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+document.getElementById('feedback-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('feedback-overlay')) closeFeedback();
+});
+
+function nextStep(n) {
+  document.getElementById('step-' + currentStep).style.display = 'none';
+  const target = document.getElementById('step-' + n) || document.getElementById('step-success');
+  target.style.display = '';
+  currentStep = n;
+  document.querySelectorAll('.step-dot').forEach(d => {
+    d.classList.toggle('active', parseInt(d.dataset.step) <= n);
+  });
+}
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const group = chip.dataset.group;
+    const val   = chip.dataset.value;
+    if (chip.classList.contains('chip-multi')) {
+      chip.classList.toggle('selected');
+      if (chip.classList.contains('selected')) { sel.docs.push(val); }
+      else { sel.docs = sel.docs.filter(d => d !== val); }
+    } else {
+      document.querySelectorAll(`.chip[data-group="${group}"]`).forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      if (group === 'role')   { sel.role   = val; document.getElementById('btn-next-1').disabled = false; }
+      if (group === 'timing') { sel.timing = val; document.getElementById('btn-next-3').disabled = false; }
+      if (group === 'agency') { sel.agency = val; document.getElementById('btn-submit').disabled = false; }
+    }
+  });
+});
+
+async function submitFeedback() {
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+  try {
+    const res = await fetch('/api/recruiter-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        share_token: SHARE_TOKEN,
+        role_type: sel.role,
+        required_documents: sel.docs,
+        timing: sel.timing,
+        agency_type: sel.agency,
+        cf_token: cfTurnstileToken,
+      }),
+    });
+    if (res.ok) {
+      document.getElementById('step-4').style.display = 'none';
+      document.getElementById('step-success').style.display = '';
+      document.querySelectorAll('.step-dot').forEach(d => d.classList.add('active'));
+    } else {
+      btn.textContent = 'Submit Template Suggestion';
+      btn.disabled = false;
+      alert('Something went wrong — please try again.');
+    }
+  } catch {
+    btn.textContent = 'Submit Template Suggestion';
+    btn.disabled = false;
+  }
+}
+
+async function submitFollowupEmail() {
+  const email = document.getElementById('followup-email').value.trim();
+  if (!email) return;
+  document.getElementById('email-sent-msg').style.display = '';
+  document.getElementById('followup-email').disabled = true;
+  document.querySelector('#email-followup button').disabled = true;
+}
+
+async function logFeedbackOpened() {
+  try {
+    await fetch('/api/recruiter-feedback/opened', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ share_token: SHARE_TOKEN }),
+    });
+  } catch {}
+}
+</script>
+
+{% if cf_turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 {% endblock %}

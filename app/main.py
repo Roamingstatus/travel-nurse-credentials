@@ -78,6 +78,7 @@ from .security import (
     auth_limiter,
     share_limiter,
     preview_limiter,
+    feedback_limiter,
     verify_turnstile,
     make_download_token,
     verify_download_token,
@@ -234,6 +235,7 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
     else:
         ctx.setdefault("ai_features_enabled", False)
     ctx.setdefault("is_dev", not _is_production)
+    ctx.setdefault("cf_turnstile_site_key", os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""))
     return templates.TemplateResponse(request, template, ctx)
 
 
@@ -828,6 +830,194 @@ def _resolve_share(token: str, db: Session) -> tuple[ShareLink, User]:
     if not user:
         raise HTTPException(404)
     return link, user
+
+
+# ---------------------------------------------------------------------------
+# Recruiter template feedback (public, no auth)
+# ---------------------------------------------------------------------------
+
+_RTF_ROLE_TYPES = [
+    "Travel Nurse", "Per Diem Nurse", "Staff Nurse",
+    "Allied Health", "CNA/LVN/LPN", "Other Healthcare",
+]
+_RTF_DOCUMENTS = [
+    "Resume", "State License", "Compact License", "BLS", "ACLS", "PALS",
+    "NIHSS", "TNCC", "ENPC", "Skills Checklist", "Physical Exam", "TB Test",
+    "Fit Test", "Immunization Records", "COVID Vaccine", "Flu Vaccine", "Hep B",
+    "MMR", "Varicella", "Tdap", "Drug Screen", "Background Check", "I-9", "W-4",
+    "Direct Deposit", "References", "Driver License", "Social Security Card",
+    "CPR Card", "Nursys Verification", "Unit Competency Exam",
+]
+_RTF_TIMINGS = [
+    "Before submission", "After offer", "Before start date", "Varies by facility",
+]
+_RTF_AGENCY_TYPES = [
+    "Travel agency", "Per diem registry", "Hospital HR",
+    "Credentialing team", "MSP/VMS", "Other",
+]
+
+
+@app.post("/api/recruiter-feedback/opened")
+async def recruiter_feedback_opened(request: Request, db: Session = Depends(get_session)):
+    """Log that a recruiter opened the feedback modal (fire-and-forget, never errors)."""
+    try:
+        body = await request.json()
+        share_token = (body.get("share_token") or "").strip()
+        sl = db.query(ShareLink).filter_by(token=share_token).first() if share_token else None
+        log_event("recruiter_feedback_opened", user_id=sl.user_id if sl else None,
+                  meta={"share_token_id": sl.id if sl else None}, db=db)
+    except Exception:
+        pass
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/recruiter-feedback")
+async def recruiter_feedback_submit(request: Request, db: Session = Depends(get_session)):
+    feedback_limiter.check(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+
+    role_type    = (body.get("role_type") or "").strip()
+    timing       = (body.get("timing") or "").strip()
+    agency_type  = (body.get("agency_type") or "").strip()
+    docs_raw     = body.get("required_documents") or []
+    opt_email    = (body.get("optional_email") or "").strip() or None
+    share_token  = (body.get("share_token") or "").strip()
+    cf_token     = (body.get("cf_token") or "").strip()
+
+    if not role_type or not timing or not agency_type:
+        raise HTTPException(422, "Missing required fields")
+    if role_type not in _RTF_ROLE_TYPES:
+        raise HTTPException(422, "Invalid role_type")
+    if timing not in _RTF_TIMINGS:
+        raise HTTPException(422, "Invalid timing")
+    if agency_type not in _RTF_AGENCY_TYPES:
+        raise HTTPException(422, "Invalid agency_type")
+
+    docs_clean = [d for d in docs_raw if d in _RTF_DOCUMENTS][:50]
+
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "")
+    if not verify_turnstile(cf_token, ip):
+        raise HTTPException(403, "Bot protection check failed")
+
+    link_id: int | None = None
+    if share_token:
+        sl = db.query(ShareLink).filter_by(token=share_token).first()
+        link_id = sl.id if sl else None
+
+    import json as _json
+    row = text(
+        "INSERT INTO recruiter_template_feedback "
+        "(share_token_id, role_type, required_documents, timing, agency_type, optional_email, user_agent) "
+        "VALUES (:stid, :rt, :rd, :tm, :at, :oe, :ua)"
+    )
+    with db.begin_nested():
+        db.execute(row, {
+            "stid": link_id,
+            "rt": role_type,
+            "rd": _json.dumps(docs_clean),
+            "tm": timing,
+            "at": agency_type,
+            "oe": opt_email,
+            "ua": request.headers.get("user-agent", "")[:500],
+        })
+    db.commit()
+
+    owner_id: int | None = None
+    if link_id:
+        sl2 = db.get(ShareLink, link_id)
+        owner_id = sl2.user_id if sl2 else None
+
+    log_event("recruiter_feedback_submitted", user_id=owner_id, meta={
+        "role_type": role_type,
+        "document_count_selected": len(docs_clean),
+        "agency_type": agency_type,
+        "timing": timing,
+        "has_optional_email": bool(opt_email),
+        "share_token_id": link_id,
+    }, db=db)
+
+    return JSONResponse({"ok": True})
+
+
+@app.get("/admin/recruiter-feedback", response_class=HTMLResponse)
+def admin_recruiter_feedback(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_admin(user)
+    import json as _json
+    rows = db.execute(text(
+        "SELECT id, role_type, required_documents, timing, agency_type, optional_email, created_at "
+        "FROM recruiter_template_feedback ORDER BY created_at DESC LIMIT 200"
+    )).fetchall()
+
+    total = db.execute(text("SELECT COUNT(*) FROM recruiter_template_feedback")).scalar() or 0
+
+    doc_counts: dict[str, int] = {}
+    role_counts: dict[str, int] = {}
+    timing_counts: dict[str, int] = {}
+    for r in rows:
+        role_counts[r.role_type] = role_counts.get(r.role_type, 0) + 1
+        timing_counts[r.timing] = timing_counts.get(r.timing, 0) + 1
+        try:
+            for d in _json.loads(r.required_documents or "[]"):
+                doc_counts[d] = doc_counts.get(d, 0) + 1
+        except Exception:
+            pass
+
+    top_docs  = sorted(doc_counts.items(), key=lambda x: x[1], reverse=True)[:15]
+    top_roles = sorted(role_counts.items(), key=lambda x: x[1], reverse=True)
+    top_timing = sorted(timing_counts.items(), key=lambda x: x[1], reverse=True)
+
+    submissions = []
+    for r in rows:
+        try:
+            doc_list = _json.loads(r.required_documents or "[]")
+        except Exception:
+            doc_list = []
+        submissions.append({
+            "id": r.id,
+            "created_at": r.created_at,
+            "role_type": r.role_type,
+            "agency_type": r.agency_type,
+            "timing": r.timing,
+            "docs": doc_list,
+            "has_email": bool(r.optional_email),
+        })
+
+    return render(request, "admin_recruiter_feedback.html",
+        total=total,
+        top_docs=top_docs,
+        top_roles=top_roles,
+        top_timing=top_timing,
+        submissions=submissions,
+    )
+
+
+@app.get("/admin/recruiter-feedback/export.csv")
+def admin_recruiter_feedback_csv(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_admin(user)
+    import csv, io as _io, json as _json
+    rows = db.execute(text(
+        "SELECT id, role_type, required_documents, timing, agency_type, optional_email, created_at "
+        "FROM recruiter_template_feedback ORDER BY created_at DESC"
+    )).fetchall()
+    buf = _io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["ID", "Date", "Role Type", "Agency Type", "Timing", "Documents", "Email Present"])
+    for r in rows:
+        try:
+            docs = ", ".join(_json.loads(r.required_documents or "[]"))
+        except Exception:
+            docs = ""
+        w.writerow([r.id, r.created_at, r.role_type, r.agency_type, r.timing, docs, "Yes" if r.optional_email else "No"])
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="recruiter-feedback.csv"'},
+    )
 
 
 @app.get("/s/{token}", response_class=HTMLResponse)

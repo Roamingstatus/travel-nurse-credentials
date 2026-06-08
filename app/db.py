@@ -327,6 +327,24 @@ def _ensure_sqlite_columns() -> None:
                 if "updated_at" not in rs_cols:
                     conn.execute(text("ALTER TABLE reminder_settings ADD COLUMN updated_at DATETIME DEFAULT (datetime('now'))"))
 
+        if "recruiter_template_feedback" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS recruiter_template_feedback ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  share_token_id INTEGER REFERENCES share_links(id) ON DELETE SET NULL,"
+                    "  role_type VARCHAR NOT NULL,"
+                    "  required_documents TEXT NOT NULL DEFAULT '[]',"
+                    "  timing VARCHAR NOT NULL,"
+                    "  agency_type VARCHAR NOT NULL,"
+                    "  optional_email VARCHAR,"
+                    "  user_agent VARCHAR,"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rtf_created_at ON recruiter_template_feedback (created_at)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rtf_role_type ON recruiter_template_feedback (role_type)"))
+
         if "reminder_logs" not in tables:
             with engine.begin() as conn:
                 conn.execute(text(

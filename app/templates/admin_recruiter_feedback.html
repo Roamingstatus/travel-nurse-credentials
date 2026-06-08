@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Recruiter Feedback — Admin{% endblock %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h1>Recruiter Template Feedback</h1>
+    <p class="page-subtitle">Suggestions collected from recruiters viewing shared credential packets.</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="/admin" class="btn ghost small">← Admin</a>
+    <a href="/admin/recruiter-feedback/export.csv" class="btn ghost small">Export CSV</a>
+  </div>
+</div>
+
+{# ── Summary stats ─────────────────────────────────────── #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;">
+  <div class="panel panel-min" style="padding:16px 20px;">
+    <div style="font-size:28px;font-weight:700;color:var(--accent);">{{ total }}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">Total submissions</div>
+  </div>
+  <div class="panel panel-min" style="padding:16px 20px;">
+    <div style="font-size:28px;font-weight:700;color:var(--accent);">{{ top_roles[0][0] if top_roles else '—' }}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">Top role type</div>
+  </div>
+  <div class="panel panel-min" style="padding:16px 20px;">
+    <div style="font-size:28px;font-weight:700;color:var(--accent);">{{ top_docs[0][0] if top_docs else '—' }}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">Most requested doc</div>
+  </div>
+  <div class="panel panel-min" style="padding:16px 20px;">
+    <div style="font-size:28px;font-weight:700;color:var(--accent);">{{ top_timing[0][0] if top_timing else '—' }}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">Most common timing</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+
+  {# Top documents #}
+  <section class="panel panel-min">
+    <header><h2>Most Requested Documents</h2></header>
+    <div class="body tight">
+      {% if top_docs %}
+      <table class="table-min">
+        <thead><tr><th>Document</th><th style="text-align:right;">Count</th></tr></thead>
+        <tbody>
+          {% for name, cnt in top_docs %}
+          <tr>
+            <td>{{ name }}</td>
+            <td style="text-align:right;font-weight:600;">{{ cnt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty-card-text">No data yet.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    {# Role types #}
+    <section class="panel panel-min">
+      <header><h2>Role Types</h2></header>
+      <div class="body tight">
+        {% if top_roles %}
+        <table class="table-min">
+          <thead><tr><th>Role</th><th style="text-align:right;">Count</th></tr></thead>
+          <tbody>
+            {% for name, cnt in top_roles %}
+            <tr><td>{{ name }}</td><td style="text-align:right;font-weight:600;">{{ cnt }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty-card-text">No data yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {# Timing #}
+    <section class="panel panel-min">
+      <header><h2>Timing</h2></header>
+      <div class="body tight">
+        {% if top_timing %}
+        <table class="table-min">
+          <thead><tr><th>When</th><th style="text-align:right;">Count</th></tr></thead>
+          <tbody>
+            {% for name, cnt in top_timing %}
+            <tr><td>{{ name }}</td><td style="text-align:right;font-weight:600;">{{ cnt }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty-card-text">No data yet.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+
+{# ── Recent submissions ────────────────────────────────── #}
+<section class="panel panel-min">
+  <header>
+    <h2>Recent Submissions</h2>
+    <a href="/admin/recruiter-feedback/export.csv" class="btn ghost small" style="margin-left:auto;">Export CSV</a>
+  </header>
+  <div class="body tight">
+    {% if submissions %}
+    <table class="table-min">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Role Type</th>
+          <th>Agency Type</th>
+          <th>Timing</th>
+          <th>Documents</th>
+          <th>Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in submissions %}
+        <tr>
+          <td style="white-space:nowrap;font-size:12px;color:var(--muted);">{{ s.created_at }}</td>
+          <td>{{ s.role_type }}</td>
+          <td>{{ s.agency_type }}</td>
+          <td>{{ s.timing }}</td>
+          <td style="font-size:12px;max-width:300px;">
+            {% for d in s.docs %}<span style="display:inline-block;background:var(--card-alt,#f4f4f5);border:1px solid var(--border);border-radius:4px;padding:1px 6px;margin:1px;font-size:11px;">{{ d }}</span>{% endfor %}
+            {% if not s.docs %}<span style="color:var(--muted);">—</span>{% endif %}
+          </td>
+          <td>{% if s.has_email %}<span class="pill good" style="font-size:11px;">Yes</span>{% else %}<span style="color:var(--muted);font-size:12px;">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-card"><p class="empty-card-text">No feedback submitted yet.</p></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

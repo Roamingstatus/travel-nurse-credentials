@@ -1,0 +1,304 @@
+Update the existing Credanta recruiter share link page.
+
+Goal:
+Add a subtle recruiter feedback card to shared credential packet pages.
+
+Do NOT rebuild the app.
+Do NOT change share link security.
+Do NOT expose private user data.
+Do NOT block recruiter access to shared documents.
+
+This feature should help Credanta collect agency/credentialing feedback to build better agency templates.
+
+────────────────────────
+PLACEMENT
+────────────────────────
+
+On the public recruiter share page:
+
+Route likely:
+/share/{token}
+
+Add the feedback card BELOW the shared documents.
+
+Do not place it above the documents.
+Do not make it look like an ad popup.
+Do not interrupt document viewing.
+
+The page hierarchy should be:
+
+1. Candidate shared packet header
+2. Shared documents/files
+3. Subtle Credanta feedback card
+
+────────────────────────
+FEEDBACK CARD STYLE
+────────────────────────
+
+Style:
+- subtle SaaS card
+- light background
+- thin border
+- rounded corners
+- soft shadow
+- compact
+- professional
+- not salesy
+
+Card title:
+Help make future submissions smoother
+
+Card text:
+Recruiters and credentialing teams can suggest the documents usually required for this type of role. Your feedback helps Credanta build better agency templates and reduce back-and-forth.
+
+Small attribution:
+Powered by Credanta
+
+Button:
+Suggest Required Documents
+
+Secondary tiny link:
+What is Credanta?
+
+────────────────────────
+NO-TYPING FEEDBACK FLOW
+────────────────────────
+
+When recruiter clicks:
+Suggest Required Documents
+
+Open a modal or slide-over.
+
+Do not require login.
+Do not require typing.
+
+Use clickable chips / checkboxes only.
+
+Step 1:
+Role type
+
+Options:
+- Travel Nurse
+- Per Diem Nurse
+- Staff Nurse
+- Allied Health
+- CNA/LVN/LPN
+- Other Healthcare
+
+Step 2:
+Common required documents
+
+Checkbox chips:
+- Resume
+- State License
+- Compact License
+- BLS
+- ACLS
+- PALS
+- NIHSS
+- TNCC
+- ENPC
+- Skills Checklist
+- Physical Exam
+- TB Test
+- Fit Test
+- Immunization Records
+- COVID Vaccine
+- Flu Vaccine
+- Hep B
+- MMR
+- Varicella
+- Tdap
+- Drug Screen
+- Background Check
+- I-9
+- W-4
+- Direct Deposit
+- References
+- Driver License
+- Social Security Card
+- CPR Card
+- Nursys Verification
+- Unit Competency Exam
+
+Step 3:
+Typical timing
+
+Options:
+- Before submission
+- After offer
+- Before start date
+- Varies by facility
+
+Step 4:
+Agency type
+
+Options:
+- Travel agency
+- Per diem registry
+- Hospital HR
+- Credentialing team
+- MSP/VMS
+- Other
+
+Final button:
+Submit Template Suggestion
+
+Success message:
+Thank you. Your feedback helps improve future credential packets.
+
+────────────────────────
+OPTIONAL LOW-FRICTION EMAIL FIELD
+────────────────────────
+
+After submission success, optionally show:
+
+Want us to follow up?
+
+Email field:
+optional
+
+Button:
+Send
+
+Important:
+Do not require email to submit feedback.
+
+────────────────────────
+DATABASE
+────────────────────────
+
+Create table:
+
+recruiter_template_feedback
+
+Fields:
+- id
+- share_token_id nullable
+- role_type
+- required_documents JSON/list
+- timing
+- agency_type
+- optional_email nullable
+- user_agent
+- created_at
+
+Do not store document contents.
+Do not store private file URLs.
+Do not expose candidate/user private data.
+
+────────────────────────
+EVENT LOGGING
+────────────────────────
+
+If event logging exists, log:
+
+recruiter_feedback_opened
+recruiter_feedback_submitted
+
+Event data:
+- role_type
+- document_count_selected
+- agency_type
+- timing
+- has_optional_email
+- share_token_id
+
+Do not log private document names unless already safe.
+Do not log file URLs.
+
+────────────────────────
+ADMIN PANEL
+────────────────────────
+
+Add admin page or section:
+
+/admin/recruiter-feedback
+
+Show:
+
+- total submissions
+- most common required documents
+- most common role types
+- most common timing
+- recent submissions table
+
+Table columns:
+- Date
+- Role Type
+- Agency Type
+- Timing
+- Documents Selected
+- Optional Email Present
+
+Add simple export CSV button if easy.
+
+────────────────────────
+UX RULES
+────────────────────────
+
+Keep it extremely easy.
+
+No typing required.
+No account required.
+No recruiter login.
+No long form.
+No pop-up on page load.
+No blocking document access.
+
+The recruiter must be able to ignore the card easily.
+
+────────────────────────
+COPY STYLE
+────────────────────────
+
+Use helpful language.
+
+Do not say:
+Ad
+Promotion
+Marketing
+Sales
+
+Use:
+- Help improve future packets
+- Suggest required documents
+- Reduce back-and-forth
+- Build better templates
+
+────────────────────────
+SECURITY / PRIVACY
+────────────────────────
+
+Do not expose:
+- candidate account email
+- private storage paths
+- private file URLs
+- unshared documents
+
+Feedback submission should be rate limited.
+
+Add basic spam protection:
+- optional Cloudflare Turnstile if already configured
+- otherwise simple backend rate limit by IP/user agent
+
+────────────────────────
+TESTING
+────────────────────────
+
+Test:
+- share page still loads
+- documents still view/download correctly
+- feedback card appears below documents
+- modal opens
+- chips can be selected
+- submission works without typing
+- success message appears
+- optional email is truly optional
+- admin page shows submissions
+- mobile layout works
+- no private document data is exposed
+
+IMPORTANT:
+This is a subtle feedback collection feature, not an advertisement that interrupts recruiters.
+Keep the recruiter document review experience clean and professional.
