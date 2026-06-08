@@ -3,6 +3,49 @@ import os
 from fastapi import HTTPException
 from .db import User
 
+# ── Environment detection ─────────────────────────────────────────────────────
+# Priority: APP_ENV → ENV (legacy) → Replit deployment auto-detect → "development"
+
+def _detect_app_env() -> str:
+    for key in ("APP_ENV", "ENV"):
+        val = os.environ.get(key, "").lower()
+        if val in ("development", "production"):
+            return val
+    # Auto-detect Replit deployment (deployed apps set REPLIT_DEPLOYMENT_ID)
+    if os.environ.get("REPLIT_DEPLOYMENT_ID") or os.environ.get("REPLIT_DEPLOYMENT"):
+        return "production"
+    return "development"
+
+
+_APP_ENV: str = _detect_app_env()
+
+
+def is_development() -> bool:
+    """Return True when running in the development/preview environment."""
+    return _APP_ENV == "development"
+
+
+def is_production() -> bool:
+    """Return True when running in a public production/deployed environment."""
+    return _APP_ENV == "production"
+
+
+# ── Admin access ──────────────────────────────────────────────────────────────
+def _admin_email_set() -> set:
+    raw = os.environ.get("ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def is_admin(user: "User | None") -> bool:
+    """True if user is in the ADMIN_EMAILS allowlist (or any user in dev when no list is set)."""
+    if not user:
+        return False
+    emails = _admin_email_set()
+    if not emails:
+        return is_development()
+    return user.email.lower() in emails
+
+
 # ── Beta mode ────────────────────────────────────────────────────────────────
 # Set env var BETA_MODE=true to grant all signed-in users Premium Plus for free.
 _BETA_MODE: bool = os.environ.get("BETA_MODE", "false").lower() == "true"
@@ -106,3 +149,36 @@ def require_premium_plus(user: "User | None") -> None:
 def user_has_premium(user: "User | None") -> bool:
     """Backward-compatible alias for has_premium()."""
     return has_premium(user)
+
+
+# ── Centralized feature-access helpers ────────────────────────────────────────
+# Use these in route handlers and templates instead of ad-hoc checks.
+
+def can_access_security_settings(user: "User | None") -> bool:
+    """Security / account settings — available to every logged-in user."""
+    return user is not None
+
+
+def can_access_two_step_verification(user: "User | None") -> bool:
+    """Two-step verification (MFA) — available to every logged-in user."""
+    return user is not None
+
+
+def can_access_beta_feedback(user: "User | None") -> bool:
+    """Beta feedback widget — available to every logged-in user."""
+    return user is not None
+
+
+def can_access_admin_testing(user: "User | None") -> bool:
+    """Admin testing dashboard — admin-allowlisted users only."""
+    return is_admin(user)
+
+
+def can_access_premium_feature(user: "User | None") -> bool:
+    """Premium (or Premium+) gated feature."""
+    return has_premium(user)
+
+
+def can_access_premium_plus_feature(user: "User | None") -> bool:
+    """Premium+ gated feature."""
+    return has_premium_plus(user)

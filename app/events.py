@@ -48,9 +48,10 @@ def _admin_emails() -> set[str]:
 def require_admin(user: Any) -> None:
     if not user:
         raise HTTPException(401, "Not signed in")
+    from .premium import is_production
     emails = _admin_emails()
     if not emails:
-        if os.environ.get("ENV", "").lower() == "production":
+        if is_production():
             raise HTTPException(403, "Admin access not configured")
         return
     if user.email.lower() not in emails:

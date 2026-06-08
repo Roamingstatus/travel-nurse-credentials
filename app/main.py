@@ -60,8 +60,16 @@ from .packet_pdf import build_manifest_pdf
 from .premium import (
     PREMIUM_FEATURES,
     PREMIUM_PLUS_FEATURES,
+    can_access_admin_testing,
+    can_access_beta_feedback,
+    can_access_premium_feature,
+    can_access_premium_plus_feature,
+    can_access_security_settings,
+    can_access_two_step_verification,
     has_premium,
     has_premium_plus,
+    is_development,
+    is_production,
     require_premium,
     require_premium_plus,
     user_has_premium,
@@ -138,7 +146,7 @@ class EnforceMFAMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-_is_production = os.environ.get("ENV", "").lower() == "production"
+_is_production = is_production()
 app.add_middleware(EnforceMFAMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
@@ -235,7 +243,13 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
         ctx.setdefault("ai_features_enabled", is_prem and ai_enabled())
     else:
         ctx.setdefault("ai_features_enabled", False)
-    ctx.setdefault("is_dev", not _is_production)
+    ctx.setdefault("is_dev", is_development())
+    ctx.setdefault("is_admin_user", can_access_admin_testing(u))
+    ctx.setdefault("can_access_security", can_access_security_settings(u))
+    ctx.setdefault("can_access_2fa", can_access_two_step_verification(u))
+    ctx.setdefault("can_access_beta_feedback", can_access_beta_feedback(u))
+    ctx.setdefault("can_access_premium", can_access_premium_feature(u))
+    ctx.setdefault("can_access_premium_plus", can_access_premium_plus_feature(u))
     ctx.setdefault("cf_turnstile_site_key", os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""))
     return templates.TemplateResponse(request, template, ctx)
 
@@ -2145,7 +2159,7 @@ def page_contact(request: Request):
 
 @app.post("/dev/reminders/test-doc")
 def dev_reminders_test_doc(request: Request, db: Session = Depends(get_session)):
-    if _is_production:
+    if not is_development():
         raise HTTPException(404)
     user = require_user(request)
     from datetime import date, timedelta
@@ -2170,7 +2184,7 @@ def dev_reminders_test_doc(request: Request, db: Session = Depends(get_session))
 
 @app.post("/dev/reminders/trigger")
 def dev_reminders_trigger(request: Request, db: Session = Depends(get_session)):
-    if _is_production:
+    if not is_development():
         raise HTTPException(404)
     user = require_user(request)
     from datetime import date as _date
@@ -2231,7 +2245,7 @@ def dev_reminders_trigger(request: Request, db: Session = Depends(get_session)):
 
 @app.get("/dev/set-tier", response_class=HTMLResponse)
 def dev_tier_get(request: Request):
-    if os.environ.get("ENV", "").lower() == "production":
+    if not is_development():
         raise HTTPException(404)
     require_user(request)
     return render(request, "dev_tier.html")
@@ -2243,7 +2257,7 @@ def dev_tier_post(
     tier: str = Form(...),
     db: Session = Depends(get_session),
 ):
-    if os.environ.get("ENV", "").lower() == "production":
+    if not is_development():
         raise HTTPException(404)
     user = require_user(request)
     allowed = ("free", "premium", "premium_plus")
