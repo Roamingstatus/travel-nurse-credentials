@@ -16,8 +16,9 @@ def check_expiring_documents() -> None:
     from .sms_service import send_expiration_sms
 
     _LOG.info("[scheduler] Running daily reminder check")
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         today = date.today()
         active = db.query(ReminderSettings).filter(
             (ReminderSettings.email_enabled == 1) | (ReminderSettings.sms_enabled == 1)
@@ -48,7 +49,8 @@ def check_expiring_documents() -> None:
     except Exception as exc:
         _LOG.error("[scheduler] Unhandled error: %s", exc)
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 def _send_if_not_duplicate(db, user, doc, reminder_type: str, days_before: int, send_fn) -> None:

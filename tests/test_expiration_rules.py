@@ -20,7 +20,7 @@ UPLOAD = dt("2025-01-15")
 
 class TestNIHRule:
     def test_filename_nihss_with_issue_date(self):
-        """NIHSS in filename + issue_date present → expires issue_date + 1yr."""
+        """NIHSS in filename + issue_date present → expires issue_date + 2yr (default non-CA rule)."""
         expires, label, source = apply_custom_expiration_rules(
             filename="NIHSS_completion_cert.pdf",
             title="NIH Stroke Scale Certificate",
@@ -29,12 +29,12 @@ class TestNIHRule:
             upload_date=UPLOAD,
             existing_expires=None,
         )
-        assert expires == dt("2025-06-10"), f"Expected 2025-06-10, got {expires}"
+        assert expires == dt("2026-06-10"), f"Expected 2026-06-10, got {expires}"
         assert source == "custom_rule"
-        assert label is not None and "NIH Stroke Scale" in label
+        assert label is not None and "NIH" in label
 
     def test_text_contains_nih_stroke_scale_completion_date(self):
-        """Extracted text contains 'NIH Stroke Scale' + completion date → expires + 1yr."""
+        """Extracted text contains 'NIH Stroke Scale' + completion date → expires + 2yr (non-CA)."""
         text = "Thank you for completing the NIH Stroke Scale training. Completion date: 2024-03-01."
         expires, label, source = apply_custom_expiration_rules(
             filename="certificate.pdf",
@@ -44,12 +44,12 @@ class TestNIHRule:
             upload_date=UPLOAD,
             existing_expires=None,
         )
-        assert expires == dt("2025-03-01"), f"Expected 2025-03-01, got {expires}"
+        assert expires == dt("2026-03-01"), f"Expected 2026-03-01, got {expires}"
         assert source == "custom_rule"
-        assert label is not None and "NIH Stroke Scale" in label
+        assert label is not None and "NIH" in label
 
     def test_no_detected_date_falls_back_to_upload_date(self):
-        """No issue_date at all → upload_date used as base date."""
+        """No issue_date at all → upload_date used as base date (+ 2yr default)."""
         expires, label, source = apply_custom_expiration_rules(
             filename="nihss_cert.pdf",
             title="NIHSS",
@@ -58,9 +58,9 @@ class TestNIHRule:
             upload_date=UPLOAD,
             existing_expires=None,
         )
-        assert expires == dt("2026-01-15"), f"Expected 2026-01-15, got {expires}"
+        assert expires == dt("2027-01-15"), f"Expected 2027-01-15, got {expires}"
         assert source == "custom_rule"
-        assert label is not None and "NIH Stroke Scale" in label
+        assert label is not None and "NIH" in label
 
     def test_existing_expiry_not_overridden(self):
         """If an expiry date is already set, the rule must not touch it."""

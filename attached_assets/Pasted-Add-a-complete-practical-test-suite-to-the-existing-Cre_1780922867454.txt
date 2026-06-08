@@ -1,0 +1,314 @@
+Add a complete practical test suite to the existing Credanta app.
+
+Do NOT rebuild the app.
+Do NOT change working features unless tests expose a bug.
+Do NOT add unnecessary tools.
+
+Goal:
+Create tests beyond basic debugging, security checks, and speed tests.
+
+Focus on:
+- real user workflows
+- feature reliability
+- permissions
+- data privacy
+- file handling
+- premium gating
+- reminders
+- mobile/browser behavior
+
+────────────────────────
+1. UNIT TESTS
+────────────────────────
+
+Add unit tests for:
+
+- expiration status logic
+- custom expiration rules
+- NIH/NIHSS 1-year rule
+- document category detection
+- readiness signal logging
+- resume enhancer scoring
+- weak word detection
+- keyword matching
+- reminder date calculations
+
+Example:
+- expired document returns "expired"
+- document expiring in 7 days returns "expiring_soon"
+- NIHSS document with issue date gets expiration date + 1 year
+
+────────────────────────
+2. INTEGRATION TESTS
+────────────────────────
+
+Add integration tests for backend routes:
+
+- upload document
+- fetch documents
+- preview document
+- delete document
+- generate packet
+- create share link
+- save reminder settings
+- resume enhancer analysis
+- beta feedback submission
+- recruiter template feedback submission
+
+Verify:
+- correct status codes
+- correct response structure
+- no private file URLs exposed
+- user ownership is enforced
+
+────────────────────────
+3. USER FLOW TESTS
+────────────────────────
+
+Add end-to-end style tests for core workflows.
+
+Test flow 1:
+User logs in
+uploads document
+sees document in credentials list
+opens preview
+sees category/date/status
+
+Test flow 2:
+User uploads expiring document
+dashboard shows expiring soon
+status border appears correctly
+
+Test flow 3:
+User selects documents
+generates packet
+downloads packet
+
+Test flow 4:
+User creates recruiter share link
+public share page loads
+only selected documents appear
+
+Test flow 5:
+User uses resume enhancer
+gets score
+gets rewritten versions/suggestions
+can copy or download result
+
+────────────────────────
+4. PREMIUM PERMISSION TESTS
+────────────────────────
+
+Test subscription tiers.
+
+Free user:
+- can upload documents
+- can use free resume enhancer
+- cannot use premium packet generation if gated
+- cannot enable email reminders
+- cannot enable SMS reminders
+- cannot create Premium+ recruiter links if gated
+
+Premium user:
+- can use email reminders
+- can use packet generation
+- cannot use SMS reminders
+- cannot use Premium+ features
+
+Premium+ user:
+- can use email reminders
+- can use SMS reminders
+- can create recruiter share links
+- can use smart checklist
+- can use agency packet tools
+
+Backend must enforce this.
+Do not rely only on frontend hiding.
+
+────────────────────────
+5. DATA PRIVACY / MULTI-USER TESTS
+────────────────────────
+
+Create tests with two users:
+
+User A:
+- uploads document A
+
+User B:
+- uploads document B
+
+Verify:
+- User A cannot fetch User B document
+- User A cannot preview User B file
+- User A cannot delete User B document
+- User A cannot include User B document in packet
+- User A cannot create share link for User B document
+
+This is critical.
+
+────────────────────────
+6. FILE HANDLING TESTS
+────────────────────────
+
+Test allowed files:
+
+- PDF
+- JPG
+- PNG
+- DOCX
+- TXT resume
+
+Test rejected files:
+
+- EXE
+- JS
+- HTML
+- large file above size limit
+- empty file
+- corrupted file
+
+Verify:
+- accepted files upload
+- rejected files show clear error
+- app does not crash
+
+────────────────────────
+7. REMINDER TESTS
+────────────────────────
+
+Test reminder logic.
+
+Documents expiring in:
+- 30 days
+- 14 days
+- 7 days
+- 0 days
+
+Should trigger reminder eligibility.
+
+Documents expiring in:
+- 29 days
+- 13 days
+- 6 days
+- -1 days
+
+Should not trigger duplicate scheduled reminder unless intended.
+
+Test:
+- duplicate reminders are not sent twice
+- missing Resend key does not crash
+- missing Twilio key does not crash
+- free users cannot receive automated reminders
+- premium users receive email only
+- premium+ users receive email and SMS if enabled
+
+────────────────────────
+8. UI RESPONSIVENESS TESTS
+────────────────────────
+
+If Playwright is available, add browser tests.
+
+Check pages at:
+- 375px mobile width
+- 768px tablet width
+- 1440px desktop width
+
+Test:
+- dashboard loads
+- credentials page layout is usable
+- document cards do not overflow
+- hover preview works on desktop
+- tap preview works on mobile
+- premium page is readable
+- account page stacks correctly
+- recruiter share page works on mobile
+
+If Playwright is not installed, add manual checklist file:
+TESTING_CHECKLIST.md
+
+────────────────────────
+9. ERROR STATE TESTS
+────────────────────────
+
+Test graceful failure states:
+
+- storage provider missing
+- email provider missing
+- SMS provider missing
+- Stripe key missing
+- OpenAI key missing if any AI feature exists
+- MailerLite key missing
+- document extraction fails
+- preview generation fails
+
+Expected behavior:
+- user sees clean message
+- app does not crash
+- server logs warning
+- no stack trace shown to user
+
+────────────────────────
+10. ACCESSIBILITY TESTS
+────────────────────────
+
+Add basic accessibility checks:
+
+- buttons have labels
+- forms have labels
+- status colors also include text
+- keyboard navigation works
+- modal can be closed with Escape
+- contrast is readable
+
+Add manual checklist if automated tool is not available.
+
+────────────────────────
+11. TEST COMMANDS
+────────────────────────
+
+Add or update package scripts / commands:
+
+For Python:
+pytest
+
+For frontend if applicable:
+npm test
+npm run lint
+
+For browser tests if Playwright is added:
+npx playwright test
+
+Add a README section:
+
+How to Run Tests
+
+Include:
+- backend tests
+- frontend tests
+- browser tests
+- manual launch checklist
+
+────────────────────────
+12. TEST REPORT
+────────────────────────
+
+After adding tests, create:
+
+TEST_REPORT.md
+
+Include:
+- tests added
+- how to run them
+- known gaps
+- recommended next tests
+
+────────────────────────
+IMPORTANT
+────────────────────────
+
+Keep the test suite practical.
+Do not overbuild.
+Do not rewrite the app.
+Prioritize tests that protect user documents, uploads, previews, packets, share links, premium gating, and reminders.
+
+Run the tests after implementation and fix any failures caused by real bugs.

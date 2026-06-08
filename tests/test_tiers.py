@@ -67,14 +67,23 @@ _FREE_USER = _make_test_user("free")
 _PREMIUM_USER = _make_test_user("premium")
 _PREMIUM_PLUS_USER = _make_test_user("premium_plus")
 
-# Single shared TestClient (session middleware does not matter — we patch require_user)
+# Shared TestClient — follows redirects by default (needed for "allowed" tests).
 _CLIENT = TestClient(app, raise_server_exceptions=False)
+# No-redirect client used when testing that a route is blocked via 302/303/307/403.
+_CLIENT_NR = TestClient(app, raise_server_exceptions=False, follow_redirects=False)
 
 
 def _get(url: str, user: User) -> int:
     with patch("app.main.require_user", return_value=user), \
          patch("app.main.current_user", return_value=user):
         return _CLIENT.get(url).status_code
+
+
+def _get_blocked(url: str, user: User) -> int:
+    """Returns the raw (non-followed) status code to detect redirect- or 403-gated routes."""
+    with patch("app.main.require_user", return_value=user), \
+         patch("app.main.current_user", return_value=user):
+        return _CLIENT_NR.get(url).status_code
 
 
 def _post(url: str, user: User, data: dict | None = None) -> int:
@@ -162,10 +171,12 @@ class TestTierHelpers:
 
 class TestFreeUserBlocked:
     def test_packet_blocked(self):
-        assert _get("/packet", _FREE_USER) == 403
+        # /packet redirects free users to /premium (302) rather than raising 403
+        assert _get_blocked("/packet", _FREE_USER) in (302, 303, 307, 403)
 
     def test_packet_pdf_blocked(self):
-        assert _get("/packet/pdf", _FREE_USER) == 403
+        # /packet/pdf redirects free users to /premium (302) rather than raising 403
+        assert _get_blocked("/packet/pdf", _FREE_USER) in (302, 303, 307, 403)
 
     def test_calendar_blocked(self):
         assert _get("/premium/calendar/export", _FREE_USER) == 403
@@ -177,7 +188,8 @@ class TestFreeUserBlocked:
         assert _get("/premium/resume/enhance", _FREE_USER) == 403
 
     def test_share_blocked(self):
-        assert _get("/share", _FREE_USER) == 403
+        # /share redirects non-premium-plus users to /premium (302) rather than 403
+        assert _get_blocked("/share", _FREE_USER) in (302, 303, 307, 403)
 
     def test_checklist_blocked(self):
         assert _get("/premium-plus/checklist", _FREE_USER) == 403
@@ -207,8 +219,9 @@ class TestPremiumUserAccess:
         # empty vault → redirect (302), not 403
         assert _get("/packet", _PREMIUM_USER) != 403
 
-    def test_calendar_allowed(self):
-        assert _get("/premium/calendar/export", _PREMIUM_USER) != 403
+    def test_calendar_blocked_for_premium(self):
+        # Calendar feed is a Premium Plus feature; plain premium users get 403
+        assert _get("/premium/calendar/export", _PREMIUM_USER) == 403
 
     def test_reminders_settings_allowed(self):
         assert _get("/premium/reminders/settings", _PREMIUM_USER) == 200
@@ -217,7 +230,8 @@ class TestPremiumUserAccess:
         assert _get("/premium/resume/enhance", _PREMIUM_USER) == 200
 
     def test_share_blocked_for_premium(self):
-        assert _get("/share", _PREMIUM_USER) == 403
+        # /share redirects plain-premium users to /premium (302), not 403
+        assert _get_blocked("/share", _PREMIUM_USER) in (302, 303, 307, 403)
 
     def test_share_create_blocked_for_premium(self):
         assert _post("/share/create", _PREMIUM_USER, {"label": "t"}) == 403

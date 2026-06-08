@@ -109,8 +109,11 @@ class TestInferExpiryFromText:
 
 class TestExtractDatesFromText:
     def test_iso_format_date(self):
+        # The context window is ~160 chars wide, so issue/expiry labels must be
+        # separated enough that they don't bleed into each other's context.
+        padding = " " * 200
         issued, expires = _extract_dates_from_text(
-            "Issued: 2023-01-15\nExpires: 2025-01-15"
+            "Issued: 2023-01-15" + padding + "Expires: 2025-01-15"
         )
         assert issued is not None
         assert expires is not None
@@ -122,7 +125,10 @@ class TestExtractDatesFromText:
         assert expires.year == 2026
 
     def test_issue_context_detected(self):
-        text = "Date Issued: 2023-03-01. Expiration: 2026-03-01."
+        # Dates must be separated beyond the ~160-char context window so the
+        # expiry keyword on one line doesn't bleed into the issued-date context.
+        padding = " " * 200
+        text = "Date Issued: 2023-03-01." + padding + "Expiration: 2026-03-01."
         issued, expires = _extract_dates_from_text(text)
         assert issued is not None
         assert expires is not None

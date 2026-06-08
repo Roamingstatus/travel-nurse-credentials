@@ -20,6 +20,7 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -1301,6 +1302,7 @@ def resume_enhancer_alias(request: Request):
 def resume_enhance_get(request: Request):
     from .resume_enhancer import TARGET_ROLES, TONES
     user = require_user(request)
+    require_premium(user)
     return render(request, "premium_resume.html",
                   analysis=None, filename=None, versions={},
                   target_roles=TARGET_ROLES, tones=TONES,
@@ -1413,6 +1415,7 @@ def checklist_redirect(request: Request):
 @app.get("/premium-plus/checklist", response_class=HTMLResponse)
 def checklist_get(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    require_premium_plus(user)
     from .checklist import PROFILE_NAMES
     last = db.query(ChecklistResult).filter_by(user_id=user.id).order_by(ChecklistResult.created_at.desc()).first()
     return render(request, "premium_checklist.html", profile_names=PROFILE_NAMES, result=last)
