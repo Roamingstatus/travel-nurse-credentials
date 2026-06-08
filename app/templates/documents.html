@@ -13,6 +13,7 @@
 </div>
 
 {% if readiness and not q %}
+{% set _missing_all = readiness.missing + readiness.expired %}
 <div class="rd-strip">
   <div class="rd-bar-wrap" title="{{ readiness.readiness_score }}% of required categories covered">
     <div class="rd-bar-fill
@@ -21,32 +22,15 @@
       {%- else %} rd-bar--low{% endif %}"
       style="width:{{ readiness.readiness_score }}%"></div>
   </div>
-  <div class="rd-pills">
-    {% for cat in readiness.completed %}
-    <span class="rd-pill rd-pill--good" title="{{ cat }}">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-      {{ cat }}
-    </span>
-    {% endfor %}
-    {% for cat in readiness.expiring %}
-    <span class="rd-pill rd-pill--warn" title="{{ cat }} – renew soon">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      {{ cat }}
-    </span>
-    {% endfor %}
-    {% for cat in readiness.expired %}
-    <span class="rd-pill rd-pill--bad" title="{{ cat }} – expired">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-      {{ cat }}
-    </span>
-    {% endfor %}
-    {% for cat in readiness.missing %}
-    <a class="rd-pill rd-pill--missing" href="/documents/upload" title="Upload {{ cat }}">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      {{ cat }}
-    </a>
-    {% endfor %}
-  </div>
+  <p class="rd-summary">
+    {%- if readiness.readiness_score == 100 -%}
+      All required credential categories are covered.
+    {%- else -%}
+      {{ readiness.completed | length + readiness.expiring | length }} of {{ readiness.required_categories | length }} required categories covered
+      {%- if _missing_all %} · <a class="rd-upload-link" href="/documents/upload">Upload missing: {{ _missing_all | join(', ') }}</a>{% endif %}
+      {%- if readiness.expiring %} · <span class="rd-warn-text">Renew soon: {{ readiness.expiring | join(', ') }}</span>{% endif %}
+    {%- endif -%}
+  </p>
 </div>
 {% endif %}
 
