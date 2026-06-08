@@ -201,22 +201,20 @@
 </div>
 
 <style>
-/* Readiness badge + hover tooltip */
+/* Readiness badge + inline hover reveal */
 .dash-readiness-line { margin: 5px 0 0; }
-.rd-badge { position: relative; display: inline-flex; align-items: center; cursor: default; }
+.rd-badge { display: inline-flex; align-items: center; gap: 0; cursor: default; }
 .rd-pct { font-size: 11px; font-weight: 700; }
 .rd-pct--full { color: #15803d; }
 .rd-pct--mid  { color: #92400e; }
 .rd-pct--low  { color: #991b1b; }
 .rd-tooltip {
-  display: none; position: absolute; top: calc(100% + 7px); left: 0; z-index: 200;
-  background: var(--card); border: 1px solid var(--border); border-radius: 9px;
-  padding: 10px 14px; min-width: 210px; box-shadow: 0 6px 24px rgba(0,0,0,.13);
-  flex-direction: column; gap: 6px; pointer-events: none;
+  display: none; align-items: center; flex-wrap: nowrap; gap: 10px;
+  margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border);
 }
 .rd-badge:hover .rd-tooltip,
-.rd-badge:focus .rd-tooltip { display: flex; }
-.rd-row { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.rd-badge:focus .rd-tooltip { display: inline-flex; }
+.rd-row { font-size: 11px; font-weight: 500; white-space: nowrap; }
 .rd-row--good { color: #15803d; }
 .rd-row--warn { color: #92400e; }
 .rd-row--bad  { color: #991b1b; }
