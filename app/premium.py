@@ -41,6 +41,13 @@ PREMIUM_PLUS_FEATURES = [
         "action_label": "Manage Share Links",
     },
     {
+        "key": "sms_reminders",
+        "name": "SMS Expiration Reminders",
+        "description": "Get a text message when a credential is 30, 14, 7, or 0 days from expiring — straight to your phone.",
+        "action_url": "/premium/reminders/settings",
+        "action_label": "Configure SMS Reminders",
+    },
+    {
         "key": "agency_packet_autofill",
         "name": "Agency Packet Auto-Fill",
         "description": "Select an agency template and see exactly which documents are ready, missing, or expired.",
