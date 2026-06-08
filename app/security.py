@@ -183,6 +183,14 @@ def validate_upload(
 
     detected = _detect_magic(raw)
 
+    # Reject executable / binary formats by magic bytes regardless of claimed MIME
+    for pe_prefix in _PE_HEADERS:
+        if raw[: len(pe_prefix)] == pe_prefix:
+            logger.warning(
+                "[security] Rejected upload '%s': executable magic bytes detected.", filename
+            )
+            raise HTTPException(400, "File type not permitted. Executable files cannot be uploaded.")
+
     if detected == "application/zip" and claimed_mime in _ZIP_OFFICE_MIMES:
         effective = claimed_mime
     elif detected == "application/msword" and claimed_mime in _OLE_OFFICE_MIMES:

@@ -39,9 +39,15 @@ def _db_override():
         s.close()
 
 
-app.dependency_overrides[get_session] = _db_override
-
 _CLIENT = TestClient(app, raise_server_exceptions=False)
+_CLIENT_NR = TestClient(app, raise_server_exceptions=False, follow_redirects=False)
+
+
+@pytest.fixture(autouse=True)
+def _set_db_override():
+    app.dependency_overrides[get_session] = _db_override
+    yield
+    app.dependency_overrides.pop(get_session, None)
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +211,7 @@ class TestPacketIsolation:
         free_user = _make_user("sub-free-packet", "freepacket@test.com", "free")
         with patch("app.main.require_user", return_value=free_user), \
              patch("app.main.current_user", return_value=free_user):
-            resp = _CLIENT.get("/packet")
+            resp = _CLIENT_NR.get("/packet")
         assert resp.status_code in (302, 403)
 
 
