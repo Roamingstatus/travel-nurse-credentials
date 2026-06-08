@@ -2240,6 +2240,74 @@ def dev_tier_post(
 
 
 # ---------------------------------------------------------------------------
+# Admin — Testing Dashboard
+# ---------------------------------------------------------------------------
+
+@app.get("/admin/testing", response_class=HTMLResponse)
+def admin_testing(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_admin(user)
+    from .admin_testing import (
+        build_cards,
+        get_all_runs,
+        get_latest_run,
+        get_run_failures,
+    )
+    run = get_latest_run(db)
+    failures = get_run_failures(db, run["id"]) if run else []
+    cards = build_cards(run, failures)
+    all_runs = get_all_runs(db, limit=10)
+    return render(
+        request,
+        "admin_testing.html",
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        run=run,
+        failures=failures,
+        cards=cards,
+        all_runs=all_runs,
+    )
+
+
+@app.post("/admin/testing/run")
+def admin_testing_run(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_admin(user)
+    from .admin_testing import run_test_suite
+    try:
+        result = run_test_suite(db)
+        return JSONResponse({"ok": True, **result})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.get("/admin/testing/export")
+def admin_testing_export(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_admin(user)
+    from .admin_testing import (
+        generate_report_md,
+        get_all_runs,
+        get_latest_run,
+        get_run_failures,
+    )
+    run = get_latest_run(db)
+    if not run:
+        return Response(
+            content="# No test runs found\n\nRun the test suite first.",
+            media_type="text/markdown",
+            headers={"Content-Disposition": 'attachment; filename="TEST_REPORT.md"'},
+        )
+    failures = get_run_failures(db, run["id"])
+    all_runs = get_all_runs(db, limit=10)
+    md = generate_report_md(run, failures, all_runs)
+    return Response(
+        content=md,
+        media_type="text/markdown",
+        headers={"Content-Disposition": 'attachment; filename="TEST_REPORT.md"'},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
 

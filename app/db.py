@@ -362,6 +362,33 @@ def _ensure_sqlite_columns() -> None:
                 ))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reminder_logs_user_id ON reminder_logs (user_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reminder_logs_sent_at ON reminder_logs (sent_at)"))
+
+        if "test_runs" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS test_runs ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  total_tests INTEGER NOT NULL DEFAULT 0,"
+                    "  passed_tests INTEGER NOT NULL DEFAULT 0,"
+                    "  failed_tests INTEGER NOT NULL DEFAULT 0,"
+                    "  duration_ms INTEGER NOT NULL DEFAULT 0,"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+
+        if "test_failures" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS test_failures ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  run_id INTEGER NOT NULL REFERENCES test_runs(id) ON DELETE CASCADE,"
+                    "  test_name VARCHAR NOT NULL,"
+                    "  error_message TEXT,"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_test_failures_run_id ON test_failures (run_id)"))
+
     except Exception:
         pass
 

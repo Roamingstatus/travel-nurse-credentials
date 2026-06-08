@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Testing · Admin · Credanta{% endblock %}
+{% block content %}
+
+<div class="admin-header">
+  <div>
+    <h1 class="admin-title">Testing Dashboard</h1>
+    <p class="admin-sub">
+      {% if run %}Last run {{ run.created_at | dt }} · {{ run.total }} tests{% else %}No runs yet{% endif %}
+    </p>
+  </div>
+  <div class="admin-nav-links">
+    <a href="/admin" class="admin-nav-link">Overview</a>
+    <a href="/admin/analytics" class="admin-nav-link">Product Usage</a>
+    <a href="/admin/feedback" class="admin-nav-link">Feedback</a>
+    <a href="/admin/recruiter-feedback" class="admin-nav-link">Recruiter Feedback</a>
+    <a href="/admin/testing" class="admin-nav-link admin-nav-link--active">Testing</a>
+  </div>
+</div>
+
+<!-- ── Action bar ─────────────────────────────────── -->
+<div class="tr-action-bar">
+  <button id="run-btn" class="tr-run-btn" onclick="runTests()">
+    <span id="run-btn-icon">▶</span>
+    <span id="run-btn-label">Run Tests</span>
+  </button>
+  {% if run %}
+  <a href="/admin/testing/export" class="tr-export-btn">
+    ↓ Download Test Report
+  </a>
+  {% endif %}
+  <span id="run-status" class="tr-run-status" style="display:none;"></span>
+</div>
+
+<!-- ── Summary metric cards ──────────────────────── -->
+{% if run %}
+<section class="admin-section">
+  <div class="tr-summary-grid">
+    <div class="tr-summary-card">
+      <div class="tr-summary-value">{{ run.total }}</div>
+      <div class="tr-summary-label">Total Tests</div>
+    </div>
+    <div class="tr-summary-card tr-summary-card--pass">
+      <div class="tr-summary-value">{{ run.passed }}</div>
+      <div class="tr-summary-label">Passed</div>
+    </div>
+    <div class="tr-summary-card {% if run.failed > 0 %}tr-summary-card--fail{% else %}tr-summary-card--pass{% endif %}">
+      <div class="tr-summary-value">{{ run.failed }}</div>
+      <div class="tr-summary-label">Failed</div>
+    </div>
+    <div class="tr-summary-card {% if run.total > 0 and (run.passed / run.total) == 1.0 %}tr-summary-card--pass{% elif run.total > 0 and (run.passed / run.total) >= 0.5 %}tr-summary-card--warn{% elif run.total > 0 %}tr-summary-card--fail{% endif %}">
+      <div class="tr-summary-value">
+        {% if run.total > 0 %}{{ "%.0f"|format(run.passed / run.total * 100) }}%{% else %}—{% endif %}
+      </div>
+      <div class="tr-summary-label">Pass Rate</div>
+    </div>
+    <div class="tr-summary-card">
+      <div class="tr-summary-value tr-summary-value--sm">
+        {{ "%.1f"|format((run.duration_ms or 0) / 1000) }}s
+      </div>
+      <div class="tr-summary-label">Duration</div>
+    </div>
+    <div class="tr-summary-card">
+      <div class="tr-summary-value tr-summary-value--sm">
+        {% if run.created_at %}{{ run.created_at | dt }}{% else %}—{% endif %}
+      </div>
+      <div class="tr-summary-label">Last Run</div>
+    </div>
+  </div>
+</section>
+{% else %}
+<div class="tr-empty-state">
+  <div class="tr-empty-icon">🧪</div>
+  <div class="tr-empty-text">No test runs yet. Click <strong>Run Tests</strong> to execute the full suite.</div>
+</div>
+{% endif %}
+
+<!-- ── Category cards ────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Test Categories</h2>
+  <div class="tr-card-grid">
+    {% for card in cards %}
+    <div class="tr-card tr-card--{{ card.status }}">
+      <div class="tr-card-top">
+        <span class="tr-card-icon">{{ card.icon }}</span>
+        <span class="tr-card-dot tr-dot--{{ card.status }}"></span>
+      </div>
+      <div class="tr-card-name">{{ card.name }}</div>
+      <div class="tr-card-status-label tr-status--{{ card.status }}">
+        {% if card.status == "pass" %}All passing
+        {% elif card.status == "warn" %}{{ card.failure_count }} failure{% if card.failure_count != 1 %}s{% endif %}
+        {% elif card.status == "fail" %}{{ card.failure_count }} failure{% if card.failure_count != 1 %}s{% endif %}
+        {% else %}Not run{% endif %}
+      </div>
+      {% if card.failures %}
+      <ul class="tr-card-failures">
+        {% for f in card.failures[:3] %}
+        <li class="tr-card-failure-item">{{ f.test_name.split("::")[-1] }}</li>
+        {% endfor %}
+        {% if card.failures | length > 3 %}
+        <li class="tr-card-failure-more">+{{ card.failures | length - 3 }} more</li>
+        {% endif %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ── Failed tests table ────────────────────────── -->
+{% if failures %}
+<section class="admin-section">
+  <h2 class="admin-section-title admin-title-warn">
+    Failed Tests
+    <span class="admin-count-badge admin-count-badge--warn">{{ failures | length }}</span>
+  </h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table tr-failures-table">
+      <thead>
+        <tr>
+          <th>Test Name</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in failures %}
+        <tr class="admin-row-fail">
+          <td class="tr-test-name">
+            <code class="admin-event-type">{{ f.test_name }}</code>
+          </td>
+          <td class="tr-error-msg">{{ f.error_message[:300] if f.error_message else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% elif run %}
+<section class="admin-section">
+  <div class="tr-all-pass-banner">
+    <span class="tr-all-pass-icon">✅</span>
+    <span>All {{ run.total }} tests passed</span>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Run history ───────────────────────────────── -->
+{% if all_runs | length > 1 %}
+<section class="admin-section">
+  <h2 class="admin-section-title">Run History</h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Date</th>
+          <th>Total</th>
+          <th>Passed</th>
+          <th>Failed</th>
+          <th>Pass %</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in all_runs %}
+        <tr {% if r.failed > 0 %}class="admin-row-fail"{% endif %}>
+          <td class="admin-ts">#{{ r.id }}</td>
+          <td class="admin-ts">{{ r.created_at | dt }}</td>
+          <td>{{ r.total }}</td>
+          <td class="admin-ok">{{ r.passed }}</td>
+          <td {% if r.failed > 0 %}class="admin-fail"{% else %}class="admin-ok"{% endif %}>{{ r.failed }}</td>
+          <td>
+            {% if r.total > 0 %}
+              {% set pct = (r.passed / r.total * 100) | int %}
+              <span class="{% if pct == 100 %}admin-ok{% elif pct >= 50 %}tr-warn-text{% else %}admin-fail{% endif %}">
+                {{ pct }}%
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="admin-ts">{{ "%.1f"|format((r.duration_ms or 0) / 1000) }}s</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Run Tests JS ──────────────────────────────── -->
+<script>
+async function runTests() {
+  const btn = document.getElementById('run-btn');
+  const icon = document.getElementById('run-btn-icon');
+  const label = document.getElementById('run-btn-label');
+  const status = document.getElementById('run-status');
+
+  btn.disabled = true;
+  btn.classList.add('tr-run-btn--loading');
+  icon.textContent = '⏳';
+  label.textContent = 'Running…';
+  status.style.display = 'inline';
+  status.textContent = 'Executing test suite, please wait…';
+  status.className = 'tr-run-status tr-run-status--info';
+
+  try {
+    const res = await fetch('/admin/testing/run', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      status.textContent = `Done — ${data.passed}/${data.total} passed in ${(data.duration_ms/1000).toFixed(1)}s`;
+      status.className = data.failed > 0
+        ? 'tr-run-status tr-run-status--fail'
+        : 'tr-run-status tr-run-status--pass';
+      setTimeout(() => { window.location.reload(); }, 1200);
+    } else {
+      status.textContent = 'Error: ' + (data.error || 'Unknown error');
+      status.className = 'tr-run-status tr-run-status--fail';
+      btn.disabled = false;
+      btn.classList.remove('tr-run-btn--loading');
+      icon.textContent = '▶';
+      label.textContent = 'Run Tests';
+    }
+  } catch (err) {
+    status.textContent = 'Request failed: ' + err.message;
+    status.className = 'tr-run-status tr-run-status--fail';
+    btn.disabled = false;
+    btn.classList.remove('tr-run-btn--loading');
+    icon.textContent = '▶';
+    label.textContent = 'Run Tests';
+  }
+}
+</script>
+
+{% endblock %}
