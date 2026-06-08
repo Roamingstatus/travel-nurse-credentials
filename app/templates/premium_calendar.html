@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Calendar Feed — Credanta{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Auto-Syncing Calendar Feed</h1>
+  <p class="page-subtitle">Subscribe once — your credential expirations stay up to date automatically.</p>
+</div>
+
+{% if flash %}
+<div class="notice notice-success" style="margin-bottom:24px;">{{ flash }}</div>
+{% endif %}
+
+{# ── Feed URL ─────────────────────────────────────────── #}
+<section class="panel panel-min">
+  <header><h2>Your subscription URL</h2></header>
+  <div class="body">
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px;">
+      Copy this URL and paste it into your calendar app. It updates automatically whenever you add or change documents.
+    </p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input
+        id="feed-url"
+        type="text"
+        value="{{ feed_url }}"
+        readonly
+        style="flex:1;min-width:0;font-size:12px;font-family:monospace;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);"
+      />
+      <button class="btn ghost small" id="btn-copy" onclick="copyFeedUrl()">Copy</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:10px 0 0;">
+      Keep this URL private — anyone with it can see your document titles and expiry dates.
+    </p>
+  </div>
+</section>
+
+{# ── How to subscribe ─────────────────────────────────── #}
+<section class="panel panel-min" style="margin-top:16px;">
+  <header><h2>How to subscribe</h2></header>
+  <div class="body" style="display:flex;flex-direction:column;gap:20px;">
+
+    <div>
+      <h3 style="font-size:14px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:8px;">
+        <span style="background:#4285F4;color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;">Google</span>
+        Google Calendar
+      </h3>
+      <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.8;">
+        <li>Open <a href="https://calendar.google.com" target="_blank" rel="noopener" style="color:var(--accent);">Google Calendar</a></li>
+        <li>Click the <strong>+</strong> next to "Other calendars" → <strong>From URL</strong></li>
+        <li>Paste your subscription URL and click <strong>Add calendar</strong></li>
+      </ol>
+    </div>
+
+    <div>
+      <h3 style="font-size:14px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:8px;">
+        <span style="background:#0078D4;color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;">Outlook</span>
+        Outlook / Microsoft 365
+      </h3>
+      <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.8;">
+        <li>Open Outlook Calendar → <strong>Add calendar</strong></li>
+        <li>Choose <strong>Subscribe from web</strong></li>
+        <li>Paste your subscription URL and click <strong>Import</strong></li>
+      </ol>
+    </div>
+
+    <div>
+      <h3 style="font-size:14px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:8px;">
+        <span style="background:#555;color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;">Apple</span>
+        Apple Calendar (Mac / iPhone)
+      </h3>
+      <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.8;">
+        <li>Open Calendar → <strong>File → New Calendar Subscription</strong></li>
+        <li>Paste your subscription URL and click <strong>Subscribe</strong></li>
+        <li>Set auto-refresh to <strong>Every day</strong></li>
+      </ol>
+    </div>
+
+  </div>
+</section>
+
+{# ── Danger zone ──────────────────────────────────────── #}
+<section class="panel panel-min" style="margin-top:16px;border-color:var(--danger,#dc2626)20;">
+  <header><h2>Regenerate URL</h2></header>
+  <div class="body">
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px;">
+      If you think your URL has been shared by mistake, regenerate it. Your old URL will stop working immediately —
+      you'll need to re-subscribe in your calendar app.
+    </p>
+    <form method="POST" action="/premium/calendar/regenerate"
+          onsubmit="return confirm('Regenerate your calendar URL? Your current calendar subscription will stop updating until you re-subscribe.');">
+      <button type="submit" class="btn danger small">Regenerate URL</button>
+    </form>
+  </div>
+</section>
+
+<script>
+function copyFeedUrl() {
+  const input = document.getElementById('feed-url');
+  const btn = document.getElementById('btn-copy');
+  navigator.clipboard.writeText(input.value).then(() => {
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  }).catch(() => {
+    input.select();
+    document.execCommand('copy');
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+</script>
+{% endblock %}

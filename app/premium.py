@@ -28,10 +28,10 @@ PREMIUM_FEATURES = [
 PREMIUM_PLUS_FEATURES = [
     {
         "key": "calendar_sync",
-        "name": "Calendar Sync",
-        "description": "Export all expiration dates as a .ics file and sync with Google Calendar, Outlook, or Apple Calendar.",
-        "action_url": "/premium/calendar/export",
-        "action_label": "Export Calendar",
+        "name": "Auto-Syncing Calendar Feed",
+        "description": "Subscribe once in Google Calendar, Outlook, or Apple Calendar — your credential expirations stay in sync automatically.",
+        "action_url": "/premium/calendar",
+        "action_label": "Get Calendar Feed",
     },
     {
         "key": "recruiter_share_link",

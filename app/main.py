@@ -1017,18 +1017,67 @@ def reminders_logs(request: Request, db: Session = Depends(get_session)):
     } for lg in logs])
 
 
-@app.get("/premium/calendar/export")
-def premium_calendar_export(request: Request, db: Session = Depends(get_session)):
-    user = require_user(request)
-    require_premium_plus(user)
-    docs = db.query(Document).filter_by(user_id=user.id).all()
+def _get_or_create_calendar_token(user, db: Session) -> str:
+    """Return the user's calendar token, creating one if absent."""
+    import secrets
+    db_user = db.get(User, user.id)
+    if not db_user.calendar_token:
+        db_user.calendar_token = secrets.token_urlsafe(32)
+        db.commit()
+    return db_user.calendar_token
+
+
+@app.get("/calendar/feed/{token}.ics")
+def public_calendar_feed(token: str, db: Session = Depends(get_session)):
+    """Public, unauthenticated live .ics feed — subscribed to by calendar apps."""
+    db_user = db.query(User).filter_by(calendar_token=token).first()
+    if not db_user:
+        raise HTTPException(404)
+    from .premium import has_premium_plus
+    if not has_premium_plus(db_user):
+        raise HTTPException(403)
+    docs = db.query(Document).filter_by(user_id=db_user.id).all()
     body = build_expiring_ics(docs, calendar_name="Credanta — Expiring Credentials")
-    log_event("calendar_export", user_id=user.id, meta={"doc_count": len(docs)}, db=db)
     return Response(
         content=body,
         media_type="text/calendar; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="credential-expirations.ics"'},
+        headers={"Cache-Control": "no-cache, no-store"},
     )
+
+
+@app.get("/premium/calendar", response_class=HTMLResponse)
+def premium_calendar_get(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium_plus(user)
+    token = _get_or_create_calendar_token(user, db)
+    base = os.environ.get("APP_BASE_URL") or (
+        f"https://{os.environ['REPLIT_DEV_DOMAIN']}"
+        if os.environ.get("REPLIT_DEV_DOMAIN")
+        else "https://credanta.com"
+    )
+    feed_url = f"{base}/calendar/feed/{token}.ics"
+    return render(request, "premium_calendar.html", feed_url=feed_url)
+
+
+@app.post("/premium/calendar/regenerate")
+def premium_calendar_regenerate(request: Request, db: Session = Depends(get_session)):
+    import secrets
+    user = require_user(request)
+    require_premium_plus(user)
+    db_user = db.get(User, user.id)
+    db_user.calendar_token = secrets.token_urlsafe(32)
+    db.commit()
+    log_event("calendar_token_regenerated", user_id=user.id, meta={}, db=db)
+    request.session["flash"] = "Calendar feed URL regenerated. Update your calendar subscription."
+    return RedirectResponse("/premium/calendar", status_code=302)
+
+
+@app.get("/premium/calendar/export")
+def premium_calendar_export(request: Request, db: Session = Depends(get_session)):
+    """Legacy manual download — kept for backwards compat, now redirects to the feed page."""
+    user = require_user(request)
+    require_premium_plus(user)
+    return RedirectResponse("/premium/calendar", status_code=302)
 
 
 @app.get("/premium/packet/generate")

@@ -46,6 +46,7 @@ class User(Base):
     mfa_recovery_codes = Column(Text, nullable=True)
     phone_number = Column(String, nullable=True)
     phone_verified = Column(Boolean, default=False, nullable=False, server_default="0")
+    calendar_token = Column(String, nullable=True, unique=True, index=True)
 
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     share_links = relationship("ShareLink", back_populates="user", cascade="all, delete-orphan")
@@ -253,6 +254,9 @@ def _ensure_sqlite_columns() -> None:
                     conn.execute(text("ALTER TABLE users ADD COLUMN phone_number VARCHAR"))
                 if "phone_verified" not in cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN phone_verified INTEGER NOT NULL DEFAULT 0"))
+                if "calendar_token" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN calendar_token VARCHAR"))
+                    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_calendar_token ON users (calendar_token)"))
 
         if "documents" in tables:
             cols = {c["name"] for c in insp.get_columns("documents")}
