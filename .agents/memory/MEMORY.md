@@ -1,3 +1,4 @@
 - [Resume Enhancer architecture](resume-enhancer.md) — rule-based only; tojson Jinja2 filter works natively; openai import fails gracefully; always restart workflow after Python changes (Jinja2 auto-reloads templates but Python routes do not).
 - [Admin testing dashboard](admin-testing-dashboard.md) — test_runs/test_failures are raw-SQL tables (not ORM), created lazily in admin_testing.py; JUnit XML parsed via subprocess+ET; card groupings keyed by test file substrings.
 - [Secrets vs env vars in .replit](secrets-vs-envvars.md) — API keys stored in [userenv.shared] are plaintext in .replit (committed to git); sensitive credentials must go in Replit Secrets, not env vars.
+- [git-filter-repo deletes .replit in Replit](git-filter-repo-replit.md) — rewrites working tree, deletes .replit, drops language modules on next restart; must reinstall python deps + stripe + nodejs-20 after any history rewrite.
