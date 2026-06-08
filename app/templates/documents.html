@@ -12,28 +12,6 @@
   </a>
 </div>
 
-{% if readiness and not q %}
-{% set _missing_all = readiness.missing + readiness.expired %}
-<div class="rd-strip">
-  <div class="rd-bar-wrap" title="{{ readiness.readiness_score }}% of required categories covered">
-    <div class="rd-bar-fill
-      {%- if readiness.readiness_score == 100 %} rd-bar--full
-      {%- elif readiness.readiness_score >= 60 %} rd-bar--mid
-      {%- else %} rd-bar--low{% endif %}"
-      style="width:{{ readiness.readiness_score }}%"></div>
-  </div>
-  <p class="rd-summary">
-    {%- if readiness.readiness_score == 100 -%}
-      All required credential categories are covered.
-    {%- else -%}
-      {{ readiness.completed | length + readiness.expiring | length }} of {{ readiness.required_categories | length }} required categories covered
-      {%- if _missing_all %} · <a class="rd-upload-link" href="/documents/upload">Upload missing: {{ _missing_all | join(', ') }}</a>{% endif %}
-      {%- if readiness.expiring %} · <span class="rd-warn-text">Renew soon: {{ readiness.expiring | join(', ') }}</span>{% endif %}
-    {%- endif -%}
-  </p>
-</div>
-{% endif %}
-
 <form class="vault-search" method="get" action="/documents" role="search">
   <input type="search" name="q" value="{{ q }}" placeholder="Search vault…" autocomplete="off" />
   {% if q %}<a class="btn small ghost" href="/documents">Clear</a>{% endif %}
