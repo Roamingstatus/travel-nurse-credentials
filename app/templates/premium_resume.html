@@ -31,6 +31,8 @@
       <h2 style="margin:0;">Suggestions for: {{ filename or 'your resume' }}</h2>
       {% if suggestions.source == 'ai' %}
       <span class="pill good" style="font-size:12px;">AI-powered</span>
+      {% elif suggestions.source == 'analysis' %}
+      <span class="pill good" style="font-size:12px;">Resume analysed</span>
       {% else %}
       <span class="pill neutral" style="font-size:12px;">General tips</span>
       {% endif %}
