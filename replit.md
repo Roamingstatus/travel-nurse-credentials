@@ -33,6 +33,18 @@ run.py             # Uvicorn entrypoint, reads $PORT (defaults to 5000)
 - `GOOGLE_CLIENT_SECRET`
 - `SESSION_SECRET` (already provided)
 
+## GitHub sync
+The repository syncs to **https://github.com/Roamingstatus/travel-nurse-credentials** via the **"Push to GitHub"** Replit workflow.
+
+### One-time setup
+1. Create a GitHub Personal Access Token (PAT) with `repo` scope at https://github.com/settings/tokens
+2. Add it as a Replit Secret named `GITHUB_PAT` (lock icon in the sidebar → Secrets)
+
+### Syncing
+Run the **"Push to GitHub"** workflow from the Replit workflow panel whenever you want to push the latest commits to GitHub. The script (`scripts/push_to_github.sh`) uses the PAT to authenticate over HTTPS, pushes the current branch, then clears the credential from the remote URL immediately after.
+
+> **Note:** The SSH deploy key used for the initial push (`~/.ssh/github_deploy`) is ephemeral and does not survive container restarts. Always use the PAT-based workflow going forward.
+
 The Google OAuth client must list the app's callback URL (`https://<your-domain>/auth/google/callback`) as an authorized redirect URI.
 
 ## Routes
