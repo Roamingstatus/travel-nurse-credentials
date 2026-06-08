@@ -30,13 +30,6 @@ PREMIUM_FEATURES = [
         "action_url": "/premium/packet/generate",
         "action_label": "Generate Packet",
     },
-    {
-        "key": "resume_enhancer",
-        "name": "Resume Enhancer",
-        "description": "Upload your resume and get AI-powered bullet improvements and summary rewrites.",
-        "action_url": "/premium/resume/enhance",
-        "action_label": "Enhance Resume",
-    },
 ]
 
 PREMIUM_PLUS_FEATURES = [
