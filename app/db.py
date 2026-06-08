@@ -120,6 +120,7 @@ class ReminderLog(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     reminder_type = Column(String, nullable=False)
+    trigger_type = Column(String, nullable=True)
     days_before = Column(Integer, nullable=False)
     sent_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     status = Column(String, nullable=False, default="sent")
@@ -353,6 +354,7 @@ def _ensure_sqlite_columns() -> None:
                     "  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
                     "  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,"
                     "  reminder_type VARCHAR NOT NULL,"
+                    "  trigger_type VARCHAR,"
                     "  days_before INTEGER NOT NULL,"
                     "  sent_at DATETIME NOT NULL DEFAULT (datetime('now')),"
                     "  status VARCHAR NOT NULL DEFAULT 'sent',"
@@ -362,6 +364,11 @@ def _ensure_sqlite_columns() -> None:
                 ))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reminder_logs_user_id ON reminder_logs (user_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reminder_logs_sent_at ON reminder_logs (sent_at)"))
+        elif "reminder_logs" in tables:
+            rl_cols = {c["name"] for c in insp.get_columns("reminder_logs")}
+            with engine.begin() as conn:
+                if "trigger_type" not in rl_cols:
+                    conn.execute(text("ALTER TABLE reminder_logs ADD COLUMN trigger_type VARCHAR"))
 
         if "test_runs" not in tables:
             with engine.begin() as conn:

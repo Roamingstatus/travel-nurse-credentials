@@ -73,6 +73,52 @@ def send_expiration_email(user, document, days_until_expiration: int) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+def send_expired_document_email(user, document) -> dict:
+    """Send an immediate expired-document alert email. Returns {ok, message_id?, error?}."""
+    if not _resend_configured():
+        _LOG.warning("[email] RESEND_API_KEY not set — expired alert not sent")
+        return {"ok": False, "error": "provider_not_configured"}
+
+    try:
+        import resend as _resend
+    except ImportError:
+        _LOG.error("[email] resend package not installed")
+        return {"ok": False, "error": "resend_not_installed"}
+
+    _resend.api_key = os.environ["RESEND_API_KEY"]
+    from_email = os.environ.get("RESEND_FROM_EMAIL", "reminders@credanta.com")
+    app_url = _app_url()
+
+    settings = getattr(user, "reminder_settings", None)
+    to_email = (
+        (settings.reminder_email if settings and settings.reminder_email else None)
+        or user.email
+    )
+    first_name = (user.name or "").split()[0] if user.name else "there"
+    exp_date = document.expires_at.strftime("%B %d, %Y") if document.expires_at else "N/A"
+
+    html = _build_expired_html(
+        first_name=first_name,
+        doc_title=document.title,
+        doc_category=document.category,
+        exp_date=exp_date,
+        app_url=app_url,
+    )
+
+    try:
+        resp = _resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": f"Credanta Alert: Document expired — {document.title}",
+            "html": html,
+        })
+        _LOG.info("[email] sent expired alert to %s for doc %s", to_email, document.id)
+        return {"ok": True, "message_id": resp.get("id") if isinstance(resp, dict) else getattr(resp, "id", None)}
+    except Exception as exc:
+        _LOG.error("[email] expired alert failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
 def send_test_email(user) -> dict:
     """Send a test email with no specific document."""
     if not _resend_configured():
@@ -116,6 +162,50 @@ def _app_url() -> str:
         if os.environ.get("REPLIT_DEV_DOMAIN")
         else "https://credanta.com"
     )
+
+
+def _build_expired_html(*, first_name, doc_title, doc_category, exp_date, app_url):
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;margin:0;padding:32px 16px;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);">
+    <div style="background:#dc2626;padding:24px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Credanta</h1>
+      <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">Credential Expired Alert</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#111;">Hi {first_name},</p>
+      <p style="margin:0 0 20px;font-size:15px;color:#374151;">
+        Your document is marked as <strong>expired</strong> in Credanta:
+      </p>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Document</td>
+            <td style="font-size:14px;font-weight:600;color:#111;text-align:right;">{doc_title}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Category</td>
+            <td style="font-size:14px;color:#374151;text-align:right;">{doc_category}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Expiration Date</td>
+            <td style="font-size:14px;font-weight:600;color:#dc2626;text-align:right;">{exp_date}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="margin:0 0 20px;font-size:14px;color:#374151;">
+        Please review or upload an updated version when available.
+      </p>
+      <a href="{app_url}"
+         style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
+        Open Credanta →
+      </a>
+    </div>
+  </div>
+</body>
+</html>"""
 
 
 def _build_html(*, first_name, doc_title, doc_category, exp_date, days_text, dashboard_url):

@@ -2031,6 +2031,31 @@ textarea:focus {
   padding: 1px 7px;
 }
 
+/* ── Expired-alert notice (inside doc card body) ───── */
+.doc-alert-notice {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: 5px;
+  padding: 3px 8px;
+  display: inline-block;
+}
+.doc-alert-notice--ok {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+}
+.doc-alert-notice--err {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+.doc-alert-notice--upgrade {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
 /* ── Edit document form ─────────────────────────── */
 .edit-file-info {
   display: flex;

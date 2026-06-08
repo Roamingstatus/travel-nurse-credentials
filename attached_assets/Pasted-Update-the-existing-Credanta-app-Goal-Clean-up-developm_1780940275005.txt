@@ -1,0 +1,276 @@
+Update the existing Credanta app.
+
+Goal:
+Clean up development-mode gating.
+
+Unlock features that should be usable in development/testing, such as:
+- Two-Step Verification
+- Security settings
+- Account settings
+- Profile settings
+- Beta feedback
+- Document security pages
+- Admin testing pages for admin users
+
+Lock premium revenue features properly:
+- Premium features require Premium or Premium+
+- Premium+ features require Premium+
+
+Do NOT rebuild the app.
+Do NOT remove existing routes.
+Do NOT remove Stripe logic.
+Do NOT remove authentication.
+Do NOT expose premium features to free users in production.
+
+────────────────────────
+ENVIRONMENT RULES
+────────────────────────
+
+Use environment variable:
+
+APP_ENV
+
+Allowed values:
+- development
+- production
+
+If APP_ENV is missing:
+default to development only in Replit preview.
+default to production for deployed public environment if possible.
+
+Create helper:
+
+is_development()
+is_production()
+
+────────────────────────
+FEATURE ACCESS HELPERS
+────────────────────────
+
+Create centralized access helpers:
+
+can_access_security_settings(user)
+can_access_two_step_verification(user)
+can_access_beta_feedback(user)
+can_access_admin_testing(user)
+can_access_premium_feature(user)
+can_access_premium_plus_feature(user)
+
+Rules:
+
+Security/account features:
+- available to all logged-in users
+- not premium gated
+
+Two-Step Verification:
+- available to all logged-in users
+- not premium gated
+- if provider not configured, show setup/coming soon state
+- do not hide behind dev mode
+
+Beta feedback:
+- available to all logged-in users
+- not premium gated
+
+Admin testing:
+- only available to admin users
+- admin determined by ADMIN_EMAILS allowlist
+- not available to normal users
+- never public
+
+Premium features:
+- require subscription_tier = premium or premium_plus
+
+Premium+ features:
+- require subscription_tier = premium_plus
+
+────────────────────────
+UNLOCK THESE FROM DEV MODE
+────────────────────────
+
+Find any UI/routes currently hidden behind development mode only.
+
+Unlock these for logged-in users:
+
+- Security page
+- Two-Step Verification page/component
+- Account page
+- Contact/support pages
+- Beta feedback
+- Privacy/security informational pages
+- Document security page
+
+Do not require Premium for these.
+
+If a feature is incomplete, show honest status:
+- “Available”
+- “Setup required”
+- “Coming soon”
+- “Provider not configured”
+
+Do not show fake active status.
+
+────────────────────────
+LOCK PREMIUM FEATURES
+────────────────────────
+
+Ensure backend and frontend lock these properly.
+
+Premium only:
+- Email expiration reminders
+- Calendar sync
+- Packet generation
+- Resume enhancer if currently intended as premium; if resume enhancer is free, keep it free
+- Advanced document automation
+
+Premium+ only:
+- SMS/text reminders
+- Shareable recruiter links
+- Auto-fill agency packets
+- Smart checklist tracker
+- Recruiter analytics if applicable
+- Future one-click submission
+
+Important:
+Backend must enforce this.
+Do not rely only on hidden buttons.
+
+If unauthorized:
+return 403:
+“Upgrade required to access this feature.”
+
+Frontend should show:
+- locked card
+- required tier badge
+- upgrade button
+
+────────────────────────
+DEV MODE TESTING TOGGLE
+────────────────────────
+
+If a developer tier toggle exists:
+
+Only show it when:
+APP_ENV=development
+
+Never show in production.
+
+Label:
+Development Only: Subscription Tester
+
+Options:
+- Free
+- Premium
+- Premium+
+
+Use it only for testing UI and gating.
+
+In production:
+- remove or hide this toggle completely
+- subscription_tier must come from real database/Stripe status
+
+────────────────────────
+STRIPE / SUBSCRIPTION TRUTH
+────────────────────────
+
+Production subscription_tier rules:
+
+- free = no active subscription
+- premium = active Premium subscription
+- premium_plus = active Premium+ subscription
+
+Do not allow frontend to set subscription_tier in production.
+
+Do not trust localStorage for premium status.
+
+Backend should use database subscription_tier updated by Stripe webhook.
+
+────────────────────────
+UI CLEANUP
+────────────────────────
+
+Premium page:
+- show Premium and Premium+ cards
+- clearly label locked features
+- do not show dev-only language
+
+Security page:
+- show Two-Step Verification
+- show status:
+  - Enabled
+  - Disabled
+  - Provider not configured
+  - Coming soon
+- do not label as premium
+
+Account page:
+- show current plan
+- show subscription status
+- show manage billing if Stripe configured
+- show upgrade button if free
+
+────────────────────────
+TESTING
+────────────────────────
+
+Add or update tests:
+
+1. Free user can access:
+- Account
+- Security
+- Two-Step Verification page
+- Beta feedback
+
+2. Free user cannot access:
+- Premium email reminders
+- Packet generation if premium
+- Premium+ SMS reminders
+- Recruiter share links
+- Smart checklist if premium+
+
+3. Premium user can access:
+- Premium email reminders
+- Calendar sync
+- Packet generation
+
+4. Premium user cannot access:
+- Premium+ SMS
+- Premium+ recruiter share links
+- Premium+ agency autofill
+
+5. Premium+ user can access:
+- all Premium features
+- all Premium+ features
+
+6. Production hides developer subscription tester.
+
+7. Development shows developer subscription tester.
+
+8. Backend returns 403 for unauthorized premium route access.
+
+────────────────────────
+SECURITY
+────────────────────────
+
+Do not expose admin routes publicly.
+
+Admin pages require:
+ADMIN_EMAILS
+
+Do not expose:
+- Stripe secret keys
+- Twilio tokens
+- Resend keys
+- Turnstile secret keys
+
+Do not let users spoof subscription_tier from frontend.
+
+────────────────────────
+IMPORTANT
+────────────────────────
+
+Main intent:
+- Security and account features should be available to all users.
+- Premium revenue features should be locked behind paid tiers.
+- Development testing tools should never appear in production.
+- UI should be honest about features that are incomplete or provider-dependent.

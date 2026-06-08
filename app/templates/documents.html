@@ -96,6 +96,27 @@
           {% if d.expiration_source == 'custom_rule' and d.expiration_rule_applied %}
           <span class="doc-card-rule-badge">⚙ {{ d.expiration_rule_applied }}</span>
           {% endif %}
+          {% if us == 'expired' %}
+          {% set alert = (expired_alerts if expired_alerts is defined else {})|default({}) %}
+          {% set doc_alert = alert.get(d.id, {}) if alert else {} %}
+          {% if is_premium_plus %}
+            {% if doc_alert.get('email') == 'sent' and doc_alert.get('sms') == 'sent' %}
+            <p class="doc-alert-notice doc-alert-notice--ok">Expired email &amp; text alert sent.</p>
+            {% elif doc_alert.get('email') == 'failed' or doc_alert.get('sms') == 'failed' %}
+            <p class="doc-alert-notice doc-alert-notice--err">Expired alert could not be sent. Check reminder settings.</p>
+            {% elif doc_alert.get('email') == 'sent' %}
+            <p class="doc-alert-notice doc-alert-notice--ok">Expired alert email sent.</p>
+            {% endif %}
+          {% elif is_premium %}
+            {% if doc_alert.get('email') == 'sent' %}
+            <p class="doc-alert-notice doc-alert-notice--ok">Expired alert email sent.</p>
+            {% elif doc_alert.get('email') == 'failed' %}
+            <p class="doc-alert-notice doc-alert-notice--err">Expired alert could not be sent. Check reminder settings.</p>
+            {% endif %}
+          {% else %}
+            <p class="doc-alert-notice doc-alert-notice--upgrade">Upgrade to Premium for automatic expiration alerts.</p>
+          {% endif %}
+          {% endif %}
         </div>
 
         {# Right: status badge + hover-reveal actions #}

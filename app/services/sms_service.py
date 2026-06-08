@@ -50,6 +50,25 @@ def send_expiration_sms(user, document, days_until_expiration: int) -> dict:
     return _send(phone, body)
 
 
+def send_expired_document_sms(user, document) -> dict:
+    """Send an immediate expired-document SMS alert (Premium+ only)."""
+    if not _twilio_configured():
+        _LOG.warning("[sms] Twilio not configured — expired alert not sent")
+        return {"ok": False, "error": "provider_not_configured"}
+
+    settings = getattr(user, "reminder_settings", None)
+    phone = (
+        (settings.phone_number if settings and settings.phone_number else None)
+        or getattr(user, "phone_number", None)
+    )
+    if not phone:
+        return {"ok": False, "error": "no_phone_number"}
+
+    app_url = _app_url()
+    body = f"Credanta alert: {document.title} is expired. Log in to update it: {app_url}"
+    return _send(phone, body)
+
+
 def send_test_sms(user) -> dict:
     """Send a test SMS to the user's configured number."""
     if not _twilio_configured():

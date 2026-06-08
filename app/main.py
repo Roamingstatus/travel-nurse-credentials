@@ -387,6 +387,11 @@ def documents_list(
     for c in CATEGORY_ORDER:
         by_cat.setdefault(c, [])
 
+    from .services.immediate_alerts import get_expired_alert_statuses
+    from datetime import date as _date
+    expired_doc_ids = [d.id for d in docs if d.expires_at and d.expires_at.date() < _date.today()]
+    expired_alerts = get_expired_alert_statuses(db, user.id, expired_doc_ids)
+
     return render(
         request,
         "documents.html",
@@ -397,6 +402,7 @@ def documents_list(
         status_for=status_for,
         days_until=days_until,
         ui_status_label=ui_status_label,
+        expired_alerts=expired_alerts,
     )
 
 
@@ -562,7 +568,13 @@ async def upload_submit(
     )
     db.add(doc)
     db.commit()
+    db.refresh(doc)
     log_event("document_upload", user_id=user.id, meta={"filename": doc.original_filename, "title": doc.title, "category": doc.category, "mime": doc.mime_type}, db=db)
+    try:
+        from .services.immediate_alerts import check_and_send_immediate_expired_alert
+        check_and_send_immediate_expired_alert(user, doc, db)
+    except Exception:
+        pass
     request.session["flash"] = f"Saved \"{doc.title}\"."
     return RedirectResponse("/documents", status_code=302)
 
@@ -634,6 +646,11 @@ def edit_document_submit(
     doc.expires_at = _parse_date(expires_at)
     doc.issuing_state = issuing_state.strip().upper() or None
     db.commit()
+    try:
+        from .services.immediate_alerts import check_and_send_immediate_expired_alert
+        check_and_send_immediate_expired_alert(user, doc, db)
+    except Exception:
+        pass
     request.session["flash"] = "Document updated."
     return RedirectResponse("/documents", status_code=302)
 

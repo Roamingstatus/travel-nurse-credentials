@@ -46,6 +46,18 @@ def check_expiring_documents() -> None:
                 if settings.sms_enabled and has_premium_plus(user):
                     _send_if_not_duplicate(db, user, doc, "sms", days_left, send_expiration_sms)
 
+        # ── Sweep for expired docs that haven't received an immediate alert ──
+        _LOG.info("[scheduler] Scanning for expired docs needing immediate alerts")
+        from .immediate_alerts import check_and_send_immediate_expired_alert
+        for settings in active:
+            user = db.query(User).filter_by(id=settings.user_id).first()
+            if not user:
+                continue
+            docs = db.query(Document).filter_by(user_id=user.id).all()
+            for doc in docs:
+                if doc.expires_at and doc.expires_at.date() < today:
+                    check_and_send_immediate_expired_alert(user, doc, db)
+
     except Exception as exc:
         _LOG.error("[scheduler] Unhandled error: %s", exc)
     finally:

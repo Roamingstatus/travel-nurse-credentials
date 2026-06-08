@@ -1,0 +1,284 @@
+Update the existing Credanta reminder system.
+
+Goal:
+If a document is already expired, the user should receive an immediate reminder notification.
+
+Premium users:
+- receive immediate email reminder
+
+Premium+ users:
+- receive immediate email reminder
+- receive immediate SMS/text reminder
+
+Do NOT rebuild the app.
+Do NOT change existing upload, dashboard, or expiration status logic.
+Do NOT remove scheduled reminders for 30/14/7/0 days.
+Add immediate expired-document notification behavior.
+
+────────────────────────
+WHEN TO TRIGGER
+────────────────────────
+
+Trigger immediate expired-document reminders when:
+
+1. A document is uploaded and its expiration date is already in the past.
+2. A document expiration date is edited and becomes expired.
+3. The dashboard/document list detects an expired document that has not yet triggered an expired alert.
+4. The daily reminder scheduler finds expired documents that were missed.
+
+Expired means:
+expiration_date < today
+
+Do not send repeated alerts every time the dashboard loads.
+
+────────────────────────
+ACCESS RULES
+────────────────────────
+
+Free users:
+- show expired status in dashboard
+- do not send automated email or SMS
+- show upgrade prompt if appropriate
+
+Premium users:
+- send one immediate email per expired document
+
+Premium+ users:
+- send one immediate email per expired document
+- send one immediate SMS per expired document if SMS reminders are enabled and phone number exists
+
+────────────────────────
+DUPLICATE PREVENTION
+────────────────────────
+
+Use existing reminder_logs table if available.
+
+If not available, create or update:
+
+reminder_logs
+- id
+- user_id
+- document_id
+- reminder_type
+- trigger_type
+- days_before
+- sent_at
+- status
+- provider_message_id
+- error_message
+
+For immediate expired reminders, use:
+
+trigger_type = "immediate_expired"
+days_before = 0
+
+Before sending, check that this same alert has not already been sent for:
+
+- user_id
+- document_id
+- reminder_type
+- trigger_type
+
+This prevents duplicate emails/texts.
+
+────────────────────────
+EMAIL BEHAVIOR
+────────────────────────
+
+Use existing email provider/service if already implemented.
+
+If using Resend, reuse:
+send_expiration_email()
+
+Add or update function:
+
+send_expired_document_email(user, document)
+
+Subject:
+Credanta Alert: Document expired
+
+Email body:
+Hi [First Name],
+
+Your document is marked as expired in Credanta:
+
+Document:
+[Document Name]
+
+Category:
+[Category]
+
+Expiration Date:
+[Expiration Date]
+
+Please review or upload an updated version when available.
+
+Open Credanta:
+[APP_BASE_URL]
+
+Do not include private file URLs.
+Do not attach the document.
+
+────────────────────────
+SMS BEHAVIOR
+────────────────────────
+
+Use existing Twilio service if already implemented.
+
+Add or update function:
+
+send_expired_document_sms(user, document)
+
+SMS body:
+Credanta alert: [Document Name] is expired. Log in to update it: [APP_BASE_URL]
+
+Keep SMS short.
+Do not include private file URLs.
+Do not include sensitive document contents.
+
+────────────────────────
+BACKEND HELPER
+────────────────────────
+
+Create reusable helper:
+
+check_and_send_immediate_expired_alert(user, document)
+
+Logic:
+- if no expiration_date, return
+- if document is not expired, return
+- check user subscription_tier
+- if free, return
+- check reminder_logs for prior immediate_expired email
+- if premium or premium_plus:
+    send email if not already sent
+- if premium_plus:
+    send SMS if sms_enabled and phone_number exists and not already sent
+- write reminder_logs for each attempt
+- log failures without crashing app
+
+────────────────────────
+WHERE TO CALL HELPER
+────────────────────────
+
+Call helper after:
+
+- successful document upload
+- successful expiration date extraction
+- manual expiration date update
+- document metadata save
+- daily scheduler expired-document scan
+
+Do NOT call it repeatedly on every render without duplicate protection.
+
+If dashboard currently recalculates statuses, do not send directly from frontend.
+Only trigger from backend.
+
+────────────────────────
+UI BEHAVIOR
+────────────────────────
+
+On dashboard/document card for expired documents:
+
+Keep existing red border/status.
+
+Add small message for eligible users:
+
+Premium:
+"Expired alert email sent."
+
+Premium+:
+"Expired email/text alert sent."
+
+If alert failed:
+"Expired alert could not be sent. Check reminder settings."
+
+If free:
+"Upgrade to Premium for automatic expiration alerts."
+
+Only show this if the backend returns alert status.
+
+Do not make UI misleading.
+
+────────────────────────
+REMINDER SETTINGS
+────────────────────────
+
+Respect user reminder settings:
+
+Email:
+- send if Premium/Premium+
+- email reminders enabled
+- email exists
+
+SMS:
+- send if Premium+
+- SMS reminders enabled
+- phone number exists
+
+If user has not enabled reminders, do not send automatically unless the app already treats expired alerts as enabled by default.
+
+If unsure, default to requiring reminders enabled.
+
+────────────────────────
+EVENT LOGGING
+────────────────────────
+
+If event logging exists, log:
+
+expired_alert_email_sent
+expired_alert_sms_sent
+expired_alert_failed
+expired_alert_skipped_duplicate
+
+Event data:
+- document_id
+- subscription_tier
+- trigger_type: immediate_expired
+
+Do not log document contents or file URLs.
+
+────────────────────────
+TESTING
+────────────────────────
+
+Add tests for:
+
+1. Free user uploads expired document:
+- no email
+- no SMS
+- expired status shown
+
+2. Premium user uploads expired document:
+- one email sent
+- reminder log created
+- duplicate upload/save does not resend
+
+3. Premium+ user uploads expired document:
+- one email sent
+- one SMS sent if SMS enabled
+- reminder logs created
+
+4. Premium+ user without phone number:
+- email sent
+- SMS skipped safely
+
+5. Expiration date edited from future to past:
+- immediate alert fires
+
+6. Dashboard reload:
+- no duplicate reminder is sent
+
+7. Missing Resend/Twilio keys:
+- app does not crash
+- failed log recorded
+
+────────────────────────
+IMPORTANT
+────────────────────────
+
+Do not send alerts repeatedly.
+Do not send private file links.
+Do not attach documents.
+Do not expose provider errors to users.
+Keep this feature reliable and quiet.
