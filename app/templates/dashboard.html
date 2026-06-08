@@ -25,12 +25,15 @@
     </p>
     {% if readiness and readiness.required_categories %}
     <p class="dash-readiness-line">
-      <span class="rd-pct {% if readiness.readiness_score == 100 %}rd-pct--full{% elif readiness.readiness_score >= 60 %}rd-pct--mid{% else %}rd-pct--low{% endif %}">{{ readiness.readiness_score }}%</span>
-      <span style="color:var(--muted)">required coverage</span>
-      {% for cat in readiness.completed %}<span class="rd-s rd-s--good">✓ {{ cat }}</span>{% endfor %}
-      {% for cat in readiness.expiring %}<span class="rd-s rd-s--warn">⚠ {{ cat }}</span>{% endfor %}
-      {% for cat in readiness.expired %}<span class="rd-s rd-s--bad">✕ {{ cat }}</span>{% endfor %}
-      {% for cat in readiness.missing %}<a class="rd-s rd-s--miss" href="/documents/upload">+ {{ cat }}</a>{% endfor %}
+      <span class="rd-badge" tabindex="0">
+        <span class="rd-pct {% if readiness.readiness_score == 100 %}rd-pct--full{% elif readiness.readiness_score >= 60 %}rd-pct--mid{% else %}rd-pct--low{% endif %}">{{ readiness.readiness_score }}% readiness</span>
+        <span class="rd-tooltip">
+          {% for cat in readiness.completed %}<span class="rd-row rd-row--good">✓ {{ cat }}</span>{% endfor %}
+          {% for cat in readiness.expiring %}<span class="rd-row rd-row--warn">⚠ {{ cat }}</span>{% endfor %}
+          {% for cat in readiness.expired %}<span class="rd-row rd-row--bad">✗ {{ cat }}</span>{% endfor %}
+          {% for cat in readiness.missing %}<span class="rd-row rd-row--miss">✗ {{ cat }}</span>{% endfor %}
+        </span>
+      </span>
     </p>
     {% endif %}
   </div>
@@ -198,22 +201,30 @@
 </div>
 
 <style>
-/* Readiness line (under credential count) */
-.dash-readiness-line { margin: 5px 0 0; font-size: 11px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.rd-pct { font-weight: 700; }
+/* Readiness badge + hover tooltip */
+.dash-readiness-line { margin: 5px 0 0; }
+.rd-badge { position: relative; display: inline-flex; align-items: center; cursor: default; }
+.rd-pct { font-size: 11px; font-weight: 700; }
 .rd-pct--full { color: #15803d; }
 .rd-pct--mid  { color: #92400e; }
 .rd-pct--low  { color: #991b1b; }
-.rd-s { font-size: 11px; font-weight: 500; white-space: nowrap; }
-.rd-s--good { color: #15803d; }
-.rd-s--warn { color: #92400e; }
-.rd-s--bad  { color: #991b1b; }
-.rd-s--miss { color: var(--accent); text-decoration: none; }
-.rd-s--miss:hover { text-decoration: underline; }
+.rd-tooltip {
+  display: none; position: absolute; top: calc(100% + 7px); left: 0; z-index: 200;
+  background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+  padding: 10px 14px; min-width: 210px; box-shadow: 0 6px 24px rgba(0,0,0,.13);
+  flex-direction: column; gap: 6px; pointer-events: none;
+}
+.rd-badge:hover .rd-tooltip,
+.rd-badge:focus .rd-tooltip { display: flex; }
+.rd-row { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.rd-row--good { color: #15803d; }
+.rd-row--warn { color: #92400e; }
+.rd-row--bad  { color: #991b1b; }
+.rd-row--miss { color: #991b1b; }
 @media (prefers-color-scheme: dark) {
-  .rd-pct--full { color: #86efac; } .rd-s--good { color: #86efac; }
-  .rd-pct--mid  { color: #fcd34d; } .rd-s--warn { color: #fcd34d; }
-  .rd-pct--low  { color: #fca5a5; } .rd-s--bad  { color: #fca5a5; }
+  .rd-pct--full { color: #86efac; } .rd-row--good { color: #86efac; }
+  .rd-pct--mid  { color: #fcd34d; } .rd-row--warn { color: #fcd34d; }
+  .rd-pct--low  { color: #fca5a5; } .rd-row--bad  { color: #fca5a5; } .rd-row--miss { color: #fca5a5; }
 }
 
 .doc-icon--sm {
