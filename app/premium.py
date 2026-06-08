@@ -53,6 +53,7 @@ PREMIUM_PLUS_FEATURES = [
         "description": "Select an agency template and see exactly which documents are ready, missing, or expired.",
         "action_url": "/premium-plus/agency-packet/autofill",
         "action_label": "Auto-Fill Packet",
+        "coming_soon": True,
     },
     {
         "key": "smart_checklist",
@@ -60,6 +61,7 @@ PREMIUM_PLUS_FEATURES = [
         "description": "Choose your profession and get a readiness score showing complete, missing, and expiring credentials.",
         "action_url": "/premium-plus/checklist",
         "action_label": "View Checklist",
+        "coming_soon": True,
     },
     {
         "key": "one_click_submission",
