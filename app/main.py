@@ -1913,21 +1913,61 @@ def dev_reminders_test_doc(request: Request, db: Session = Depends(get_session))
 def dev_reminders_trigger(request: Request, db: Session = Depends(get_session)):
     if _is_production:
         raise HTTPException(404)
-    require_user(request)
-    import io, logging as _logging
-    buf = io.StringIO()
-    handler = _logging.StreamHandler(buf)
-    handler.setLevel(_logging.DEBUG)
-    root = _logging.getLogger()
-    root.addHandler(handler)
-    try:
-        from .services.reminder_scheduler import check_expiring_documents
-        check_expiring_documents()
-    finally:
-        root.removeHandler(handler)
-    output = buf.getvalue()
-    lines = [l for l in output.splitlines() if "[scheduler]" in l or "[email]" in l or "[sms]" in l]
-    return JSONResponse({"ok": True, "log": lines or ["(no scheduler activity logged — check server console)"]})
+    user = require_user(request)
+    from datetime import date as _date
+    from .services.email_service import send_expiration_email, get_email_status
+    from .services.sms_service import get_sms_status
+    from .premium import has_premium, has_premium_plus
+
+    lines: list[str] = []
+
+    # -- provider status
+    lines.append(f"Email provider: {get_email_status()}")
+    lines.append(f"SMS provider:   {get_sms_status()}")
+
+    # -- load settings for this user only
+    settings = db.query(ReminderSettings).filter_by(user_id=user.id).first()
+    if not settings:
+        lines.append("No reminder settings found for your account.")
+        return JSONResponse({"ok": False, "log": lines})
+
+    to_email = (settings.reminder_email or "") or user.email
+    reminder_days = settings.get_days_list()
+    lines.append(f"Email enabled:  {bool(settings.email_enabled)}")
+    lines.append(f"Reminder days:  {reminder_days}")
+    lines.append(f"Sending to:     {to_email}")
+    lines.append(f"Premium:        {has_premium(user)}  Premium+: {has_premium_plus(user)}")
+
+    if not settings.email_enabled:
+        lines.append("⚠ Email reminders are disabled — toggle them on and save first.")
+        return JSONResponse({"ok": False, "log": lines})
+
+    # -- find matching documents
+    today = _date.today()
+    docs = db.query(Document).filter_by(user_id=user.id).all()
+    lines.append(f"\nChecking {len(docs)} document(s) for your account:")
+
+    matched = 0
+    for doc in docs:
+        if not doc.expires_at:
+            lines.append(f"  • {doc.title} — no expiry date, skipped")
+            continue
+        days_left = (doc.expires_at.date() - today).days
+        lines.append(f"  • {doc.title} — {days_left}d left (threshold match: {days_left in reminder_days})")
+        if days_left not in reminder_days:
+            continue
+        matched += 1
+        lines.append(f"    → Sending email to {to_email} ...")
+        result = send_expiration_email(user, doc, days_left)
+        if result.get("ok"):
+            lines.append(f"    ✓ Sent!  Resend message_id={result.get('message_id')}")
+        else:
+            lines.append(f"    ✗ Failed: {result.get('error')}")
+
+    if matched == 0:
+        lines.append(f"\nNo documents are due for a reminder today (need days_left in {reminder_days}).")
+
+    return JSONResponse({"ok": True, "log": lines})
 
 
 @app.get("/dev/set-tier", response_class=HTMLResponse)
