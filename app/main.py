@@ -999,36 +999,89 @@ def resume_redirect(request: Request):
     return RedirectResponse("/premium/resume/enhance", status_code=301)
 
 
+@app.get("/resume-enhancer", response_class=HTMLResponse)
+def resume_enhancer_alias(request: Request):
+    return RedirectResponse("/premium/resume/enhance", status_code=301)
+
+
 @app.get("/premium/resume/enhance", response_class=HTMLResponse)
 def resume_enhance_get(request: Request):
+    from .resume_enhancer import TARGET_ROLES, TONES
     user = require_user(request)
-    return render(request, "premium_resume.html", suggestions=None, filename=None)
+    return render(request, "premium_resume.html",
+                  analysis=None, filename=None,
+                  target_roles=TARGET_ROLES, tones=TONES,
+                  sel_role="Travel Nurse", sel_tone="Professional")
 
 
 @app.post("/premium/resume/enhance", response_class=HTMLResponse)
 async def resume_enhance_post(
     request: Request,
-    file: UploadFile = File(...),
+    resume_text: str = Form(""),
+    target_role: str = Form("Travel Nurse"),
+    tone: str = Form("Professional"),
+    file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_session),
 ):
+    from .resume_enhancer import enhance_resume, TARGET_ROLES, TONES
     user = require_user(request)
-    raw = await file.read()
-    if not raw:
-        request.session["flash"] = "Please choose a resume file to upload."
-        return RedirectResponse("/premium/resume/enhance", status_code=302)
-    if len(raw) > 10 * 1024 * 1024:
-        request.session["flash"] = "Resume file must be 10 MB or smaller."
+
+    raw, mime, fname = b"", "", ""
+    if file and file.filename:
+        raw = await file.read()
+        if len(raw) > 10 * 1024 * 1024:
+            request.session["flash"] = "Resume file must be 10 MB or smaller."
+            return RedirectResponse("/premium/resume/enhance", status_code=302)
+        mime  = file.content_type or ""
+        fname = file.filename or "resume"
+
+    if not raw and not resume_text.strip():
+        request.session["flash"] = "Please upload a file or paste your resume text."
         return RedirectResponse("/premium/resume/enhance", status_code=302)
 
-    from .resume_enhancer import enhance_resume
-    suggestions = enhance_resume(raw, file.content_type or "", file.filename or "resume")
-    log_event("resume_enhance", user_id=user.id, meta={"filename": file.filename}, db=db)
+    analysis = enhance_resume(
+        raw=raw, mime_type=mime, filename=fname,
+        text_input=resume_text,
+        target_role=target_role, tone=tone,
+    )
+    log_event("resume_analyzed", user_id=user.id,
+              meta={"target_role": target_role, "tone": tone,
+                    "score": analysis.get("overall_score"),
+                    "tier": getattr(user, "subscription_tier", "free")}, db=db)
     return render(
         request,
         "premium_resume.html",
-        suggestions=suggestions,
-        filename=file.filename,
+        analysis=analysis,
+        filename=fname or "(pasted text)",
+        target_roles=TARGET_ROLES, tones=TONES,
+        sel_role=target_role, sel_tone=tone,
     )
+
+
+@app.post("/resume/save-analysis")
+async def resume_save_analysis(
+    request: Request,
+    target_role: str = Form(""),
+    tone: str = Form(""),
+    overall_score: int = Form(0),
+    category_scores_json: str = Form("{}"),
+    suggestions_json: str = Form("[]"),
+    db: Session = Depends(get_session),
+):
+    from .db import ResumeAnalysis
+    user = require_user(request)
+    ra = ResumeAnalysis(
+        user_id=user.id,
+        target_role=target_role or None,
+        tone=tone or None,
+        overall_score=overall_score,
+        category_scores=category_scores_json,
+        suggestions=suggestions_json,
+    )
+    db.add(ra)
+    db.commit()
+    request.session["flash"] = "Analysis saved."
+    return RedirectResponse("/premium/resume/enhance", status_code=302)
 
 
 # ---------------------------------------------------------------------------

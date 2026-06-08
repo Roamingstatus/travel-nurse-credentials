@@ -1,0 +1,339 @@
+Update the existing Credanta Resume Enhancer.
+
+Do NOT recreate the Resume Enhancer.
+Do NOT rebuild the app.
+Do NOT change navigation unless necessary.
+Do NOT add OpenAI, Anthropic, Gemini, or any external AI API.
+
+Goal:
+Improve the existing Resume Enhancer using local rule-based analysis, better UI, better scoring, and clearer user output.
+
+Keep the feature FREE for all logged-in users.
+
+────────────────────────
+PRESERVE EXISTING WORK
+────────────────────────
+
+Before making changes:
+- inspect the current Resume Enhancer implementation
+- identify existing components, routes, services, and styles
+- reuse the existing page and logic where possible
+- only improve or extend what already exists
+
+Do not duplicate the page.
+Do not create a second resume enhancer route.
+
+Existing route should remain:
+/resume-enhancer
+
+────────────────────────
+IMPROVE ANALYSIS ENGINE
+────────────────────────
+
+Enhance the current resume analysis to include:
+
+1. Overall Resume Score
+Score from 0–100.
+
+2. Category Scores:
+- Completeness
+- Readability
+- Professional Summary
+- Action Verbs
+- Keyword Match
+- Formatting Clarity
+
+3. Missing Section Detection:
+Check for:
+- Summary / Professional Summary
+- Work Experience
+- Education
+- Certifications
+- Licenses
+- Skills
+- Contact Information
+
+4. Weak Word Detection:
+Detect weak phrases and suggest replacements.
+
+Examples:
+Responsible for → Managed / Coordinated / Led
+Helped → Assisted / Supported / Improved
+Worked on → Developed / Managed / Executed
+Did → Completed / Performed / Delivered
+Participated in → Collaborated / Contributed / Coordinated
+
+5. Action Verb Suggestions:
+Suggest stronger verbs based on common resume language.
+
+6. Keyword Analysis:
+Compare resume text against the selected target role.
+
+Add role keyword libraries for:
+- Travel Nurse
+- Registered Nurse
+- ICU RN
+- Telemetry RN
+- Med-Surg RN
+- Home Health RN
+- Legal Nurse Consultant
+- Software Developer
+- Teacher
+- General Professional
+
+For each role, return:
+- Found keywords
+- Missing suggested keywords
+- Keyword match percentage
+
+7. Formatting Checks:
+Detect:
+- very long paragraphs
+- overly short resume
+- missing bullet points
+- inconsistent spacing
+- repeated phrases
+- weak summary
+- missing measurable outcomes
+
+8. Improvement Checklist:
+Generate clear checklist items:
+- Add a professional summary
+- Add measurable outcomes
+- Add certifications section
+- Add specialty keywords
+- Use stronger action verbs
+- Shorten long paragraphs
+
+────────────────────────
+DO NOT FABRICATE
+────────────────────────
+
+The enhancer must never:
+- invent experience
+- invent licenses
+- invent certifications
+- invent education
+- invent employment history
+- claim guaranteed hiring
+- create false qualifications
+
+It should only suggest wording, structure, clarity, and keyword improvements.
+
+Add visible disclaimer:
+“Credanta provides resume improvement suggestions only. Always review your resume before submitting applications.”
+
+────────────────────────
+INPUT IMPROVEMENTS
+────────────────────────
+
+Keep existing input methods.
+
+If currently supported, preserve:
+- pasted resume text
+- uploaded resume selection
+- PDF/DOCX/TXT extraction
+
+If any are missing, enhance gently without breaking current behavior.
+
+Add or improve controls:
+
+Target Role dropdown:
+- Travel Nurse
+- Registered Nurse
+- ICU RN
+- Telemetry RN
+- Med-Surg RN
+- Home Health RN
+- Legal Nurse Consultant
+- Software Developer
+- Teacher
+- General Professional
+
+Tone dropdown:
+- Professional
+- Concise
+- Healthcare Focused
+- Leadership Focused
+- Entry Level
+
+Button:
+Analyze Resume
+
+Add clear loading state:
+“Analyzing resume…”
+
+────────────────────────
+OUTPUT UI IMPROVEMENTS
+────────────────────────
+
+Improve the results layout.
+
+Display results in clean cards:
+
+1. Resume Score Card
+- large score number
+- label: Resume Readiness Score
+- short interpretation:
+  - 85–100 Strong
+  - 70–84 Good, needs polish
+  - 50–69 Needs improvement
+  - below 50 Needs major improvement
+
+2. Category Score Cards
+Show:
+- Completeness
+- Readability
+- Summary
+- Action Verbs
+- Keywords
+- Formatting
+
+Use simple progress bars.
+
+3. Key Suggestions Card
+Show top 5–10 most important suggestions.
+
+4. Missing Sections Card
+Show missing or weak sections.
+
+5. Keyword Analysis Card
+Show:
+- found keywords as green badges
+- suggested missing keywords as neutral/blue badges
+- match percentage
+
+6. Weak Words Card
+Show before/after recommendations.
+
+7. Formatting Card
+Show formatting warnings.
+
+8. Improvement Checklist Card
+Show checklist style recommendations.
+
+────────────────────────
+COPY / DOWNLOAD FEATURES
+────────────────────────
+
+Add or improve:
+
+Copy Suggestions button
+Download Analysis as TXT button
+
+TXT export should include:
+- resume score
+- category scores
+- target role
+- top suggestions
+- missing sections
+- keyword suggestions
+- weak word suggestions
+- formatting notes
+- disclaimer
+
+Do not require premium.
+
+────────────────────────
+SAVE ANALYSIS
+────────────────────────
+
+If existing save functionality exists:
+- improve it
+
+If not:
+- add simple Save Analysis button if database structure supports it
+
+Save:
+- user_id
+- target_role
+- overall_score
+- category_scores
+- suggestions
+- created_at
+
+Do NOT store full resume text unless the user explicitly chooses to save it.
+
+────────────────────────
+EVENT LOGGING
+────────────────────────
+
+If event logging exists, log:
+
+resume_analyzed
+
+Event data:
+- target_role
+- tone
+- score
+- subscription_tier
+
+Do NOT log full resume text.
+
+────────────────────────
+UI STYLE
+────────────────────────
+
+Match existing Credanta design.
+
+Use:
+- compact SaaS cards
+- soft borders
+- rounded corners
+- clean typography
+- responsive layout
+- mobile-friendly output
+- no clutter
+
+Avoid:
+- giant cards
+- overwhelming walls of text
+- bright colors
+- corporate resume-builder feel
+
+────────────────────────
+LOCAL ONLY
+────────────────────────
+
+Important:
+This enhancement must work without external AI APIs.
+
+Do not add:
+- OpenAI
+- Anthropic
+- Gemini
+- external resume APIs
+
+Use:
+- JavaScript/Python rule-based analysis
+- keyword dictionaries
+- regex/pattern matching
+- local scoring logic
+
+────────────────────────
+TESTING
+────────────────────────
+
+Test:
+- existing Resume Enhancer page still loads
+- pasted resume text analyzes correctly
+- target role changes keyword suggestions
+- score generates properly
+- missing sections detect properly
+- weak words detect properly
+- copy button works
+- TXT download works
+- mobile layout works
+- no external API calls are made
+- no duplicate resume enhancer page exists
+
+Run existing tests if available.
+
+────────────────────────
+IMPORTANT
+────────────────────────
+
+Do not overbuild.
+Do not turn this into a full resume builder.
+Do not add paid gating.
+This is a free lightweight resume improvement tool inside Credanta.

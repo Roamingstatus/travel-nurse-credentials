@@ -1,83 +1,397 @@
 {% extends "base.html" %}
 {% block title %}Resume Enhancer · Credanta{% endblock %}
 {% block content %}
+
 <div class="page-head-min">
-  <a href="/premium" class="nav-small">← Premium</a>
   <h1>Resume Enhancer</h1>
-  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Upload your resume for AI-powered improvement suggestions.</p>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Rule-based analysis — no AI needed. Works on every resume.</p>
 </div>
 
-<section class="panel panel-min">
-  <header><h2>Upload your resume</h2></header>
+{# ── Input panel ─────────────────────────────────────────────────────── #}
+<section class="panel panel-min re-input-panel">
+  <header><h2>Analyse your resume</h2></header>
   <div class="body">
-    <form method="post" action="/premium/resume/enhance" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:16px;max-width:480px;">
-      <div class="form-row">
+    <form id="re-form" method="post" action="/premium/resume/enhance"
+          enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:16px;">
+
+      <div class="re-selects">
+        <div class="form-row" style="flex:1;min-width:180px;">
+          <label class="form-label" for="re-role">Target role</label>
+          <select class="form-input" id="re-role" name="target_role">
+            {% for r in target_roles %}
+            <option value="{{ r }}" {% if sel_role == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-row" style="flex:1;min-width:150px;">
+          <label class="form-label" for="re-tone">Tone</label>
+          <select class="form-input" id="re-tone" name="tone">
+            {% for t in tones %}
+            <option value="{{ t }}" {% if sel_tone == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# ── Input tabs ── #}
+      <div class="re-tabs">
+        <button type="button" class="re-tab active" data-tab="upload">Upload file</button>
+        <button type="button" class="re-tab" data-tab="paste">Paste text</button>
+      </div>
+
+      <div id="re-tab-upload" class="re-tab-panel">
         <label class="form-label" for="resume_file">Resume file</label>
         <input class="form-input" type="file" id="resume_file" name="file"
-          accept=".pdf,.doc,.docx,.txt,.rtf" required />
-        <span class="form-hint">Accepted: PDF, Word, TXT, RTF — max 10 MB. Your file is not stored.</span>
+               accept=".pdf,.doc,.docx,.txt,.rtf" />
+        <span class="form-hint">PDF, Word (.docx), TXT, RTF — max 10 MB. Not stored.</span>
       </div>
+
+      <div id="re-tab-paste" class="re-tab-panel" style="display:none;">
+        <label class="form-label" for="resume_text">Paste resume text</label>
+        <textarea class="form-input" id="resume_text" name="resume_text" rows="10"
+                  placeholder="Paste your full resume text here…" style="resize:vertical;font-family:inherit;font-size:13px;"></textarea>
+      </div>
+
       <div>
-        <button type="submit" class="btn primary">Analyse Resume</button>
+        <button type="submit" id="re-submit" class="btn primary">
+          <span id="re-submit-label">Analyse Resume</span>
+        </button>
       </div>
     </form>
   </div>
 </section>
 
-{% if suggestions %}
-<section class="panel panel-min" style="margin-top:16px;">
-  <header>
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <h2 style="margin:0;">Suggestions for: {{ filename or 'your resume' }}</h2>
-      {% if suggestions.source == 'ai' %}
-      <span class="pill good" style="font-size:12px;">AI-powered</span>
-      {% elif suggestions.source == 'analysis' %}
-      <span class="pill good" style="font-size:12px;">Resume analysed</span>
-      {% else %}
-      <span class="pill neutral" style="font-size:12px;">General tips</span>
+{# ── Results ─────────────────────────────────────────────────────────── #}
+{% if analysis %}
+{% set a = analysis %}
+
+{# Score + Categories ── #}
+<div class="re-results" id="re-results">
+
+  <div class="re-top-row">
+    {# Overall score card #}
+    <div class="re-card re-score-card re-score-{{ a.score_color }}">
+      <div class="re-score-num">{{ a.overall_score }}</div>
+      <div class="re-score-label">Resume Readiness Score</div>
+      <div class="re-score-verdict">{{ a.score_label }}</div>
+      <div class="re-score-meta">
+        {{ a.target_role }}
+        {% if a.source == 'ai' %} · <span style="color:#16a34a;">AI-powered</span>{% endif %}
+      </div>
+    </div>
+
+    {# Category scores #}
+    <div class="re-cats-grid">
+      {% for key, cat in a.categories.items() %}
+      <div class="re-cat-card">
+        <div class="re-cat-label">{{ cat.label }}</div>
+        <div class="re-cat-bar-wrap">
+          <div class="re-cat-bar" style="width:{{ cat.score }}%;background:{% if cat.score >= 75 %}var(--good,#16a34a){% elif cat.score >= 50 %}var(--warn-color,#d97706){% else %}#ef4444{% endif %};"></div>
+        </div>
+        <div class="re-cat-score">{{ cat.score }}<span style="font-size:10px;opacity:.6;">/100</span></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="re-cards-grid">
+
+    {# Key suggestions #}
+    {% if a.suggestions %}
+    <div class="re-card re-card--full">
+      <div class="re-card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Key Suggestions
+      </div>
+      <ul class="re-list">
+        {% for tip in a.suggestions %}
+        <li>{{ tip }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# Missing sections #}
+    {% if a.missing_sections %}
+    <div class="re-card">
+      <div class="re-card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Missing Sections
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+        {% for s in a.missing_sections %}
+        <span class="re-badge re-badge--warn">{{ s }}</span>
+        {% endfor %}
+      </div>
+      {% if a.found_sections %}
+      <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
+        {% for s in a.found_sections %}
+        <span class="re-badge re-badge--good">✓ {{ s }}</span>
+        {% endfor %}
+      </div>
       {% endif %}
     </div>
-    {% if not suggestions.text_extracted %}
-    <p style="color:var(--warn);font-size:13px;margin:8px 0 0;">
-      ⚠ Could not extract text from this file — showing general best-practice suggestions.
-    </p>
     {% endif %}
-  </header>
-  <div class="body" style="display:flex;flex-direction:column;gap:24px;">
 
-    <div>
-      <h3 style="font-size:15px;margin:0 0 10px;color:var(--accent);">Professional Summary</h3>
-      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;">
-        {% for tip in suggestions.summary %}
-        <li style="font-size:14px;line-height:1.55;">{{ tip }}</li>
+    {# Keywords #}
+    <div class="re-card">
+      <div class="re-card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Keyword Match — {{ a.keyword_pct }}%
+      </div>
+      {% if a.keywords_found %}
+      <div style="margin-top:8px;">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:5px;">FOUND</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+          {% for k in a.keywords_found %}
+          <span class="re-badge re-badge--good">{{ k }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if a.keywords_missing %}
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:5px;">SUGGESTED TO ADD</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+          {% for k in a.keywords_missing %}
+          <span class="re-badge re-badge--neutral">{{ k }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Weak words #}
+    {% if a.weak_words %}
+    <div class="re-card">
+      <div class="re-card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        Weak Phrases
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+        {% for w in a.weak_words %}
+        <div class="re-weak-row">
+          <span class="re-badge re-badge--bad">{{ w.found }}</span>
+          <span style="color:var(--muted);font-size:12px;">→</span>
+          <span style="font-size:13px;color:var(--text);">{{ w.suggestions | join(' / ') }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Formatting #}
+    <div class="re-card">
+      <div class="re-card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
+        Formatting Notes
+      </div>
+      <ul class="re-list" style="margin-top:8px;">
+        {% for note in a.formatting_notes %}
+        <li>{{ note }}</li>
         {% endfor %}
       </ul>
     </div>
 
-    <div>
-      <h3 style="font-size:15px;margin:0 0 10px;color:var(--accent);">Bullet Points</h3>
-      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;">
-        {% for tip in suggestions.bullets %}
-        <li style="font-size:14px;line-height:1.55;">{{ tip }}</li>
+    {# Checklist #}
+    <div class="re-card re-card--full">
+      <div class="re-card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Improvement Checklist
+      </div>
+      <div class="re-checklist">
+        {% for item in a.checklist %}
+        <div class="re-check-item {% if item.done %}re-check--done{% endif %}">
+          <span class="re-check-icon">{% if item.done %}✓{% else %}○{% endif %}</span>
+          <span>{{ item.item }}</span>
+        </div>
         {% endfor %}
-      </ul>
+      </div>
     </div>
 
-    <div>
-      <h3 style="font-size:15px;margin:0 0 10px;color:var(--accent);">Formatting</h3>
-      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;">
-        {% for tip in suggestions.formatting %}
-        <li style="font-size:14px;line-height:1.55;">{{ tip }}</li>
-        {% endfor %}
-      </ul>
-    </div>
+  </div>{# /re-cards-grid #}
 
+  {# Actions #}
+  <div class="re-actions">
+    <button type="button" class="btn ghost" id="re-copy-btn" onclick="reCopy()">Copy suggestions</button>
+    <button type="button" class="btn ghost" onclick="reDownload()">Download .txt</button>
+    <form method="post" action="/resume/save-analysis" style="margin:0;display:inline;">
+      <input type="hidden" name="target_role" value="{{ a.target_role }}">
+      <input type="hidden" name="tone" value="{{ a.tone }}">
+      <input type="hidden" name="overall_score" value="{{ a.overall_score }}">
+      <input type="hidden" name="category_scores_json" id="re-cats-json"
+             value="{{ a.categories | tojson | e }}">
+      <input type="hidden" name="suggestions_json"
+             value="{{ a.suggestions | tojson | e }}">
+      <button type="submit" class="btn ghost">Save analysis</button>
+    </form>
+    <a href="/premium/resume/enhance" class="btn ghost">Analyse another</a>
   </div>
-</section>
 
-<div style="margin-top:16px;display:flex;gap:10px;">
-  <a href="/premium/resume/enhance" class="btn ghost">Analyse another resume</a>
-  <a href="/premium" class="btn ghost">← Back to Premium</a>
-</div>
-{% endif %}
+  <p class="re-disclaimer">
+    Credanta provides resume improvement suggestions only. Always review your resume carefully before submitting applications. Credanta does not fabricate experience, certifications, or qualifications.
+  </p>
+
+</div>{# /re-results #}
+
+<script>
+var _reData = {{ a | tojson | safe }};
+
+function reCopy() {
+  var lines = ["RESUME ANALYSIS — " + _reData.target_role + "\n"];
+  lines.push("Overall Score: " + _reData.overall_score + "/100 — " + _reData.score_label + "\n");
+  lines.push("KEY SUGGESTIONS:");
+  (_reData.suggestions || []).forEach(function(s,i){ lines.push((i+1)+". "+s); });
+  lines.push("\nMISSING SECTIONS: " + (_reData.missing_sections||[]).join(", "));
+  lines.push("\nWEAK PHRASES TO REPLACE:");
+  (_reData.weak_words||[]).forEach(function(w){ lines.push('  "'+w.found+'" → '+w.suggestions.join(" / ")); });
+  lines.push("\nKEYWORDS MISSING: " + (_reData.keywords_missing||[]).join(", "));
+  navigator.clipboard.writeText(lines.join("\n")).then(function(){
+    var btn = document.getElementById("re-copy-btn");
+    btn.textContent = "Copied!";
+    setTimeout(function(){ btn.textContent = "Copy suggestions"; }, 2000);
+  });
+}
+
+function reDownload() {
+  var lines = [
+    "CREDANTA RESUME ANALYSIS",
+    "========================",
+    "Target Role: " + _reData.target_role,
+    "Tone: " + _reData.tone,
+    "Overall Score: " + _reData.overall_score + "/100 — " + _reData.score_label,
+    "",
+    "CATEGORY SCORES:"
+  ];
+  var cats = _reData.categories || {};
+  Object.keys(cats).forEach(function(k){ lines.push("  " + cats[k].label + ": " + cats[k].score + "/100"); });
+  lines.push("", "KEY SUGGESTIONS:");
+  (_reData.suggestions || []).forEach(function(s,i){ lines.push((i+1)+". "+s); });
+  lines.push("", "MISSING SECTIONS:");
+  (_reData.missing_sections||[]).forEach(function(s){ lines.push("  - "+s); });
+  lines.push("", "KEYWORD MATCH: " + _reData.keyword_pct + "%");
+  lines.push("Keywords to add: " + (_reData.keywords_missing||[]).join(", "));
+  lines.push("", "WEAK PHRASES:");
+  (_reData.weak_words||[]).forEach(function(w){ lines.push('  "'+w.found+'" → '+w.suggestions.join(" / ")); });
+  lines.push("", "FORMATTING NOTES:");
+  (_reData.formatting_notes||[]).forEach(function(n){ lines.push("  - "+n); });
+  lines.push("", "---");
+  lines.push("Credanta provides resume improvement suggestions only. Always review before submitting.");
+  var blob = new Blob([lines.join("\n")], {type:"text/plain"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "resume-analysis.txt";
+  a.click();
+}
+</script>
+
+{% endif %}{# /if analysis #}
+
+<style>
+.re-input-panel .re-selects { display:flex; gap:12px; flex-wrap:wrap; }
+.re-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:12px; }
+.re-tab { background:none; border:none; padding:8px 16px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.re-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.re-tab:hover { color:var(--text); }
+.re-tab-panel { display:flex; flex-direction:column; gap:6px; }
+
+#re-submit { min-width:140px; }
+
+/* Results layout */
+.re-results { display:flex; flex-direction:column; gap:16px; margin-top:20px; }
+
+.re-top-row { display:grid; grid-template-columns:180px 1fr; gap:16px; align-items:start; }
+@media (max-width:640px) { .re-top-row { grid-template-columns:1fr; } }
+
+/* Overall score card */
+.re-score-card { text-align:center; padding:20px 16px !important; }
+.re-score-num { font-size:52px; font-weight:800; line-height:1; letter-spacing:-0.04em; }
+.re-score-label { font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-top:4px; }
+.re-score-verdict { font-size:13px; font-weight:700; margin-top:6px; }
+.re-score-meta { font-size:11px; color:var(--muted); margin-top:4px; }
+
+.re-score-good .re-score-num { color:#16a34a; }
+.re-score-warn .re-score-num { color:#d97706; }
+.re-score-bad  .re-score-num { color:#ef4444; }
+[data-theme="dark"] .re-score-good .re-score-num { color:#4ade80; }
+[data-theme="dark"] .re-score-warn .re-score-num { color:#fbbf24; }
+[data-theme="dark"] .re-score-bad  .re-score-num { color:#f87171; }
+
+/* Category grid */
+.re-cats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+@media (max-width:480px) { .re-cats-grid { grid-template-columns:repeat(2,1fr); } }
+
+.re-cat-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+.re-cat-label { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.re-cat-bar-wrap { height:5px; background:var(--border); border-radius:99px; margin:6px 0 4px; overflow:hidden; }
+.re-cat-bar { height:100%; border-radius:99px; transition:width .4s ease; }
+.re-cat-score { font-size:14px; font-weight:700; }
+
+/* Cards grid */
+.re-cards-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+@media (max-width:600px) { .re-cards-grid { grid-template-columns:1fr; } }
+
+.re-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; }
+.re-card--full { grid-column:1/-1; }
+.re-card-head { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; }
+.re-card-head svg { flex-shrink:0; opacity:.6; }
+
+.re-list { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:7px; }
+.re-list li { font-size:13px; line-height:1.55; }
+
+.re-badge { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:600; }
+.re-badge--good    { background:#dcfce7; color:#15803d; }
+.re-badge--warn    { background:#fef9c3; color:#92400e; }
+.re-badge--neutral { background:var(--surface-alt,#f1f5f9); color:var(--muted); border:1px solid var(--border); }
+.re-badge--bad     { background:#fee2e2; color:#b91c1c; }
+[data-theme="dark"] .re-badge--good    { background:rgba(34,197,94,.18); color:#86efac; }
+[data-theme="dark"] .re-badge--warn    { background:rgba(234,179,8,.15); color:#fde047; }
+[data-theme="dark"] .re-badge--neutral { background:rgba(255,255,255,.06); }
+[data-theme="dark"] .re-badge--bad     { background:rgba(239,68,68,.18); color:#fca5a5; }
+
+.re-weak-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+/* Checklist */
+.re-checklist { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.re-check-item { display:flex; align-items:center; gap:10px; font-size:13px; padding:7px 10px; border-radius:7px; background:var(--bg); border:1px solid var(--border); }
+.re-check--done { opacity:.6; text-decoration:line-through; }
+.re-check-icon { font-size:14px; font-weight:700; width:18px; text-align:center; flex-shrink:0; }
+.re-check--done .re-check-icon { color:#16a34a; }
+
+/* Actions */
+.re-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.re-disclaimer { font-size:11px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; margin-top:4px; line-height:1.5; }
+</style>
+
+<script>
+(function(){
+  // Tab switching
+  document.querySelectorAll(".re-tab").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".re-tab").forEach(function(b){ b.classList.remove("active"); });
+      document.querySelectorAll(".re-tab-panel").forEach(function(p){ p.style.display="none"; });
+      btn.classList.add("active");
+      document.getElementById("re-tab-" + btn.dataset.tab).style.display = "flex";
+    });
+  });
+
+  // Loading state
+  var form = document.getElementById("re-form");
+  if (form) {
+    form.addEventListener("submit", function(){
+      var btn = document.getElementById("re-submit");
+      var lbl = document.getElementById("re-submit-label");
+      btn.disabled = true;
+      lbl.textContent = "Analysing…";
+    });
+  }
+
+  // Auto-scroll to results
+  var results = document.getElementById("re-results");
+  if (results) {
+    setTimeout(function(){ results.scrollIntoView({behavior:"smooth", block:"start"}); }, 100);
+  }
+})();
+</script>
+
 {% endblock %}

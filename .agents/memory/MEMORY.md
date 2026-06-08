@@ -1,0 +1,1 @@
+- [Resume Enhancer architecture](resume-enhancer.md) — rule-based only; tojson Jinja2 filter works natively (no registration needed); openai import fails gracefully.

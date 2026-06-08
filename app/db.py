@@ -159,6 +159,19 @@ class ChecklistResult(Base):
             return []
 
 
+class ResumeAnalysis(Base):
+    __tablename__ = "resume_analyses"
+
+    id             = Column(Integer, primary_key=True)
+    user_id        = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_role    = Column(String, nullable=True)
+    tone           = Column(String, nullable=True)
+    overall_score  = Column(Integer, nullable=True)
+    category_scores = Column(Text, nullable=True)
+    suggestions    = Column(Text, nullable=True)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+
 class BetaFeedback(Base):
     __tablename__ = "beta_feedback"
 
@@ -246,6 +259,22 @@ def _ensure_sqlite_columns() -> None:
             with engine.begin() as conn:
                 if "profile_id" not in cols:
                     conn.execute(text("ALTER TABLE share_links ADD COLUMN profile_id INTEGER"))
+
+        if "resume_analyses" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS resume_analyses ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+                    "  target_role VARCHAR,"
+                    "  tone VARCHAR,"
+                    "  overall_score INTEGER,"
+                    "  category_scores TEXT,"
+                    "  suggestions TEXT,"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_resume_analyses_user_id ON resume_analyses (user_id)"))
 
         if "beta_feedback" not in tables:
             with engine.begin() as conn:
