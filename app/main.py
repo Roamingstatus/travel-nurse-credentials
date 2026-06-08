@@ -1009,7 +1009,7 @@ def resume_enhance_get(request: Request):
     from .resume_enhancer import TARGET_ROLES, TONES
     user = require_user(request)
     return render(request, "premium_resume.html",
-                  analysis=None, filename=None,
+                  analysis=None, filename=None, versions={},
                   target_roles=TARGET_ROLES, tones=TONES,
                   sel_role="Travel Nurse", sel_tone="Professional")
 
@@ -1039,19 +1039,43 @@ async def resume_enhance_post(
         request.session["flash"] = "Please upload a file or paste your resume text."
         return RedirectResponse("/premium/resume/enhance", status_code=302)
 
+    # Extract text once so both the analyser and rewriter can use it
+    if resume_text.strip():
+        extracted_text = resume_text.strip()
+    elif raw:
+        try:
+            from .smart_categorize import _extract_text as _smart_extract
+            extracted_text = _smart_extract(raw, mime, fname)
+        except Exception:
+            extracted_text = ""
+    else:
+        extracted_text = ""
+
     analysis = enhance_resume(
         raw=raw, mime_type=mime, filename=fname,
-        text_input=resume_text,
+        text_input=extracted_text,
         target_role=target_role, tone=tone,
     )
+
+    versions: dict = {}
+    if extracted_text and len(extracted_text.strip()) > 50:
+        try:
+            from .resume_rewriter import rewrite_resume
+            versions = rewrite_resume(extracted_text, target_role)
+        except Exception as _exc:
+            import logging
+            logging.getLogger(__name__).warning(f"[ResumeRewriter] failed: {_exc}")
+
     log_event("resume_analyzed", user_id=user.id,
               meta={"target_role": target_role, "tone": tone,
                     "score": analysis.get("overall_score"),
+                    "versions_generated": len(versions),
                     "tier": getattr(user, "subscription_tier", "free")}, db=db)
     return render(
         request,
         "premium_resume.html",
         analysis=analysis,
+        versions=versions,
         filename=fname or "(pasted text)",
         target_roles=TARGET_ROLES, tones=TONES,
         sel_role=target_role, sel_tone=tone,

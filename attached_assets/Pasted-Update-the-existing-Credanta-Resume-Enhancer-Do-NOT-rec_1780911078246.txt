@@ -1,0 +1,353 @@
+Update the existing Credanta Resume Enhancer.
+
+Do NOT recreate the Resume Enhancer.
+Do NOT create a second resume enhancer page.
+Do NOT add OpenAI, Anthropic, Gemini, or external AI APIs.
+Do NOT remove the current resume scoring/suggestions.
+Enhance the existing feature so users can view several rewritten resume versions and choose the one they prefer.
+
+Goal:
+The Resume Enhancer should provide multiple improved resume drafts on screen, not just suggestions.
+
+Route should remain:
+/resume-enhancer
+
+────────────────────────
+CORE FEATURE CHANGE
+────────────────────────
+
+After the user analyzes a resume, generate and display 3 rewritten resume versions:
+
+1. Professional Version
+Tone:
+Clean, polished, standard professional resume wording.
+
+2. Concise Version
+Tone:
+Shorter, tighter, direct wording for recruiters.
+
+3. Impact Version
+Tone:
+Stronger action verbs, better achievements, more confident wording.
+
+Optional if easy:
+4. Healthcare-Focused Version
+Tone:
+Better for nurses, clinicians, healthcare workers, travel nurses, per diem nurses, and allied health professionals.
+
+Each version should appear as a separate selectable card or tab.
+
+Users should be able to:
+- preview each version
+- compare versions
+- copy selected version
+- download selected version as TXT
+- optionally save selected version
+- keep original resume unchanged
+
+────────────────────────
+LOCAL RULE-BASED REWRITING ONLY
+────────────────────────
+
+Use local rules and templates only.
+
+Do not call external AI APIs.
+
+Create or improve a local resume rewrite service/module.
+
+Suggested file:
+resume_rewriter.py
+or
+services/resume_rewriter.py
+
+The rewrite engine should:
+- preserve user facts
+- preserve job titles
+- preserve employers
+- preserve dates
+- preserve education
+- preserve licenses/certifications
+- preserve experience
+- improve wording only
+- improve structure
+- improve bullet clarity
+- improve professional tone
+
+It must NOT:
+- invent experience
+- invent credentials
+- invent education
+- invent degrees
+- invent licenses
+- invent employers
+- invent dates
+- exaggerate clinical qualifications
+
+────────────────────────
+REWRITE LOGIC
+────────────────────────
+
+The local rewrite engine should improve text using:
+
+1. Section Detection
+Detect common sections:
+- Summary
+- Professional Summary
+- Experience
+- Work Experience
+- Education
+- Certifications
+- Licenses
+- Skills
+- References
+
+2. Summary Rewriting
+If a summary exists:
+- rewrite it into each tone version
+
+If no summary exists:
+- generate a conservative summary using only facts found in the resume
+
+Example:
+"Experienced registered nurse with background in acute care, patient care, documentation, and interdisciplinary collaboration."
+
+Only include specialties if detected in the resume.
+
+3. Bullet Rewriting
+Detect bullet lines and improve them.
+
+Weak phrase replacements:
+- Responsible for → Managed / Coordinated / Provided
+- Helped → Assisted / Supported / Improved
+- Worked on → Supported / Completed / Contributed to
+- Did → Performed / Completed
+- Participated in → Collaborated with / Contributed to
+- Took care of → Provided care for
+- Charted → Documented
+- Gave meds → Administered medications
+
+4. Healthcare-Specific Improvements
+If healthcare terms are detected, improve wording with accurate professional language.
+
+Examples:
+- patients → patients
+- meds → medications
+- vitals → vital signs
+- charting → clinical documentation
+- report → handoff communication
+- doctor → provider / physician when appropriate
+
+5. Formatting Cleanup
+- remove excessive blank lines
+- standardize bullet spacing
+- preserve section headings
+- keep readable line breaks
+- keep original order of sections
+
+────────────────────────
+OUTPUT UI
+────────────────────────
+
+Improve results area.
+
+Keep existing:
+- resume score
+- category scores
+- suggestions
+- keyword analysis
+- missing sections
+
+Add new section:
+
+Title:
+Choose a Resume Version
+
+Display version cards/tabs:
+
+Card 1:
+Professional Version
+Description:
+Polished and balanced for general applications.
+
+Card 2:
+Concise Version
+Description:
+Shorter and easier for recruiters to scan.
+
+Card 3:
+Impact Version
+Description:
+Stronger wording with more action-oriented bullets.
+
+Card 4 if implemented:
+Healthcare-Focused Version
+Description:
+Tailored language for clinical and healthcare roles.
+
+Each card should include:
+- version title
+- short description
+- preview area
+- Copy button
+- Download TXT button
+- Save Version button if save exists
+
+Add a selected state:
+- selected card has blue/purple accent border
+- user can switch between versions easily
+
+────────────────────────
+COMPARISON MODE
+────────────────────────
+
+Add optional toggle:
+
+Compare Versions
+
+When enabled:
+- show two versions side by side on desktop
+- stack versions on mobile
+
+If too complex:
+- use tabs instead
+
+Do not overbuild.
+
+────────────────────────
+USER CONTROLS
+────────────────────────
+
+Add or preserve:
+
+Target Role dropdown:
+- General Professional
+- Travel Nurse
+- Registered Nurse
+- ICU RN
+- Telemetry RN
+- Med-Surg RN
+- Home Health RN
+- Legal Nurse Consultant
+- Software Developer
+- Teacher
+
+Preferred Output:
+- Professional
+- Concise
+- Impact
+- Healthcare-Focused
+
+Button:
+Generate Resume Versions
+
+If the existing button says Analyze Resume, update it to:
+Analyze & Generate Versions
+
+────────────────────────
+DOWNLOAD / COPY
+────────────────────────
+
+Add:
+
+Copy Selected Version
+
+Download Selected Version as TXT
+
+Optional:
+Download as PDF later, but TXT is enough for now.
+
+The downloaded TXT should include:
+- selected version title
+- rewritten resume text
+- disclaimer
+
+────────────────────────
+SAVE VERSION
+────────────────────────
+
+If database supports saved analyses:
+Add:
+Save Selected Version
+
+Store:
+- user_id
+- target_role
+- selected_version_type
+- rewritten_resume
+- score
+- created_at
+
+If saving full rewritten resume is a privacy concern:
+Add a warning:
+"Saved versions are stored in your Credanta account."
+
+Do not store original resume text unless already supported.
+
+────────────────────────
+EVENT LOGGING
+────────────────────────
+
+If event logging exists, log:
+
+resume_versions_generated
+resume_version_copied
+resume_version_downloaded
+resume_version_saved
+
+Event data:
+- target_role
+- selected_version_type
+- score
+- subscription_tier
+
+Do not log full resume text in event_data.
+
+────────────────────────
+DISCLAIMER
+────────────────────────
+
+Add visible disclaimer:
+
+"Credanta improves wording and formatting only. Always review your resume before submitting. Do not use suggested text that does not accurately reflect your experience."
+
+────────────────────────
+UI STYLE
+────────────────────────
+
+Match Credanta styling:
+- clean SaaS cards
+- compact but readable
+- rounded corners
+- soft borders
+- modern typography
+- mobile responsive
+- no clutter
+
+Avoid:
+- walls of text
+- giant cards
+- overwhelming layout
+- corporate resume-builder feel
+
+────────────────────────
+TESTING
+────────────────────────
+
+Test:
+- existing Resume Enhancer still loads
+- pasted resume text works
+- uploaded resume text works if already supported
+- 3 resume versions generate
+- healthcare version generates when enabled
+- facts are preserved
+- no fake certifications/licenses are added
+- Copy button works
+- Download TXT works
+- Save Version works if implemented
+- mobile layout works
+- no external AI/API calls occur
+- no duplicate route/page was created
+
+Important:
+Enhance the existing Resume Enhancer.
+Do not recreate it.

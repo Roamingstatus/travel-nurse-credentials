@@ -1,1 +1,1 @@
-- [Resume Enhancer architecture](resume-enhancer.md) — rule-based only; tojson Jinja2 filter works natively (no registration needed); openai import fails gracefully.
+- [Resume Enhancer architecture](resume-enhancer.md) — rule-based only; tojson Jinja2 filter works natively; openai import fails gracefully; always restart workflow after Python changes (Jinja2 auto-reloads templates but Python routes do not).

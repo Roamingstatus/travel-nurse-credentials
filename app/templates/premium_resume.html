@@ -211,6 +211,36 @@
 
   </div>{# /re-cards-grid #}
 
+  {# ── Resume Versions ───────────────────────────────────────────────── #}
+  {% if versions %}
+  <div class="re-card re-card--full" style="margin-top:4px;">
+    <div class="re-card-head" style="flex-wrap:wrap;gap:6px;">
+      <span style="display:flex;align-items:center;gap:7px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Choose a Resume Version
+      </span>
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:auto;">Your facts, dates &amp; credentials are preserved</span>
+    </div>
+
+    <div class="re-vtabs">
+      {% for vkey, v in versions.items() %}
+      <button class="re-vtab{% if loop.first %} active{% endif %}" data-v="{{ vkey }}">{{ v.title }}</button>
+      {% endfor %}
+    </div>
+
+    {% for vkey, v in versions.items() %}
+    <div id="re-v-{{ vkey }}" class="re-vpanel{% if not loop.first %} re-vpanel--hidden{% endif %}">
+      <p class="re-vdesc">{{ v.desc }}</p>
+      <textarea class="re-vtext" readonly>{{ v.text }}</textarea>
+      <div class="re-vactions">
+        <button class="btn ghost" style="font-size:12px;padding:6px 14px;" data-vcopy="{{ vkey }}">Copy</button>
+        <button class="btn ghost" style="font-size:12px;padding:6px 14px;" data-vdl="{{ vkey }}">Download .txt</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {# Actions #}
   <div class="re-actions">
     <button type="button" class="btn ghost" id="re-copy-btn" onclick="reCopy()">Copy suggestions</button>
@@ -236,6 +266,39 @@
 
 <script>
 var _reData = {{ a | tojson | safe }};
+{% if versions %}
+var _reVersions = {{ versions | tojson | safe }};
+(function(){
+  document.querySelectorAll(".re-vtab").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var key=btn.dataset.v;
+      document.querySelectorAll(".re-vtab").forEach(function(b){b.classList.remove("active");});
+      document.querySelectorAll(".re-vpanel").forEach(function(p){p.classList.add("re-vpanel--hidden");});
+      btn.classList.add("active");
+      var panel=document.getElementById("re-v-"+key);
+      if(panel) panel.classList.remove("re-vpanel--hidden");
+    });
+  });
+  document.querySelectorAll("[data-vcopy]").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var v=_reVersions[btn.dataset.vcopy]||{};
+      navigator.clipboard.writeText(v.text||"").then(function(){
+        var old=btn.textContent;btn.textContent="Copied!";
+        setTimeout(function(){btn.textContent=old;},2000);
+      });
+    });
+  });
+  document.querySelectorAll("[data-vdl]").forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var k=btn.dataset.vdl;var v=_reVersions[k]||{};
+      var content=(v.title||k)+"\n\n"+(v.text||"")+"\n\n---\nCredanta: Wording improvements only. Always review before submitting.";
+      var blob=new Blob([content],{type:"text/plain"});
+      var el=document.createElement("a");
+      el.href=URL.createObjectURL(blob);el.download="resume-"+k+".txt";el.click();
+    });
+  });
+})();
+{% endif %}
 
 function reCopy() {
   var lines = ["RESUME ANALYSIS — " + _reData.target_role + "\n"];
@@ -361,6 +424,17 @@ function reDownload() {
 /* Actions */
 .re-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .re-disclaimer { font-size:11px; color:var(--muted); border-top:1px solid var(--border); padding-top:12px; margin-top:4px; line-height:1.5; }
+
+/* Version chooser */
+.re-vtabs { display:flex; gap:6px; flex-wrap:wrap; margin:14px 0 0; }
+.re-vtab { padding:6px 14px; border-radius:6px; border:1px solid var(--border); background:none; font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; transition:background .12s,border-color .12s,color .12s; }
+.re-vtab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.re-vtab:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
+.re-vpanel { margin-top:12px; }
+.re-vpanel--hidden { display:none !important; }
+.re-vdesc { font-size:13px; color:var(--muted); margin:0 0 10px; line-height:1.45; }
+.re-vtext { display:block; width:100%; min-height:260px; max-height:500px; font-family:ui-monospace,"SF Mono","Fira Code",monospace; font-size:12px; line-height:1.65; padding:14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); resize:vertical; box-sizing:border-box; }
+.re-vactions { display:flex; gap:8px; margin-top:10px; }
 </style>
 
 <script>
