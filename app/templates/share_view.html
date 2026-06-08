@@ -44,20 +44,51 @@
 
 <p class="share-foot muted">Private link — the owner can revoke access anytime.</p>
 
-{# ── Recruiter feedback card ───────────────────────────── #}
-<div style="margin-top:32px;max-width:560px;">
-  <div style="background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:20px 24px;">
-    <p style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px;">Powered by Credanta</p>
-    <h3 style="margin:0 0 8px;font-size:15px;font-weight:600;color:var(--text);">Help make future submissions smoother</h3>
-    <p style="margin:0 0 16px;font-size:13px;color:var(--muted);line-height:1.6;">
-      Recruiters and credentialing teams can suggest the documents usually required for this type of role.
-      Your feedback helps Credanta build better agency templates and reduce back-and-forth.
+{# ── Recruiter section ─────────────────────────────────── #}
+<div style="margin-top:40px;padding-top:32px;border-top:1px solid var(--border,#e5e7eb);">
+
+  {# Headline #}
+  <div style="margin-bottom:24px;">
+    <p style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 6px;">Powered by Credanta</p>
+    <h2 style="margin:0 0 10px;font-size:20px;font-weight:700;color:var(--text);">Built With Recruiters In Mind</h2>
+    <p style="margin:0;font-size:14px;color:var(--muted);line-height:1.6;max-width:520px;">
+      Credanta is designed to reduce missing documents, speed up candidate submissions, and support smarter onboarding workflows — for both nurses and the agencies that place them.
     </p>
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <button class="btn primary small" id="btn-open-feedback">Suggest Required Documents</button>
-      <a href="/about" target="_blank" rel="noopener" style="font-size:12px;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);">What is Credanta?</a>
+  </div>
+
+  {# Three benefit cards #}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px;">
+    <div style="background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:16px 18px;">
+      <div style="font-size:18px;margin-bottom:8px;">📋</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Fewer Missing Documents</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.5;">Candidates arrive with complete, organized packets — less back-and-forth at submission.</div>
+    </div>
+    <div style="background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:16px 18px;">
+      <div style="font-size:18px;margin-bottom:8px;">⚡</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Faster Candidate Submissions</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.5;">Expiration tracking and shareable packets help move candidates through credentialing faster.</div>
+    </div>
+    <div style="background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:16px 18px;">
+      <div style="font-size:18px;margin-bottom:8px;">🗂</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Smarter Agency Templates</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.5;">Recruiter feedback is shaping role-specific checklists so candidates know exactly what to prepare.</div>
     </div>
   </div>
+
+  {# Building Better Workflows Together #}
+  <div style="background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;padding:22px 24px;max-width:600px;">
+    <h3 style="margin:0 0 8px;font-size:15px;font-weight:600;color:var(--text);">Building Better Workflows Together</h3>
+    <p style="margin:0 0 14px;font-size:13px;color:var(--muted);line-height:1.65;">
+      Recruiter and agency input is helping identify common credential requirements and onboarding patterns across travel, per diem, and staff placements.
+      We're actively exploring future capabilities — including agency document templates, credential review dashboards, readiness tracking, and onboarding workflow tools — based on feedback from the credentialing community.
+    </p>
+    <p style="margin:0 0 18px;font-size:12px;color:var(--muted);line-height:1.6;font-style:italic;">
+      These are planned workflows and potential agency tools, not currently available features.
+      Recruiter suggestions directly inform what gets built next.
+    </p>
+    <button class="btn primary small" id="btn-open-feedback">Suggest Common Requirements</button>
+  </div>
+
 </div>
 
 {# ── Feedback modal ────────────────────────────────────── #}
