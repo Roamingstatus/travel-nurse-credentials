@@ -1032,10 +1032,14 @@ async def resume_enhance_post(
 # Premium+ routes
 # ---------------------------------------------------------------------------
 
+@app.get("/checklist", response_class=HTMLResponse)
+def checklist_redirect(request: Request):
+    return RedirectResponse("/premium-plus/checklist", status_code=301)
+
+
 @app.get("/premium-plus/checklist", response_class=HTMLResponse)
 def checklist_get(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_premium_plus(user)
     from .checklist import PROFILE_NAMES
     last = db.query(ChecklistResult).filter_by(user_id=user.id).order_by(ChecklistResult.created_at.desc()).first()
     return render(request, "premium_checklist.html", profile_names=PROFILE_NAMES, result=last)
@@ -1048,7 +1052,6 @@ def checklist_generate(
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
-    require_premium_plus(user)
     from .checklist import PROFILE_NAMES, generate_checklist
     docs = db.query(Document).filter_by(user_id=user.id).all()
     result_data = generate_checklist(profile_type, docs)

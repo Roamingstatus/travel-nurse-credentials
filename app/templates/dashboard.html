@@ -179,8 +179,11 @@
 
 {# ── Footer actions ──────────────────────────────────── #}
 <div class="dash-footer-actions" style="justify-content:flex-start;">
+  <a class="btn ghost" href="/premium-plus/checklist">Readiness checklist</a>
+  {% if is_premium or is_premium_plus %}
   <a class="btn ghost" href="/packet">Download packet (.zip)</a>
   <a class="btn ghost" href="/packet/pdf">Download manifest (.pdf)</a>
+  {% endif %}
   <a class="btn ghost" href="/documents">Browse all credentials</a>
 </div>
 
