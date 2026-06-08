@@ -17,13 +17,6 @@ PREMIUM_FEATURES = [
         "action_label": "Manage Reminders",
     },
     {
-        "key": "calendar_sync",
-        "name": "Calendar Sync",
-        "description": "Export all expiration dates as a .ics file and sync with Google Calendar, Outlook, or Apple Calendar.",
-        "action_url": "/premium/calendar/export",
-        "action_label": "Export Calendar",
-    },
-    {
         "key": "packet_generation",
         "name": "Packet Generator",
         "description": "Bundle all your credentials into a clean ZIP file or PDF cover sheet for agency submissions.",
@@ -33,6 +26,13 @@ PREMIUM_FEATURES = [
 ]
 
 PREMIUM_PLUS_FEATURES = [
+    {
+        "key": "calendar_sync",
+        "name": "Calendar Sync",
+        "description": "Export all expiration dates as a .ics file and sync with Google Calendar, Outlook, or Apple Calendar.",
+        "action_url": "/premium/calendar/export",
+        "action_label": "Export Calendar",
+    },
     {
         "key": "recruiter_share_link",
         "name": "Recruiter Share Link",
