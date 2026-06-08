@@ -23,19 +23,6 @@
         Your credential vault is empty — add your first credential below.
       {% endif %}
     </p>
-    {% if readiness and readiness.required_categories %}
-    <p class="dash-readiness-line">
-      <span class="rd-badge" tabindex="0">
-        <span class="rd-pct {% if readiness.readiness_score == 100 %}rd-pct--full{% elif readiness.readiness_score >= 60 %}rd-pct--mid{% else %}rd-pct--low{% endif %}">{{ readiness.readiness_score }}% readiness</span>
-        <span class="rd-tooltip">
-          {% for cat in readiness.completed %}<span class="rd-row rd-row--good">✓ {{ cat }}</span>{% endfor %}
-          {% for cat in readiness.expiring %}<span class="rd-row rd-row--warn">⚠ {{ cat }}</span>{% endfor %}
-          {% for cat in readiness.expired %}<span class="rd-row rd-row--bad">✗ {{ cat }}</span>{% endfor %}
-          {% for cat in readiness.missing %}<span class="rd-row rd-row--miss">✗ {{ cat }}</span>{% endfor %}
-        </span>
-      </span>
-    </p>
-    {% endif %}
   </div>
   <a class="btn primary content-upload-btn" href="/documents/upload">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
@@ -201,29 +188,6 @@
 </div>
 
 <style>
-/* Readiness badge + inline hover reveal */
-.dash-readiness-line { margin: 5px 0 0; }
-.rd-badge { display: inline-flex; align-items: center; gap: 0; cursor: default; }
-.rd-pct { font-size: 11px; font-weight: 700; }
-.rd-pct--full { color: #15803d; }
-.rd-pct--mid  { color: #92400e; }
-.rd-pct--low  { color: #991b1b; }
-.rd-tooltip {
-  display: none; align-items: center; flex-wrap: nowrap; gap: 10px;
-  margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border);
-}
-.rd-badge:hover .rd-tooltip,
-.rd-badge:focus .rd-tooltip { display: inline-flex; }
-.rd-row { font-size: 11px; font-weight: 500; white-space: nowrap; }
-.rd-row--good { color: #15803d; }
-.rd-row--warn { color: #92400e; }
-.rd-row--bad  { color: #991b1b; }
-.rd-row--miss { color: #991b1b; }
-@media (prefers-color-scheme: dark) {
-  .rd-pct--full { color: #86efac; } .rd-row--good { color: #86efac; }
-  .rd-pct--mid  { color: #fcd34d; } .rd-row--warn { color: #fcd34d; }
-  .rd-pct--low  { color: #fca5a5; } .rd-row--bad  { color: #fca5a5; } .rd-row--miss { color: #fca5a5; }
-}
 
 .doc-icon--sm {
   width: 4px;

@@ -321,12 +321,6 @@ def dashboard(request: Request, db: Session = Depends(get_session)):
         .all()
     )
     summary = summarize(docs)
-    readiness: dict = {}
-    try:
-        from .checklist import generate_checklist
-        readiness = generate_checklist("Healthcare", docs)
-    except Exception:
-        pass
     share_links = (
         db.query(ShareLink)
         .filter_by(user_id=user.id)
@@ -341,7 +335,6 @@ def dashboard(request: Request, db: Session = Depends(get_session)):
         summary=summary,
         docs=docs,
         share_links=share_links,
-        readiness=readiness,
         status_for=status_for,
         days_until=days_until,
         ui_status_label=ui_status_label,
