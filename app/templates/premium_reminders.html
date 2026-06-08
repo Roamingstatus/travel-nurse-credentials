@@ -149,6 +149,29 @@
   </div>
 </section>
 
+{# ── Dev tools (non-production only) ─────────────────── #}
+{% if is_dev %}
+<section class="panel panel-min" style="margin-top:16px;border:1px dashed var(--border);">
+  <header>
+    <h2>🛠 Dev Tools</h2>
+    <span style="font-size:11px;color:var(--muted);margin-left:8px;">Hidden in production</span>
+  </header>
+  <div class="body" style="display:flex;flex-direction:column;gap:16px;">
+    <div>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">
+        Create a dummy document that expires in exactly 7 days, then trigger the scheduler to check it right now.
+        Email will be sent to <strong>{{ settings.reminder_email if settings and settings.reminder_email else user.email }}</strong>.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn ghost small" id="btn-create-doc">① Create test document (7 days)</button>
+        <button class="btn ghost small" id="btn-trigger" disabled>② Run reminder check now</button>
+      </div>
+      <pre id="dev-log" style="display:none;margin-top:14px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;overflow-x:auto;white-space:pre-wrap;"></pre>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {# ── Recent logs ──────────────────────────────────────── #}
 <section class="panel panel-min" style="margin-top:16px;">
   <header>
@@ -238,6 +261,48 @@
   if (btnSms) {
     btnSms.addEventListener('click', () =>
       apiPost('/api/reminders/test-sms', document.getElementById('test-sms-result'), btnSms));
+  }
+
+  const btnCreateDoc = document.getElementById('btn-create-doc');
+  const btnTrigger = document.getElementById('btn-trigger');
+  const devLog = document.getElementById('dev-log');
+  if (btnCreateDoc) {
+    btnCreateDoc.addEventListener('click', async () => {
+      btnCreateDoc.disabled = true;
+      btnCreateDoc.textContent = 'Creating…';
+      try {
+        const r = await fetch('/dev/reminders/test-doc', { method: 'POST' });
+        const d = await r.json();
+        devLog.style.display = 'block';
+        devLog.textContent = d.message + '\nDoc ID: ' + d.doc_id + '\nExpires: ' + d.expires_at;
+        btnTrigger.disabled = false;
+        btnCreateDoc.textContent = '✓ Document created';
+      } catch (e) {
+        devLog.style.display = 'block';
+        devLog.textContent = 'Error: ' + e;
+        btnCreateDoc.disabled = false;
+        btnCreateDoc.textContent = '① Create test document (7 days)';
+      }
+    });
+  }
+  if (btnTrigger) {
+    btnTrigger.addEventListener('click', async () => {
+      btnTrigger.disabled = true;
+      btnTrigger.textContent = 'Running check…';
+      try {
+        const r = await fetch('/dev/reminders/trigger', { method: 'POST' });
+        const d = await r.json();
+        devLog.style.display = 'block';
+        devLog.textContent = (devLog.textContent ? devLog.textContent + '\n\n' : '') +
+          '--- Scheduler run ---\n' + d.log.join('\n');
+        btnTrigger.textContent = '✓ Check complete — see log below';
+      } catch (e) {
+        devLog.style.display = 'block';
+        devLog.textContent += '\nError: ' + e;
+        btnTrigger.disabled = false;
+        btnTrigger.textContent = '② Run reminder check now';
+      }
+    });
   }
 
   const btnLogs = document.getElementById('btn-load-logs');

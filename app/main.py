@@ -1884,6 +1884,52 @@ def page_contact(request: Request):
 # Dev-only tier toggle (disabled in ENV=production)
 # ---------------------------------------------------------------------------
 
+@app.post("/dev/reminders/test-doc")
+def dev_reminders_test_doc(request: Request, db: Session = Depends(get_session)):
+    if _is_production:
+        raise HTTPException(404)
+    user = require_user(request)
+    from datetime import date, timedelta
+    import uuid
+    exp = datetime.utcnow() + timedelta(days=7)
+    fake_filename = f"test_reminder_doc_{uuid.uuid4().hex[:8]}.txt"
+    doc = Document(
+        user_id=user.id,
+        category="Licenses & Certifications",
+        title="[Test] RN License — Expiry Reminder",
+        notes="Auto-created test document for reminder testing. Safe to delete.",
+        expires_at=exp,
+        stored_filename=fake_filename,
+        original_filename="test_rn_license.txt",
+        mime_type="text/plain",
+        size_bytes=0,
+    )
+    db.add(doc)
+    db.commit()
+    return JSONResponse({"ok": True, "doc_id": doc.id, "expires_at": exp.isoformat(), "message": "Test document created — expires in 7 days."})
+
+
+@app.post("/dev/reminders/trigger")
+def dev_reminders_trigger(request: Request, db: Session = Depends(get_session)):
+    if _is_production:
+        raise HTTPException(404)
+    require_user(request)
+    import io, logging as _logging
+    buf = io.StringIO()
+    handler = _logging.StreamHandler(buf)
+    handler.setLevel(_logging.DEBUG)
+    root = _logging.getLogger()
+    root.addHandler(handler)
+    try:
+        from .services.reminder_scheduler import check_expiring_documents
+        check_expiring_documents()
+    finally:
+        root.removeHandler(handler)
+    output = buf.getvalue()
+    lines = [l for l in output.splitlines() if "[scheduler]" in l or "[email]" in l or "[sms]" in l]
+    return JSONResponse({"ok": True, "log": lines or ["(no scheduler activity logged — check server console)"]})
+
+
 @app.get("/dev/set-tier", response_class=HTMLResponse)
 def dev_tier_get(request: Request):
     if os.environ.get("ENV", "").lower() == "production":
