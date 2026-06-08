@@ -68,6 +68,41 @@
   {% endif %}
 </div>
 
+{# ── Readiness card ──────────────────────────────────── #}
+{% if readiness and readiness.required_categories %}
+{% set rd_done = readiness.completed|length + readiness.expiring|length %}
+{% set rd_total = readiness.required_categories|length %}
+{% set rd_offset = (113.1 * (1 - readiness.readiness_score / 100))|round(1) %}
+<div class="rd-card anim-fade-up d2">
+  <svg class="rd-ring" viewBox="0 0 44 44" aria-hidden="true">
+    <circle cx="22" cy="22" r="18" class="rd-ring-bg"/>
+    <circle cx="22" cy="22" r="18"
+      class="rd-ring-fg {% if readiness.readiness_score == 100 %}rd-ring--full{% elif readiness.readiness_score >= 60 %}rd-ring--mid{% else %}rd-ring--low{% endif %}"
+      stroke-dasharray="113.1"
+      stroke-dashoffset="{{ rd_offset }}"
+      transform="rotate(-90 22 22)"/>
+    <text x="22" y="26" class="rd-ring-text">{{ readiness.readiness_score }}%</text>
+  </svg>
+  <div class="rd-card-body">
+    <p class="rd-card-title">{{ rd_done }} of {{ rd_total }} required categories covered</p>
+    <div class="rd-cats">
+      {% for cat in readiness.completed %}
+      <span class="rd-cat rd-cat--good">✓ {{ cat }}</span>
+      {% endfor %}
+      {% for cat in readiness.expiring %}
+      <span class="rd-cat rd-cat--warn">⚠ {{ cat }}</span>
+      {% endfor %}
+      {% for cat in readiness.expired %}
+      <span class="rd-cat rd-cat--bad">✕ {{ cat }}</span>
+      {% endfor %}
+      {% for cat in readiness.missing %}
+      <a class="rd-cat rd-cat--missing" href="/documents/upload">+ {{ cat }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {# ── Expiring soon ───────────────────────────────────── #}
 <section class="dash-section anim-fade-up d2">
   <h2 class="dash-section-title">Expiring soon</h2>
@@ -188,6 +223,39 @@
 </div>
 
 <style>
+/* Readiness card */
+.rd-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: var(--space);
+}
+.rd-ring { width: 52px; height: 52px; flex-shrink: 0; }
+.rd-ring-bg  { fill: none; stroke: var(--border); stroke-width: 3.5; }
+.rd-ring-fg  { fill: none; stroke-width: 3.5; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
+.rd-ring--full { stroke: #16a34a; }
+.rd-ring--mid  { stroke: #d97706; }
+.rd-ring--low  { stroke: #dc2626; }
+.rd-ring-text  { font-size: 9px; font-weight: 700; text-anchor: middle; fill: var(--text); font-family: inherit; }
+.rd-card-body  { flex: 1; min-width: 0; }
+.rd-card-title { font-size: 13px; font-weight: 600; color: var(--text); margin: 0 0 7px; }
+.rd-cats       { display: flex; flex-wrap: wrap; gap: 8px; }
+.rd-cat        { font-size: 11px; font-weight: 500; white-space: nowrap; }
+.rd-cat--good  { color: #15803d; }
+.rd-cat--warn  { color: #92400e; }
+.rd-cat--bad   { color: #991b1b; }
+.rd-cat--missing { color: var(--accent); text-decoration: none; }
+.rd-cat--missing:hover { text-decoration: underline; }
+@media (prefers-color-scheme: dark) {
+  .rd-cat--good { color: #86efac; }
+  .rd-cat--warn { color: #fcd34d; }
+  .rd-cat--bad  { color: #fca5a5; }
+}
+
 .doc-icon--sm {
   width: 4px;
   height: 4px;
