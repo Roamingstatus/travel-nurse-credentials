@@ -358,6 +358,14 @@ def documents_list(
         .order_by(Document.sort_order.asc(), Document.category.asc(), Document.title.asc())
         .all()
     )
+    # Compute readiness from the full unfiltered set before search narrows it
+    readiness: dict = {}
+    try:
+        from .checklist import generate_checklist
+        readiness = generate_checklist("Healthcare", docs)
+    except Exception:
+        pass
+
     if q and q.strip():
         needle = q.strip().lower()
         docs = [
@@ -381,6 +389,7 @@ def documents_list(
         docs_by_category=by_cat,
         vault_tabs=CATEGORY_ORDER,
         q=q or "",
+        readiness=readiness,
         status_for=status_for,
         days_until=days_until,
         ui_status_label=ui_status_label,
