@@ -50,6 +50,7 @@ class User(Base):
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     share_links = relationship("ShareLink", back_populates="user", cascade="all, delete-orphan")
     reminder_settings = relationship("ReminderSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    reminder_logs = relationship("ReminderLog", foreign_keys="ReminderLog.user_id", cascade="all, delete-orphan")
     checklist_results = relationship("ChecklistResult", back_populates="user", cascade="all, delete-orphan")
 
 
@@ -100,6 +101,8 @@ class ReminderSettings(Base):
     reminder_email = Column(String, nullable=True)
     phone_number = Column(String, nullable=True)
     reminder_days = Column(String, default="30,14,7,0")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="reminder_settings")
 
@@ -108,6 +111,19 @@ class ReminderSettings(Base):
             return [int(d.strip()) for d in (self.reminder_days or "30,14,7,0").split(",") if d.strip().isdigit()]
         except Exception:
             return [30, 14, 7, 0]
+
+
+class ReminderLog(Base):
+    __tablename__ = "reminder_logs"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    reminder_type = Column(String, nullable=False)
+    days_before = Column(Integer, nullable=False)
+    sent_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    status = Column(String, nullable=False, default="sent")
+    provider_message_id = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
 
 
 class Event(Base):
@@ -298,6 +314,32 @@ def _ensure_sqlite_columns() -> None:
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_beta_feedback_user_id ON beta_feedback (user_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_beta_feedback_status ON beta_feedback (status)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_beta_feedback_created_at ON beta_feedback (created_at)"))
+
+        if "reminder_settings" in tables:
+            rs_cols = {c["name"] for c in insp.get_columns("reminder_settings")}
+            with engine.begin() as conn:
+                if "created_at" not in rs_cols:
+                    conn.execute(text("ALTER TABLE reminder_settings ADD COLUMN created_at DATETIME DEFAULT (datetime('now'))"))
+                if "updated_at" not in rs_cols:
+                    conn.execute(text("ALTER TABLE reminder_settings ADD COLUMN updated_at DATETIME DEFAULT (datetime('now'))"))
+
+        if "reminder_logs" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS reminder_logs ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+                    "  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,"
+                    "  reminder_type VARCHAR NOT NULL,"
+                    "  days_before INTEGER NOT NULL,"
+                    "  sent_at DATETIME NOT NULL DEFAULT (datetime('now')),"
+                    "  status VARCHAR NOT NULL DEFAULT 'sent',"
+                    "  provider_message_id VARCHAR,"
+                    "  error_message TEXT"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reminder_logs_user_id ON reminder_logs (user_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reminder_logs_sent_at ON reminder_logs (sent_at)"))
     except Exception:
         pass
 

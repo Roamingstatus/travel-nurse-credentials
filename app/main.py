@@ -38,10 +38,14 @@ from .stripe_billing import (
 )
 from .categories import CATEGORY_ORDER, CREDENTIAL_CATEGORIES, US_STATES, normalized_effective_category
 from .dashboard import days_until, status_for, summarize, ui_status_label
+from .services.email_service import get_email_status, send_test_email
+from .services.sms_service import get_sms_status, send_test_sms
+from .services.reminder_scheduler import start_scheduler, stop_scheduler
 from .db import (
     ChecklistResult,
     Document,
     Event,
+    ReminderLog,
     ReminderSettings,
     SessionLocal,
     ShareLink,
@@ -164,6 +168,12 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLRe
 def _startup() -> None:
     validate_env()
     init_db()
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def _shutdown() -> None:
+    stop_scheduler()
 
 
 def _format_dt(value):
@@ -929,7 +939,13 @@ def reminders_settings_get(request: Request, db: Session = Depends(get_session))
     user = require_user(request)
     require_premium(user)
     settings = db.query(ReminderSettings).filter_by(user_id=user.id).first()
-    return render(request, "premium_reminders.html", settings=settings)
+    return render(
+        request,
+        "premium_reminders.html",
+        settings=settings,
+        email_status=get_email_status(),
+        sms_status=get_sms_status(),
+    )
 
 
 @app.post("/premium/reminders/settings")
@@ -949,18 +965,56 @@ def reminders_settings_post(
         settings = ReminderSettings(user_id=user.id)
         db.add(settings)
     settings.email_enabled = 1 if email_enabled in ("1", "on", "true") else 0
-    settings.sms_enabled = 1 if sms_enabled in ("1", "on", "true") else 0
+    # SMS only for premium_plus
+    want_sms = sms_enabled in ("1", "on", "true")
+    settings.sms_enabled = 1 if (want_sms and has_premium_plus(user)) else 0
     settings.reminder_email = reminder_email.strip() or user.email
     settings.phone_number = phone_number.strip() or None
     settings.reminder_days = reminder_days.strip() or "30,14,7,0"
+    settings.updated_at = datetime.utcnow()
     db.commit()
-    import logging
-    if settings.sms_enabled and not os.environ.get("TWILIO_ACCOUNT_SID"):
-        logging.info("[Reminders] SMS reminder provider not configured — skipping SMS setup.")
     if settings.email_enabled or settings.sms_enabled:
         log_event("reminders_enabled", user_id=user.id, meta={"email": bool(settings.email_enabled), "sms": bool(settings.sms_enabled)}, db=db)
     request.session["flash"] = "Reminder settings saved."
     return RedirectResponse("/premium/reminders/settings", status_code=302)
+
+
+@app.post("/api/reminders/test-email")
+def reminders_test_email(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium(user)
+    result = send_test_email(user)
+    return JSONResponse(result)
+
+
+@app.post("/api/reminders/test-sms")
+def reminders_test_sms(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium_plus(user)
+    result = send_test_sms(user)
+    return JSONResponse(result)
+
+
+@app.get("/api/reminders/logs")
+def reminders_logs(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    require_premium(user)
+    logs = (
+        db.query(ReminderLog)
+        .filter_by(user_id=user.id)
+        .order_by(ReminderLog.sent_at.desc())
+        .limit(20)
+        .all()
+    )
+    return JSONResponse([{
+        "id": lg.id,
+        "document_id": lg.document_id,
+        "reminder_type": lg.reminder_type,
+        "days_before": lg.days_before,
+        "sent_at": lg.sent_at.isoformat() if lg.sent_at else None,
+        "status": lg.status,
+        "error_message": lg.error_message,
+    } for lg in logs])
 
 
 @app.get("/premium/calendar/export")

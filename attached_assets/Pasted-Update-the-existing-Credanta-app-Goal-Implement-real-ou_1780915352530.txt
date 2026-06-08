@@ -1,0 +1,332 @@
+Update the existing Credanta app.
+
+Goal:
+Implement real outbound expiration reminders.
+
+Premium users:
+- Email reminders
+
+Premium+ users:
+- Email reminders
+- SMS reminders using Twilio
+
+Do NOT rebuild the app.
+Do NOT remove current expiration tracking.
+Do NOT change upload logic.
+Do NOT expose API keys in frontend.
+
+────────────────────────
+PROVIDERS
+────────────────────────
+
+Use Resend for transactional email.
+
+Use Twilio for SMS reminders.
+
+Use APScheduler for a daily background scheduler.
+
+Add required environment variables:
+
+RESEND_API_KEY
+RESEND_FROM_EMAIL
+
+TWILIO_ACCOUNT_SID
+TWILIO_AUTH_TOKEN
+TWILIO_FROM_NUMBER
+
+APP_BASE_URL
+
+If any provider key is missing:
+- do not crash
+- log provider not configured
+- show reminder UI as unavailable/configuration pending
+
+────────────────────────
+SUBSCRIPTION ACCESS
+────────────────────────
+
+Email reminders:
+- require subscription_tier = premium or premium_plus
+
+SMS reminders:
+- require subscription_tier = premium_plus only
+
+Free users:
+- can view expiration dates
+- cannot enable automated reminders
+- show upgrade prompt
+
+────────────────────────
+REMINDER SETTINGS
+────────────────────────
+
+Create or update reminder settings.
+
+Fields:
+- id
+- user_id
+- email_enabled
+- sms_enabled
+- reminder_days
+- email_address
+- phone_number
+- created_at
+- updated_at
+
+Default reminder days:
+30, 14, 7, 0
+
+Allow user to toggle:
+- email reminders
+- SMS reminders
+
+Allow user to update:
+- email address
+- phone number
+- reminder days
+
+Validate:
+- email format
+- phone number basic format
+
+────────────────────────
+EMAIL REMINDERS
+────────────────────────
+
+Create email service:
+
+services/email_service.py
+
+Function:
+send_expiration_email(user, document, days_until_expiration)
+
+Email subject examples:
+
+30 days:
+Credanta Reminder: Document expires in 30 days
+
+14 days:
+Credanta Reminder: Document expires in 14 days
+
+7 days:
+Credanta Reminder: Document expires in 7 days
+
+0 days:
+Credanta Reminder: Document expires today
+
+Email body:
+- user first name if available
+- document name
+- category
+- expiration date
+- days remaining
+- link to Credanta dashboard
+- short reminder to update or renew the document
+
+Do not include private document file URLs in email.
+
+────────────────────────
+SMS REMINDERS
+────────────────────────
+
+Create SMS service:
+
+services/sms_service.py
+
+Function:
+send_expiration_sms(user, document, days_until_expiration)
+
+SMS text:
+
+Credanta reminder: [Document Name] expires in [X days/today]. Log in to update your document: [APP_BASE_URL]
+
+Keep SMS short.
+Do not include sensitive document links.
+Do not include private file URLs.
+
+SMS requires:
+subscription_tier = premium_plus
+sms_enabled = true
+phone_number exists
+
+────────────────────────
+BACKGROUND SCHEDULER
+────────────────────────
+
+Use APScheduler.
+
+Create scheduler service:
+
+services/reminder_scheduler.py
+
+Run once daily.
+
+Suggested schedule:
+8:00 AM server time
+
+Job:
+check_expiring_documents()
+
+Logic:
+For each user with reminders enabled:
+- verify subscription tier
+- find documents with expiration dates
+- calculate days_until_expiration
+- if days_until_expiration is 30, 14, 7, or 0:
+  - send email if eligible/enabled
+  - send SMS if eligible/enabled
+
+Prevent duplicate reminders.
+
+Create reminder_logs table:
+
+reminder_logs
+- id
+- user_id
+- document_id
+- reminder_type
+- days_before
+- sent_at
+- status
+- provider_message_id
+- error_message optional
+
+Before sending:
+Check reminder_logs to make sure the same reminder was not already sent for:
+- user_id
+- document_id
+- reminder_type
+- days_before
+
+────────────────────────
+ROUTES
+────────────────────────
+
+Add or update routes:
+
+GET /api/reminders/settings
+POST /api/reminders/settings
+
+GET /api/reminders/logs
+
+POST /api/reminders/test-email
+POST /api/reminders/test-sms
+
+Access:
+- settings route requires logged-in user
+- email enable requires premium or premium_plus
+- SMS enable requires premium_plus
+- test SMS requires premium_plus
+
+Test routes should only send to the logged-in user's verified email/phone.
+
+────────────────────────
+UI
+────────────────────────
+
+Update Premium tab and/or Account settings.
+
+Add section:
+
+Expiration Reminders
+
+Show:
+
+Email Reminders
+Available with Premium
+
+SMS Reminders
+Available with Premium+
+
+Reminder Days:
+30, 14, 7, day of expiration
+
+Display status:
+- Enabled
+- Disabled
+- Provider not configured
+- Upgrade required
+
+Buttons:
+- Save Reminder Settings
+- Send Test Email
+- Send Test SMS
+
+If user is free:
+Show:
+“Upgrade to Premium to enable automated email reminders.”
+
+If user is premium:
+Show SMS as locked:
+“SMS reminders are available with Premium+.”
+
+If user is premium_plus:
+Allow both email and SMS.
+
+────────────────────────
+SECURITY / PRIVACY
+────────────────────────
+
+Do not expose:
+- Resend API key
+- Twilio auth token
+- private document URLs
+
+Do not send document contents by email or SMS.
+
+Only send:
+- document name
+- category
+- expiration date
+- dashboard link
+
+Validate user owns the documents.
+
+Log sends but do not log sensitive content.
+
+────────────────────────
+EVENT LOGGING
+────────────────────────
+
+If event logging exists, log:
+
+reminders_enabled
+reminder_email_sent
+reminder_sms_sent
+reminder_send_failed
+
+Event data:
+- document_id
+- days_before
+- reminder_type
+- subscription_tier
+
+Do not log private document text or file URLs.
+
+────────────────────────
+TESTING
+────────────────────────
+
+Add tests if testing exists.
+
+Test:
+- free users cannot enable email reminders
+- premium users can enable email reminders
+- premium users cannot enable SMS reminders
+- premium_plus users can enable SMS reminders
+- scheduler finds documents expiring in 30/14/7/0 days
+- duplicate reminders are not sent twice
+- missing provider keys do not crash app
+- email test route works when configured
+- SMS test route works when configured
+
+────────────────────────
+IMPORTANT
+────────────────────────
+
+Do not claim reminders are active unless they are actually configured and working.
+
+If provider keys are missing, UI must clearly show:
+“Reminder provider not configured.”
+
+Keep this implementation simple, reliable, and production-safe.
