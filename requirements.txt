@@ -21,3 +21,4 @@ uvicorn[standard]
 gunicorn
 Pillow
 pytesseract
+python-docx>=1.0

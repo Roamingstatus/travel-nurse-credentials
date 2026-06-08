@@ -310,6 +310,26 @@ def _extract_text(raw: bytes, mime_type: str, filename: str) -> str:
             return '\n'.join(parts)[:15000]
         except Exception:
             return ''
+    if (mt in ('application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/msword')
+            or fn.endswith(('.docx', '.doc'))):
+        try:
+            import docx as _docx
+            doc = _docx.Document(io.BytesIO(raw))
+            parts = [p.text for p in doc.paragraphs if p.text.strip()]
+            return '\n'.join(parts)[:15000]
+        except Exception:
+            return ''
+    if mt == 'application/rtf' or fn.endswith('.rtf'):
+        try:
+            import re as _re
+            text = raw.decode('latin-1', errors='ignore')
+            text = _re.sub(r'\\[a-z]+[-\d]*[ ]?', ' ', text)
+            text = _re.sub(r'[{}\\]', '', text)
+            text = _re.sub(r'\s+', ' ', text).strip()
+            return text[:15000]
+        except Exception:
+            return ''
     if mt.startswith('image/') or fn.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.bmp', '.tiff')):
         try:
             import pytesseract
