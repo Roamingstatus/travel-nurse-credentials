@@ -7,8 +7,8 @@
     <p class="page-subtitle">Suggestions collected from recruiters viewing shared credential packets.</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <a href="/admin" class="btn ghost small">← Admin</a>
-    <a href="/admin/recruiter-feedback/export.csv" class="btn ghost small">Export CSV</a>
+    <a href="{{ admin_route }}" class="btn ghost small">← Admin</a>
+    <a href="{{ admin_route }}/recruiter-feedback/export.csv" class="btn ghost small">Export CSV</a>
   </div>
 </div>
 
@@ -101,7 +101,7 @@
 <section class="panel panel-min">
   <header>
     <h2>Recent Submissions</h2>
-    <a href="/admin/recruiter-feedback/export.csv" class="btn ghost small" style="margin-left:auto;">Export CSV</a>
+    <a href="{{ admin_route }}/recruiter-feedback/export.csv" class="btn ghost small" style="margin-left:auto;">Export CSV</a>
   </header>
   <div class="body tight">
     {% if submissions %}

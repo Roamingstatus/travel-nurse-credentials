@@ -2,3 +2,5 @@
 - [Admin testing dashboard](admin-testing-dashboard.md) — test_runs/test_failures are raw-SQL tables (not ORM), created lazily in admin_testing.py; JUnit XML parsed via subprocess+ET; card groupings keyed by test file substrings.
 - [Secrets vs env vars in .replit](secrets-vs-envvars.md) — API keys stored in [userenv.shared] are plaintext in .replit (committed to git); sensitive credentials must go in Replit Secrets, not env vars.
 - [git-filter-repo deletes .replit in Replit](git-filter-repo-replit.md) — rewrites working tree, deletes .replit, drops language modules on next restart; must reinstall python deps + stripe + nodejs-20 after any history rewrite.
+- [Admin route hardening](admin-route-hardening.md) — ADMIN_ROUTE env var drives all admin paths; /admin always 404; _admin_gate + AdminAccessLog ORM in db.py.
+- [Git commit flow](git-commit-flow.md) — git commit is blocked in main agent shell; Replit auto-commits on mark_task_complete; user runs Push to GitHub workflow after.

@@ -88,6 +88,7 @@ from .security import (
     share_limiter,
     preview_limiter,
     feedback_limiter,
+    admin_limiter,
     verify_turnstile,
     make_download_token,
     verify_download_token,
@@ -227,6 +228,28 @@ templates.env.filters["filesize"] = _format_size
 templates.env.filters["days_from_now"] = _days_from_now
 templates.env.filters["end_of_month"] = _end_of_month
 
+# ---------------------------------------------------------------------------
+# Admin route configuration
+# ---------------------------------------------------------------------------
+
+import logging as _admin_log_mod
+_admin_logger = _admin_log_mod.getLogger("app.admin")
+
+_raw_admin_route = os.environ.get("ADMIN_ROUTE", "").strip().rstrip("/")
+if not _raw_admin_route:
+    _admin_logger.warning(
+        "[admin] ADMIN_ROUTE env var is not set. "
+        "Admin routes will be inaccessible in production. "
+        "Set ADMIN_ROUTE to a secret path e.g. /portal-credanta-9f3k2m7x"
+    )
+    _raw_admin_route = "/admin-dev" if not is_production() else f"/__disabled_{secrets.token_urlsafe(8)}"
+elif _raw_admin_route.lower() in ("admin", "/admin"):
+    _admin_logger.warning(
+        "[admin] ADMIN_ROUTE is /admin — this reduces security. "
+        "Consider a unique secret path."
+    )
+ADMIN_ROUTE: str = _raw_admin_route if _raw_admin_route.startswith("/") else f"/{_raw_admin_route}"
+
 
 def render(request: Request, template: str, **ctx) -> HTMLResponse:
     ctx.setdefault("user", current_user(request))
@@ -251,7 +274,62 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
     ctx.setdefault("can_access_premium", can_access_premium_feature(u))
     ctx.setdefault("can_access_premium_plus", can_access_premium_plus_feature(u))
     ctx.setdefault("cf_turnstile_site_key", os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""))
+    ctx.setdefault("admin_route", ADMIN_ROUTE)
     return templates.TemplateResponse(request, template, ctx)
+
+
+
+# ---------------------------------------------------------------------------
+# Admin helpers
+# ---------------------------------------------------------------------------
+
+
+def _log_admin_access(
+    db: Session, user, route: str, request: Request, success: bool
+) -> None:
+    try:
+        from .db import AdminAccessLog
+        ip = (
+            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or (request.client.host if request.client else "unknown")
+        )
+        entry = AdminAccessLog(
+            email=getattr(user, "email", "anonymous") or "anonymous",
+            route=route,
+            ip_address=ip[:100],
+            user_agent=request.headers.get("User-Agent", "")[:300],
+            success=success,
+        )
+        db.add(entry)
+        db.commit()
+        if not success:
+            _admin_logger.warning(
+                "[admin] Access denied: route=%s email=%s ip=%s",
+                route,
+                getattr(user, "email", "anonymous"),
+                ip,
+            )
+    except Exception as exc:
+        _admin_logger.error("[admin] Failed to write admin access log: %s", exc)
+
+
+def _admin_gate(request: Request, user, db: Session, route: str) -> None:
+    """Rate-limit + authorize + audit-log every admin access attempt."""
+    admin_limiter.check(request)
+    try:
+        require_admin(user)
+        _log_admin_access(db, user, route, request, success=True)
+    except HTTPException:
+        _log_admin_access(db, user, route, request, success=False)
+        raise
+
+
+def admin_render(request: Request, template: str, **ctx) -> HTMLResponse:
+    """Like render() but forces X-Robots-Tag and injects admin_route."""
+    ctx.setdefault("admin_route", ADMIN_ROUTE)
+    resp = render(request, template, **ctx)
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -974,10 +1052,10 @@ async def recruiter_feedback_submit(request: Request, db: Session = Depends(get_
     return JSONResponse({"ok": True})
 
 
-@app.get("/admin/recruiter-feedback", response_class=HTMLResponse)
+@app.get(f"{ADMIN_ROUTE}/recruiter-feedback", response_class=HTMLResponse)
 def admin_recruiter_feedback(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "recruiter-feedback")
     import json as _json
     rows = db.execute(text(
         "SELECT id, role_type, required_documents, timing, agency_type, optional_email, created_at "
@@ -1018,7 +1096,7 @@ def admin_recruiter_feedback(request: Request, db: Session = Depends(get_session
             "has_email": bool(r.optional_email),
         })
 
-    return render(request, "admin_recruiter_feedback.html",
+    return admin_render(request, "admin_recruiter_feedback.html",
         total=total,
         top_docs=top_docs,
         top_roles=top_roles,
@@ -1027,10 +1105,10 @@ def admin_recruiter_feedback(request: Request, db: Session = Depends(get_session
     )
 
 
-@app.get("/admin/recruiter-feedback/export.csv")
+@app.get(f"{ADMIN_ROUTE}/recruiter-feedback/export.csv")
 def admin_recruiter_feedback_csv(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "recruiter-feedback/export.csv")
     import csv, io as _io, json as _json
     rows = db.execute(text(
         "SELECT id, role_type, required_documents, timing, agency_type, optional_email, created_at "
@@ -1914,7 +1992,7 @@ async def billing_webhook(request: Request, db: Session = Depends(get_session)):
 # Admin dashboard
 # ---------------------------------------------------------------------------
 
-@app.get("/admin", response_class=HTMLResponse)
+@app.get(ADMIN_ROUTE, response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_session)):
     from .admin import (
         document_metrics,
@@ -1925,8 +2003,8 @@ def admin_dashboard(request: Request, db: Session = Depends(get_session)):
         user_metrics,
     )
     user = require_user(request)
-    require_admin(user)
-    return render(
+    _admin_gate(request, user, db, "dashboard")
+    return admin_render(
         request,
         "admin.html",
         now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
@@ -1939,7 +2017,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_session)):
     )
 
 
-@app.get("/admin/analytics", response_class=HTMLResponse)
+@app.get(f"{ADMIN_ROUTE}/analytics", response_class=HTMLResponse)
 def admin_analytics(
     request: Request,
     range: str = "all",
@@ -1947,10 +2025,10 @@ def admin_analytics(
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "analytics")
     from .admin import analytics_metrics, analytics_recent, analytics_by_date_user, ANALYTICS_EVENTS
     days = {"7": 7, "30": 30}.get(range)
-    return render(
+    return admin_render(
         request,
         "admin_analytics.html",
         now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
@@ -2035,7 +2113,7 @@ async def submit_feedback(
     return JSONResponse({"ok": True})
 
 
-@app.get("/admin/feedback", response_class=HTMLResponse)
+@app.get(f"{ADMIN_ROUTE}/feedback", response_class=HTMLResponse)
 def admin_feedback(
     request: Request,
     ftype: str = "",
@@ -2046,7 +2124,7 @@ def admin_feedback(
 ):
     from .db import BetaFeedback
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "feedback")
 
     q = db.query(BetaFeedback)
     if ftype:
@@ -2063,7 +2141,7 @@ def admin_feedback(
     new_ct = db.query(BetaFeedback).filter(BetaFeedback.status == "new").count()
     high_ct = db.query(BetaFeedback).filter(BetaFeedback.severity == "High").count()
 
-    return render(
+    return admin_render(
         request,
         "admin_feedback.html",
         now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
@@ -2082,7 +2160,7 @@ def admin_feedback(
     )
 
 
-@app.post("/admin/feedback/{fb_id}/status")
+@app.post(f"{ADMIN_ROUTE}/feedback/{{fb_id}}/status")
 def admin_feedback_status(
     fb_id: int,
     request: Request,
@@ -2091,21 +2169,21 @@ def admin_feedback_status(
 ):
     from .db import BetaFeedback
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "feedback/status")
     fb = db.get(BetaFeedback, fb_id)
     if not fb:
         raise HTTPException(404)
     if status in _FEEDBACK_STATUS:
         fb.status = status
         db.commit()
-    return RedirectResponse(request.headers.get("referer", "/admin/feedback"), status_code=302)
+    return RedirectResponse(request.headers.get("referer", f"{ADMIN_ROUTE}/feedback"), status_code=302)
 
 
-@app.get("/admin/feedback/{fb_id}/screenshot")
+@app.get(f"{ADMIN_ROUTE}/feedback/{{fb_id}}/screenshot")
 def admin_feedback_screenshot(fb_id: int, request: Request, db: Session = Depends(get_session)):
     from .db import BetaFeedback
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "feedback/screenshot")
     fb = db.get(BetaFeedback, fb_id)
     if not fb or not fb.screenshot_filename:
         raise HTTPException(404)
@@ -2274,10 +2352,10 @@ def dev_tier_post(
 # Admin — Testing Dashboard
 # ---------------------------------------------------------------------------
 
-@app.get("/admin/testing", response_class=HTMLResponse)
+@app.get(f"{ADMIN_ROUTE}/testing", response_class=HTMLResponse)
 def admin_testing(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "testing")
     from .admin_testing import (
         build_cards,
         get_all_runs,
@@ -2288,7 +2366,7 @@ def admin_testing(request: Request, db: Session = Depends(get_session)):
     failures = get_run_failures(db, run["id"]) if run else []
     cards = build_cards(run, failures)
     all_runs = get_all_runs(db, limit=10)
-    return render(
+    return admin_render(
         request,
         "admin_testing.html",
         now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
@@ -2299,10 +2377,10 @@ def admin_testing(request: Request, db: Session = Depends(get_session)):
     )
 
 
-@app.post("/admin/testing/run")
+@app.post(f"{ADMIN_ROUTE}/testing/run")
 def admin_testing_run(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "testing/run")
     from .admin_testing import run_test_suite
     try:
         result = run_test_suite(db)
@@ -2311,10 +2389,10 @@ def admin_testing_run(request: Request, db: Session = Depends(get_session)):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
-@app.get("/admin/testing/export")
+@app.get(f"{ADMIN_ROUTE}/testing/export")
 def admin_testing_export(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
-    require_admin(user)
+    _admin_gate(request, user, db, "testing/export")
     from .admin_testing import (
         generate_report_md,
         get_all_runs,
@@ -2345,3 +2423,13 @@ def admin_testing_export(request: Request, db: Session = Depends(get_session)):
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+# ---------------------------------------------------------------------------
+# Anti-discovery: /admin always returns 404 — never reveals the real route
+# ---------------------------------------------------------------------------
+
+
+@app.get("/admin", include_in_schema=False)
+@app.get("/admin/{path:path}", include_in_schema=False)
+def admin_not_found(request: Request, path: str = "") -> Response:
+    raise HTTPException(status_code=404)

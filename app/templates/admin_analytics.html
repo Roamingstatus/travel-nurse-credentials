@@ -8,23 +8,23 @@
     <p class="admin-sub">Lightweight usage tracking · {{ now }}</p>
   </div>
   <div class="admin-nav-links">
-    <a href="/admin" class="admin-nav-link">Overview</a>
-    <a href="/admin/analytics" class="admin-nav-link admin-nav-link--active">Product Usage</a>
-    <a href="/admin/feedback" class="admin-nav-link">Feedback</a>
-    <a href="/admin/testing" class="admin-nav-link">Testing</a>
+    <a href="{{ admin_route }}" class="admin-nav-link">Overview</a>
+    <a href="{{ admin_route }}/analytics" class="admin-nav-link admin-nav-link--active">Product Usage</a>
+    <a href="{{ admin_route }}/feedback" class="admin-nav-link">Feedback</a>
+    <a href="{{ admin_route }}/testing" class="admin-nav-link">Testing</a>
   </div>
 </div>
 
 <!-- ── Filters ──────────────────────────────────────── -->
-<form method="get" action="/admin/analytics" class="an-filters">
+<form method="get" action="{{ admin_route }}/analytics" class="an-filters">
   <div class="an-filter-group">
     <label class="an-filter-label">Date range</label>
     <div class="an-filter-btns">
-      <a href="/admin/analytics?range=all&event={{ selected_event }}"
+      <a href="{{ admin_route }}/analytics?range=all&event={{ selected_event }}"
          class="an-filter-btn {% if selected_range == 'all' %}an-filter-btn--active{% endif %}">All time</a>
-      <a href="/admin/analytics?range=7&event={{ selected_event }}"
+      <a href="{{ admin_route }}/analytics?range=7&event={{ selected_event }}"
          class="an-filter-btn {% if selected_range == '7' %}an-filter-btn--active{% endif %}">Last 7 days</a>
-      <a href="/admin/analytics?range=30&event={{ selected_event }}"
+      <a href="{{ admin_route }}/analytics?range=30&event={{ selected_event }}"
          class="an-filter-btn {% if selected_range == '30' %}an-filter-btn--active{% endif %}">Last 30 days</a>
     </div>
   </div>
@@ -41,7 +41,7 @@
         ("checklist", "Checklist"),
       ] %}
       {% for key, lbl in event_opts %}
-      <a href="/admin/analytics?range={{ selected_range }}&event={{ key }}"
+      <a href="{{ admin_route }}/analytics?range={{ selected_range }}&event={{ key }}"
          class="an-filter-btn {% if selected_event == key %}an-filter-btn--active{% endif %}">{{ lbl }}</a>
       {% endfor %}
     </div>

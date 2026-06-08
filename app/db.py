@@ -208,6 +208,18 @@ class BetaFeedback(Base):
     created_at       = Column(DateTime, default=datetime.utcnow)
 
 
+class AdminAccessLog(Base):
+    __tablename__ = "admin_access_logs"
+
+    id          = Column(Integer, primary_key=True)
+    email       = Column(String, nullable=False, index=True)
+    route       = Column(String, nullable=False)
+    ip_address  = Column(String, nullable=True)
+    user_agent  = Column(String, nullable=True)
+    success     = Column(Boolean, nullable=False, default=False)
+    created_at  = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
     _ensure_sqlite_columns()
@@ -395,6 +407,22 @@ def _ensure_sqlite_columns() -> None:
                     ")"
                 ))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_test_failures_run_id ON test_failures (run_id)"))
+
+        if "admin_access_logs" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS admin_access_logs ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  email VARCHAR NOT NULL,"
+                    "  route VARCHAR NOT NULL,"
+                    "  ip_address VARCHAR,"
+                    "  user_agent VARCHAR,"
+                    "  success INTEGER NOT NULL DEFAULT 0,"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_email ON admin_access_logs (email)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_created_at ON admin_access_logs (created_at)"))
 
     except Exception:
         pass
