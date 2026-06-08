@@ -46,6 +46,7 @@ PREMIUM_PLUS_FEATURES = [
         "description": "Get a text message when a credential is 30, 14, 7, or 0 days from expiring — straight to your phone.",
         "action_url": "/premium/reminders/settings",
         "action_label": "Configure SMS Reminders",
+        "coming_soon": True,
     },
     {
         "key": "agency_packet_autofill",
