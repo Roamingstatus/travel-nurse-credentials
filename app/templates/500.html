@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5" />
+<title>Something Went Wrong · Credanta</title>
+<link rel="icon" type="image/png" href="/static/credanta-logo.png" />
+<script>
+(function(){
+  try {
+    var s = localStorage.getItem("credanta-theme");
+    if (s === "dark" || (!s && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  } catch(e){}
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --bg:          #f4f4f5;
+    --surface:     #ffffff;
+    --text:        #18181b;
+    --muted:       #71717a;
+    --line:        #e4e4e7;
+    --accent:      #0e7490;
+    --accent-rgb:  14, 116, 144;
+    --bad:         #b91c1c;
+    --bad-bg:      #fee2e2;
+    --brand-gradient: linear-gradient(90deg, #0891b2 0%, #7c3aed 100%);
+    --brand-glow:  0 4px 24px rgba(8,145,178,0.22);
+    --radius:      14px;
+    --shadow:      0 2px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  [data-theme="dark"] {
+    --bg:          #09090b;
+    --surface:     #18181b;
+    --text:        #fafafa;
+    --muted:       #a1a1aa;
+    --line:        #27272a;
+    --accent:      #22d3ee;
+    --accent-rgb:  34, 211, 238;
+    --bad:         #f87171;
+    --bad-bg:      #450a0a;
+    --brand-gradient: linear-gradient(90deg, #22d3ee 0%, #a855f7 100%);
+    --brand-glow:  0 4px 24px rgba(34,211,238,0.18);
+    --shadow:      0 2px 12px rgba(0,0,0,0.40), 0 1px 3px rgba(0,0,0,0.30);
+  }
+
+  html { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100%; }
+
+  body {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: var(--bg);
+  }
+
+  /* ── brand bar ── */
+  .err-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+    text-decoration: none;
+  }
+  .err-brand-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+  }
+  .err-brand-name {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    background: var(--brand-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── card ── */
+  .err-card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 40px 36px 32px;
+    text-align: center;
+  }
+
+  /* ── icon ── */
+  .err-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--bad-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+  }
+  .err-icon-wrap svg {
+    color: var(--bad);
+    flex-shrink: 0;
+  }
+
+  /* ── status pill ── */
+  .err-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bad);
+    background: var(--bad-bg);
+    border-radius: 100px;
+    padding: 3px 10px;
+    margin-bottom: 16px;
+  }
+  .err-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--bad);
+  }
+
+  /* ── heading ── */
+  .err-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: var(--text);
+    margin-bottom: 12px;
+    line-height: 1.3;
+  }
+
+  /* ── messages ── */
+  .err-msg {
+    font-size: 14.5px;
+    color: var(--muted);
+    line-height: 1.65;
+    margin-bottom: 8px;
+  }
+  .err-safe {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #15803d;
+    background: #dcfce7;
+    border-radius: 8px;
+    padding: 6px 12px;
+    margin: 12px 0 24px;
+  }
+  [data-theme="dark"] .err-safe {
+    color: #4ade80;
+    background: #14532d;
+  }
+
+  /* ── actions ── */
+  .err-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .err-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 10px 18px;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, box-shadow 0.15s;
+    line-height: 1;
+  }
+  .err-btn:hover { opacity: 0.85; }
+  .err-btn:active { opacity: 0.7; }
+
+  .err-btn-primary {
+    background: var(--brand-gradient);
+    color: #ffffff;
+    box-shadow: var(--brand-glow);
+  }
+  .err-btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1.5px solid var(--line);
+  }
+  .err-btn-ghost:hover {
+    border-color: rgba(var(--accent-rgb), 0.5);
+    opacity: 1;
+  }
+  .err-btn-link {
+    background: none;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 0;
+    text-decoration: none;
+  }
+  .err-btn-link:hover { text-decoration: underline; opacity: 1; }
+
+  /* ── meta ── */
+  .err-divider {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 0 0 20px;
+  }
+  .err-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-align: left;
+  }
+  .err-meta-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .err-meta-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    min-width: 64px;
+    color: var(--muted);
+  }
+  .err-meta-val {
+    font-family: ui-monospace, "Cascadia Code", "Fira Mono", monospace;
+    font-size: 11px;
+    word-break: break-all;
+    color: var(--muted);
+    opacity: 0.85;
+  }
+
+  /* ── footer ── */
+  .err-footer {
+    margin-top: 32px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .err-footer a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .err-footer a:hover { text-decoration: underline; }
+
+  /* ── responsive ── */
+  @media (max-width: 520px) {
+    .err-card { padding: 28px 20px 24px; }
+    .err-title { font-size: 19px; }
+  }
+  @media (max-width: 360px) {
+    .err-card { padding: 24px 16px 20px; }
+  }
+</style>
+</head>
+<body>
+
+  <a href="/" class="err-brand" aria-label="Credanta home">
+    <img src="/static/credanta-logo.png" class="err-brand-logo" alt="" aria-hidden="true" />
+    <span class="err-brand-name">Credanta</span>
+  </a>
+
+  <div class="err-card" role="main">
+
+    <div class="err-icon-wrap" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+
+    <div class="err-status" aria-label="Server error">
+      <span class="err-status-dot" aria-hidden="true"></span>
+      Server Error
+    </div>
+
+    <h1 class="err-title">Something Went Wrong</h1>
+
+    <p class="err-msg">
+      Our team has been notified and we're looking into it.
+    </p>
+
+    <span class="err-safe" aria-live="polite">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Your documents and account data have not been affected.
+    </span>
+
+    <div class="err-actions" role="group" aria-label="Recovery options">
+
+      <button
+        onclick="window.location.reload()"
+        class="err-btn err-btn-primary"
+        type="button"
+        aria-label="Refresh this page"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Refresh Page
+      </button>
+
+      {% if is_logged_in %}
+      <a href="/dashboard" class="err-btn err-btn-ghost" aria-label="Return to dashboard">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Return to Dashboard
+      </a>
+      {% else %}
+      <a href="/" class="err-btn err-btn-ghost" aria-label="Return to home page">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Return Home
+      </a>
+      {% endif %}
+
+      <a href="/contact" class="err-btn err-btn-link" aria-label="Contact Credanta support">
+        Contact Support →
+      </a>
+
+    </div>
+
+    <hr class="err-divider" />
+
+    <dl class="err-meta">
+      <div class="err-meta-row">
+        <dt class="err-meta-label">Time</dt>
+        <dd class="err-meta-val">{{ error_timestamp }}</dd>
+      </div>
+      {% if error_id %}
+      <div class="err-meta-row">
+        <dt class="err-meta-label">Ref ID</dt>
+        <dd class="err-meta-val">{{ error_id }}</dd>
+      </div>
+      {% endif %}
+    </dl>
+
+  </div>
+
+  <footer class="err-footer">
+    <a href="/privacy">Privacy</a> &nbsp;·&nbsp;
+    <a href="/security-overview">Security</a> &nbsp;·&nbsp;
+    <a href="/contact">Contact</a>
+  </footer>
+
+</body>
+</html>

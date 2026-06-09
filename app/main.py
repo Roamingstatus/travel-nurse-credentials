@@ -3,6 +3,7 @@ import json
 import os
 import secrets
 import time
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -177,22 +178,28 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLRe
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> HTMLResponse:
+    error_id = uuid.uuid4().hex[:12].upper()
+    error_timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     logging.error(
-        "[unhandled] %s %s → %s",
+        "[unhandled] ref=%s  %s %s → %s",
+        error_id,
         request.method,
         request.url,
         exc,
         exc_info=True,
     )
-    resp = render(
-        request,
-        "error.html",
+    is_logged_in = bool(request.session.get("user_id"))
+    html = templates.TemplateResponse(
+        "500.html",
+        {
+            "request": request,
+            "error_id": error_id,
+            "error_timestamp": error_timestamp,
+            "is_logged_in": is_logged_in,
+        },
         status_code=500,
-        message="Something went wrong on our end. Please try again.",
-        is_premium_gate=False,
     )
-    resp.status_code = 500
-    return resp
+    return html
 
 
 @app.on_event("startup")
