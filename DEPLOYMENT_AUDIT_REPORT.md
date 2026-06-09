@@ -79,14 +79,24 @@
 ---
 
 ### HIGH-01 — No Content-Security-Policy (CSP) header
-**Status:** 🟡 WARNING  
-**Location:** `app/security.py:483–503` — `SecurityHeadersMiddleware` sets 6 headers but not `Content-Security-Policy`  
+**Status:** ✅ RESOLVED (`app/security.py` — `SecurityHeadersMiddleware._CSP`)  
+**Location:** `app/security.py` — `SecurityHeadersMiddleware`  
 **Risk:** Without CSP, any XSS vulnerability (e.g., stored XSS via document titles or feedback messages) can execute arbitrary JavaScript in users' browsers — including stealing session cookies, redirecting to phishing pages, or exfiltrating credentials.  
-**Recommended fix:** Add a CSP header. A starting baseline for this app:
+**Resolution:** Full production CSP added covering all required origins:
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none';
+default-src 'self';
+script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob:;
+frame-src https://challenges.cloudflare.com;
+connect-src 'self' https://cdnjs.cloudflare.com;
+worker-src blob: https://cdnjs.cloudflare.com;
+object-src 'none';
+base-uri 'self';
+form-action 'self';
+frame-ancestors 'self';
 ```
-Note: The Cloudflare Turnstile widget requires the `challenges.cloudflare.com` allowance. Audit all inline `<script>` blocks for `'unsafe-inline'` exceptions.
+`'unsafe-inline'` in `script-src`/`style-src` is required while the templates contain inline `<script>` blocks. The long-term path is per-request nonces. Stripe checkout is a server-side 302 redirect (no client-side Stripe JS). Google OAuth is a GET navigation (`form-action 'self'` is sufficient). PDF.js workers covered by `worker-src blob: https://cdnjs.cloudflare.com`.
 
 ---
 
@@ -218,10 +228,10 @@ All integration groups now checked at startup:
 ---
 
 ### LOW-01 — `X-XSS-Protection` header is deprecated in modern browsers
-**Status:** 🟢 PASS (informational)  
-**Location:** `app/security.py:489`  
+**Status:** ✅ RESOLVED (`app/security.py` — `SecurityHeadersMiddleware._HEADERS`)  
+**Location:** `app/security.py` — `SecurityHeadersMiddleware._HEADERS`  
 **Risk:** This header is ignored by Chrome (removed in v78+), Firefox, and Safari. It only affects legacy IE11. Its presence is harmless but creates a false sense of XSS protection.  
-**Recommended fix:** Remove once CSP (HIGH-01) is implemented; CSP is the proper XSS mitigation.
+**Resolution:** `X-XSS-Protection: 1; mode=block` removed from `_HEADERS`. CSP (HIGH-01) is now the correct XSS mitigation.
 
 ---
 
@@ -286,7 +296,7 @@ Note: SQLite WAL mode is persistent in the database file after the first connect
 | Resume Enhancer | 🟢 PASS | Rule-based engine works; AI path optional |
 | Analytics | 🟢 PASS | Internal event log; no third-party tracking |
 | Mobile Responsiveness | 🟢 PASS | 10 breakpoints from 400px to 1000px; dark mode supported |
-| Security Headers | 🟡 WARNING | Missing CSP (HIGH-01); all other headers present |
+| Security Headers | 🟢 PASS | Full CSP live (HIGH-01 ✅); X-XSS-Protection removed (LOW-01 ✅) |
 | CSRF Protection | 🔴 FAIL | No CSRF middleware (CRIT-03) |
 | Error Handling | 🔴 FAIL | No global 500 handler (CRIT-01); silent `except: pass` blocks (MED-05) |
 | Session Security | 🔴 FAIL | SESSION_SECRET required (CRIT-02) |

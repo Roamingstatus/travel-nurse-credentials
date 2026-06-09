@@ -588,31 +588,50 @@ def verify_download_token(token_str: str, doc_id: int, share_token: str) -> bool
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adds standard security headers to every HTTP response."""
 
-    # Content-Security-Policy directives:
-    #   script-src includes 'unsafe-inline' because the app has ~16 inline <script>
-    #   blocks spread across Jinja2 templates.  The long-term path to remove it is to
-    #   introduce per-request nonces via render() and stamp them on every <script> tag.
-    #   All other directives are as strict as practical.
+    # ── Content-Security-Policy ───────────────────────────────────────────────
+    #
+    # External origins used by the app (templates):
+    #   challenges.cloudflare.com  — Cloudflare Turnstile widget (script + frame)
+    #   cdn.jsdelivr.net           — QR-code library (mfa_setup), SortableJS (documents)
+    #   cdnjs.cloudflare.com       — PDF.js, Mammoth, XLSX (document previews)
+    #
+    # 'unsafe-inline' in script-src and style-src is required because the
+    # Jinja2 templates contain ~20 inline <script> and many inline style=""
+    # attributes.  The long-term path to drop 'unsafe-inline' from script-src
+    # is to introduce per-request nonces in render() and stamp every <script>.
+    #
+    # Stripe: checkout is a server-side redirect (302) — no Stripe JS is
+    # loaded client-side, so js.stripe.com is not needed here.
+    #
+    # Google OAuth: /auth/google is a GET navigation, not a form submission —
+    # form-action 'self' is sufficient.
+    #
+    # worker-src covers PDF.js calling new Worker(cdnjs_url); blob: covers
+    # any browser that first fetches the script to a blob then spawns a worker.
     _CSP = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' "
             "https://challenges.cloudflare.com "
-            "https://cdn.jsdelivr.net; "
+            "https://cdn.jsdelivr.net "
+            "https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob:; "
         "frame-src https://challenges.cloudflare.com; "
-        "connect-src 'self'; "
+        "connect-src 'self' https://cdnjs.cloudflare.com; "
+        "worker-src blob: https://cdnjs.cloudflare.com; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "form-action 'self'; "
         "frame-ancestors 'self';"
     )
 
+    # X-XSS-Protection removed: deprecated in all modern browsers and
+    # superseded by the Content-Security-Policy above.  Leaving it set to
+    # "1; mode=block" on older IE/Chrome can trigger false-positive page blocks.
     _HEADERS: dict[str, str] = {
         "Content-Security-Policy": _CSP,
         "X-Content-Type-Options":  "nosniff",
         "X-Frame-Options":         "SAMEORIGIN",
-        "X-XSS-Protection":        "1; mode=block",
         "Referrer-Policy":         "strict-origin-when-cross-origin",
         "Permissions-Policy":      "camera=(), microphone=(), geolocation=()",
     }
