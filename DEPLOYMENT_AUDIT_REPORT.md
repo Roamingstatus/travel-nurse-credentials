@@ -226,10 +226,10 @@ All integration groups now checked at startup:
 ---
 
 ### LOW-02 — Recruiter share links have no default expiration
-**Status:** 🟢 PASS (informational)  
+**Status:** ✅ RESOLVED (`app/main.py` — `share_create`; `app/templates/share.html`)  
 **Location:** `app/main.py` — `share_create` endpoint, `expires_days` is optional with no default  
 **Risk:** Links created without an expiry date persist forever unless manually revoked. A nurse who forgets to revoke a link after a job search has their credentials accessible indefinitely.  
-**Recommended fix:** Add a sensible default expiration (e.g., 90 days) that users can override. Communicate this clearly in the share link creation UI.
+**Resolution:** Default is now 90 days. If `expires_days` is empty or non-numeric the route sets `exp = now + 90d`. Users can choose 7, 30, or 90 days, or explicitly select "Never". The dropdown pre-selects "In 90 days (default)" to communicate the behaviour clearly.
 
 ---
 
