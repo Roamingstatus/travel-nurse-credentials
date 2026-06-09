@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Access Logs · Admin · Credanta{% endblock %}
+{% block content %}
+
+<div class="admin-header">
+  <div>
+    <h1 class="admin-title">Admin Access Logs</h1>
+    <p class="admin-sub">Every admin login attempt, authorised and denied · {{ now }}</p>
+  </div>
+  <div class="admin-nav-links">
+    <a href="{{ admin_route }}" class="admin-nav-link">Overview</a>
+    <a href="{{ admin_route }}/analytics" class="admin-nav-link">Product Usage</a>
+    <a href="{{ admin_route }}/feedback" class="admin-nav-link">Feedback</a>
+    <a href="{{ admin_route }}/recruiter-feedback" class="admin-nav-link">Recruiter Feedback</a>
+    <a href="{{ admin_route }}/testing" class="admin-nav-link">Testing</a>
+    <a href="{{ admin_route }}/access-logs" class="admin-nav-link admin-nav-link--active">Access Logs</a>
+  </div>
+</div>
+
+<!-- ── Summary cards ──────────────────────────── -->
+<section class="admin-section">
+  <div class="admin-cards">
+    <div class="admin-card">
+      <div class="admin-card-value">{{ total_count }}</div>
+      <div class="admin-card-label">Total attempts{% if sel_range != 'all' %} ({{ sel_range }}d){% endif %}</div>
+    </div>
+    <div class="admin-card" style="border-left:3px solid #22c55e;">
+      <div class="admin-card-value">{{ total_count - failed_count }}</div>
+      <div class="admin-card-label">Authorised</div>
+    </div>
+    <div class="admin-card" style="border-left:3px solid #ef4444;">
+      <div class="admin-card-value">{{ failed_count }}</div>
+      <div class="admin-card-label">Denied</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ unique_emails }}</div>
+      <div class="admin-card-label">Unique emails (all time)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Filters ────────────────────────────────── -->
+<section class="admin-section">
+  <form method="get" action="{{ admin_route }}/access-logs" class="al-filter-row">
+    <input
+      type="text"
+      name="email"
+      value="{{ sel_email }}"
+      placeholder="Filter by email…"
+      class="al-email-input"
+    />
+    <select name="result" onchange="this.form.submit()">
+      <option value=""       {% if sel_result == '' %}selected{% endif %}>All results</option>
+      <option value="success"{% if sel_result == 'success' %}selected{% endif %}>Authorised only</option>
+      <option value="failed" {% if sel_result == 'failed' %}selected{% endif %}>Denied only</option>
+    </select>
+    <select name="range_days" onchange="this.form.submit()">
+      <option value="7"  {% if sel_range == '7' %}selected{% endif %}>Last 7 days</option>
+      <option value="30" {% if sel_range == '30' %}selected{% endif %}>Last 30 days</option>
+      <option value="all"{% if sel_range == 'all' %}selected{% endif %}>All time</option>
+    </select>
+    <button type="submit" class="btn small primary">Filter</button>
+    {% if sel_email or sel_result or sel_range != '7' %}
+    <a href="{{ admin_route }}/access-logs" class="btn small ghost">Clear</a>
+    {% endif %}
+  </form>
+</section>
+
+<!-- ── Log table ───────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">
+    Log entries <span class="admin-count-badge">{{ items | length }}{% if items | length == 200 %}+{% endif %}</span>
+  </h2>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Email</th>
+          <th>Route</th>
+          <th>IP address</th>
+          <th>User agent</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in items %}
+        <tr class="al-row{% if not entry.success %} al-row--denied{% endif %}">
+          <td class="admin-ts al-ts">{{ entry.created_at | dt }}</td>
+          <td class="admin-email">{{ entry.email or "—" }}</td>
+          <td class="al-route">{{ entry.route or "—" }}</td>
+          <td class="al-ip">{{ entry.ip_address or "—" }}</td>
+          <td class="al-ua" title="{{ entry.user_agent or '' }}">
+            {{ (entry.user_agent or "—") | truncate(48) }}
+          </td>
+          <td>
+            {% if entry.success %}
+            <span class="al-badge al-badge--ok">✓ Authorised</span>
+            {% else %}
+            <span class="al-badge al-badge--denied">✗ Denied</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="admin-empty">No access log entries match the current filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if items | length == 200 %}
+  <p class="al-limit-note">Showing the 200 most recent matching entries. Narrow the filters to see older records.</p>
+  {% endif %}
+</section>
+
+<style>
+.al-filter-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.al-email-input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font-size:13px; min-width:200px; }
+.al-filter-row select { padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); font-size:13px; }
+
+.al-row--denied td { background:rgba(239,68,68,.04); }
+[data-theme="dark"] .al-row--denied td { background:rgba(239,68,68,.08); }
+
+.al-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; white-space:nowrap; }
+.al-badge--ok     { background:#dcfce7; color:#166534; }
+.al-badge--denied { background:#fee2e2; color:#b91c1c; }
+[data-theme="dark"] .al-badge--ok     { background:rgba(34,197,94,.2);  color:#86efac; }
+[data-theme="dark"] .al-badge--denied { background:rgba(239,68,68,.2); color:#fca5a5; }
+
+.al-route { font-size:12px; font-family:monospace; color:var(--muted); }
+.al-ip    { font-size:12px; font-family:monospace; white-space:nowrap; }
+.al-ua    { font-size:11px; color:var(--muted); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.al-ts    { white-space:nowrap; }
+
+.al-limit-note { margin-top:8px; font-size:12px; color:var(--muted); }
+</style>
+
+{% endblock %}

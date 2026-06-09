@@ -140,7 +140,7 @@ Address these in the first sprint after launch.
 
 | # | Item | Reference |
 |---|---|---|
-| A1 | Add admin UI for `AdminAccessLog` viewer | MED-06 |
+| ~~A1~~ | ~~Add admin UI for `AdminAccessLog` viewer~~ | ~~MED-06~~ | ✅ Done |
 | A2 | Add default 90-day expiry to new share links | LOW-02 |
 | A3 | Move email HTML to Jinja2 templates | LOW-03 |
 | A4 | Add Stripe Price ID startup validation warnings | MED-01 |

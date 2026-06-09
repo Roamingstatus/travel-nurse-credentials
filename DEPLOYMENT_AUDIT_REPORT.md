@@ -188,10 +188,10 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 ---
 
 ### MED-06 — `AdminAccessLog` table has no admin UI viewer
-**Status:** 🟡 WARNING  
+**Status:** ✅ RESOLVED (`app/main.py` — `GET {ADMIN_ROUTE}/access-logs`; `app/templates/admin_access_logs.html`)  
 **Location:** `app/main.py` — no admin route for `/admin/access-logs`  
 **Risk:** The audit log system (built in the previous hardening task) faithfully records every admin access attempt to `admin_access_logs`, but there is no way to view these records without direct DB access. The security value of an audit log is zero if it can't be reviewed.  
-**Recommended fix:** Add a read-only admin page at `{ADMIN_ROUTE}/access-logs` that lists recent entries, filterable by email, success/fail, and date.
+**Resolution:** Added read-only `GET {ADMIN_ROUTE}/access-logs` route with filters for email (partial-match), result (authorised/denied/all), and date range (7d/30d/all time). Displays summary cards (total, authorised, denied, unique emails) and a paginated table (200-entry cap) with timestamp, email, route, IP, user agent, and result badge. Linked from all admin nav bars.
 
 ---
 

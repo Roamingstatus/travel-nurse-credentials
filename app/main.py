@@ -2135,6 +2135,61 @@ def admin_analytics(
     )
 
 
+@app.get(f"{ADMIN_ROUTE}/access-logs", response_class=HTMLResponse)
+def admin_access_logs(
+    request: Request,
+    email: str = "",
+    result: str = "",
+    range_days: str = "7",
+    db: Session = Depends(get_session),
+):
+    from .db import AdminAccessLog
+    user = require_user(request)
+    _admin_gate(request, user, db, "access-logs")
+
+    q = db.query(AdminAccessLog)
+
+    if email:
+        q = q.filter(AdminAccessLog.email.ilike(f"%{email.strip()}%"))
+    if result == "success":
+        q = q.filter(AdminAccessLog.success == True)          # noqa: E712
+    elif result == "failed":
+        q = q.filter(AdminAccessLog.success == False)         # noqa: E712
+
+    days_map = {"7": 7, "30": 30}
+    if range_days in days_map:
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(days=days_map[range_days])
+        q = q.filter(AdminAccessLog.created_at >= cutoff)
+
+    items = q.order_by(AdminAccessLog.created_at.desc()).limit(200).all()
+
+    total_q  = db.query(AdminAccessLog)
+    if range_days in days_map:
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(days=days_map[range_days])
+        total_q = total_q.filter(AdminAccessLog.created_at >= cutoff)
+
+    total_count  = total_q.count()
+    failed_count = total_q.filter(AdminAccessLog.success == False).count()  # noqa: E712
+    unique_emails = db.execute(
+        text("SELECT COUNT(DISTINCT email) FROM admin_access_logs")
+    ).scalar() or 0
+
+    return admin_render(
+        request,
+        "admin_access_logs.html",
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        items=items,
+        total_count=total_count,
+        failed_count=failed_count,
+        unique_emails=unique_emails,
+        sel_email=email,
+        sel_result=result,
+        sel_range=range_days,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Beta Feedback
 # ---------------------------------------------------------------------------
