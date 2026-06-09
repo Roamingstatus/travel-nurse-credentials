@@ -1,10 +1,8 @@
 """
 Admin testing dashboard — run pytest, persist results, build export report.
 """
-import subprocess
-import sys
 import time
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
@@ -143,18 +141,16 @@ def run_test_suite(db: Session) -> dict:
         except Exception:
             pass
 
-    cmd = [
-        sys.executable, "-m", "pytest",
-        str(TESTS_DIR),
-        "--junit-xml", str(XML_OUTPUT),
-        "--tb=short",
-        "-q",
-        "--no-header",
-    ]
-
     try:
-        subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    except subprocess.TimeoutExpired:
+        import pytest as _pytest
+        _pytest.main([
+            str(TESTS_DIR),
+            "--junit-xml", str(XML_OUTPUT),
+            "--tb=short",
+            "-q",
+            "--no-header",
+        ])
+    except SystemExit:
         pass
     except Exception:
         pass

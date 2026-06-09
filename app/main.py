@@ -328,7 +328,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> HTMLRes
         )
     except Exception:
         pass
-    is_logged_in = bool(request.session.get("user_id"))
+    is_logged_in = request.session.get("user_id") is not None
     html = templates.TemplateResponse(
         "500.html",
         {
@@ -364,7 +364,7 @@ def _format_dt(value):
 
 def _format_size(value):
     try:
-        n = float(value or 0)
+        n = int(value or 0)
     except (TypeError, ValueError):
         return "—"
     for unit in ("B", "KB", "MB", "GB"):

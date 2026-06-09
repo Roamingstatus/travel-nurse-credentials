@@ -11,6 +11,8 @@ fpdf2>=2.7
 gunicorn
 Pillow
 pytesseract
+defusedxml>=0.7
+pytest>=8.0
 python-docx>=1.0
 resend>=2.0
 twilio>=9.0
