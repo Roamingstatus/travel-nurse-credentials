@@ -262,6 +262,7 @@
 
   var pop = document.createElement('div');
   pop.className = 'dhp';
+  pop.setAttribute('hidden', ''); // pointer-events:none until first show()
   document.body.appendChild(pop);
 
   var timer    = null;
@@ -398,6 +399,16 @@
     }
   }
 
+  function noPreview(id) {
+    cache.set(id, { type: 'none' });
+    inflight.delete(id);
+    if (activeId !== id) return;
+    var previewEl = pop.querySelector('.dhp-preview');
+    if (previewEl) previewEl.innerHTML =
+      '<div class="dhp-nopreview"><span>📄</span><span>Click to open</span></div>';
+    reposition(activeCard);
+  }
+
   function loadImage(id, card) {
     var img = new Image();
     img.className = 'dhp-img';
@@ -407,14 +418,11 @@
       inflight.delete(id);
       injectPreview(id, img.cloneNode(true));
     };
-    img.onerror = function () {
-      cache.set(id, { type: 'none' });
-      inflight.delete(id);
-    };
+    img.onerror = function () { noPreview(id); };
   }
 
   function loadPDF(id) {
-    if (!window.pdfjsLib) { cache.set(id, { type: 'none' }); inflight.delete(id); return; }
+    if (!window.pdfjsLib) { noPreview(id); return; }
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
     window.pdfjsLib.getDocument('/documents/' + id + '/view').promise
       .then(function (pdf) { return pdf.getPage(1); })
@@ -433,11 +441,11 @@
             injectPreview(id, img.cloneNode(true));
           });
       })
-      .catch(function () { cache.set(id, { type: 'none' }); inflight.delete(id); });
+      .catch(function () { noPreview(id); });
   }
 
   function loadDocx(id, fn) {
-    if (!window.mammoth) { cache.set(id, { type: 'none' }); inflight.delete(id); return; }
+    if (!window.mammoth) { noPreview(id); return; }
     fetch('/documents/' + id + '/view')
       .then(function (r) { return r.arrayBuffer(); })
       .then(function (buf) { return window.mammoth.extractRawText({ arrayBuffer: buf }); })
@@ -447,7 +455,7 @@
         inflight.delete(id);
         injectText(id, cache.get(id).text);
       })
-      .catch(function () { cache.set(id, { type: 'none' }); inflight.delete(id); });
+      .catch(function () { noPreview(id); });
   }
 
   /* ── Event wiring ─────────────────────── */
