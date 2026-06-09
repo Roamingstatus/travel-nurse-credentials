@@ -127,15 +127,15 @@
           {% else %}<span class="pill good" aria-label="Status: Valid">Valid</span>{% endif %}
 
           <div class="doc-card-actions">
-            <a class="btn small ghost btn-icon" href="/documents/{{ d.id }}/edit" title="Edit">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.5 1.5a1.414 1.414 0 0 1 2 2L5 12H3v-2L11.5 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <a class="btn-icon btn-icon--edit" href="/documents/{{ d.id }}/edit" title="Edit">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.5 1.5a1.414 1.414 0 0 1 2 2L5 12H3v-2L11.5 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
             </a>
-            <a class="btn small ghost btn-icon" href="/documents/{{ d.id }}/download" title="Download">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0-3-3m3 3 3-3M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <a class="btn-icon btn-icon--dl" href="/documents/{{ d.id }}/download" title="Download">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0-3-3m3 3 3-3M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </a>
             <form method="post" action="/documents/{{ d.id }}/delete" onsubmit="return confirm('Remove this document?');">
-              <button class="btn small danger btn-icon" type="submit" title="Delete">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <button class="btn-icon btn-icon--del" type="submit" title="Delete">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </form>
           </div>
