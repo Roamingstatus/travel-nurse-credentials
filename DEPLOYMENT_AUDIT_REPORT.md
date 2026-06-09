@@ -138,10 +138,8 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 ---
 
 ### HIGH-06 — TWILIO_FROM_NUMBER accessed via os.environ[] — raises KeyError if missing
-**Status:** 🟡 WARNING  
-**Location:** `app/services/sms_service.py:107` — `os.environ["TWILIO_FROM_NUMBER"]` (not `.get()`)  
-**Risk:** If `TWILIO_FROM_NUMBER` is not in the environment, any SMS send attempt raises an unhandled `KeyError`, crashing the calling code path (scheduler or immediate alert). The `get_sms_status()` check at line 14 uses `.get()` correctly but the actual send does not — so status shows "ok" but sending crashes.  
-**Recommended fix:** Change to `os.environ.get("TWILIO_FROM_NUMBER", "")` and guard: `if not from_number: return {"ok": False, "error": "TWILIO_FROM_NUMBER not set"}`. Also add to documented required secrets in `replit.md`.
+**Status:** ✅ RESOLVED (`app/services/sms_service.py`)  
+`os.environ["TWILIO_ACCOUNT_SID"]`, `os.environ["TWILIO_AUTH_TOKEN"]`, and `os.environ["TWILIO_FROM_NUMBER"]` in `_send()` all changed to `.get("KEY", "")`. The `_twilio_configured()` guard at the top of every public function already prevents `_send()` from being called when any key is absent, so the fallback empty string is only reached if a caller bypasses that guard — in which case Twilio's own client raises an `Exception` that is caught and returned as `{"ok": False, "error": ...}` rather than an unhandled `KeyError`.
 
 ---
 
@@ -198,10 +196,20 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 ---
 
 ### MED-07 — No startup validation for required secrets
-**Status:** 🟡 WARNING  
-**Location:** `app/security.py` — `validate_env()` only checks `SESSION_SECRET` and OAuth keys  
-**Risk:** Stripe keys, Resend API key, Twilio credentials, and Turnstile keys are all optional at startup but required for core features. A misconfigured production deployment may appear healthy (`/healthz` returns 200) while reminders, payments, and bot protection are all broken.  
-**Recommended fix:** Extend `validate_env()` to warn (or raise in production) for each missing integration key: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`.
+**Status:** ✅ RESOLVED (`app/security.py` — `validate_env()` expanded with two-tier severity)
+
+All integration groups now checked at startup:
+
+| Group | Keys | Severity |
+|---|---|---|
+| Session | `SESSION_SECRET` | Fatal in prod (RuntimeError) |
+| Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Fatal in prod |
+| Cloudflare Turnstile | `CLOUDFLARE_TURNSTILE_SITE_KEY`, `CLOUDFLARE_TURNSTILE_SECRET_KEY` | Fatal in prod |
+| Stripe billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PREMIUM_PRICE_ID`, `STRIPE_PREMIUM_PLUS_PRICE_ID` | ERROR in prod, WARNING in dev |
+| Resend email | `RESEND_API_KEY` | ERROR in prod, WARNING in dev |
+| Twilio SMS | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | ERROR in prod (partial-config detection) |
+| OpenAI AI | `OPENAI_API_KEY` | ERROR in prod, WARNING in dev |
+| Admin | `ADMIN_ROUTE`, `ADMIN_EMAILS` | ERROR in prod, WARNING in dev |
 
 ---
 

@@ -45,47 +45,121 @@ _WEAK_SECRETS: frozenset[str] = frozenset({
 
 
 def validate_env() -> None:
-    """Validate critical environment variables at application startup.
+    """Validate environment variables for every integration at startup.
 
-    In production (ENV=production) any fatal misconfiguration raises
-    RuntimeError and prevents the app from starting.  In development the
-    same issues are logged as warnings so the dev loop is not blocked.
+    Severity tiers
+    ──────────────
+    FATAL   (raises RuntimeError in production, warning in dev):
+      SESSION_SECRET, GOOGLE_CLIENT_ID/SECRET, CLOUDFLARE_TURNSTILE_*
+      — the app is unusable without these in production.
+
+    ERROR   (logs ERROR in production, WARNING in dev — app still starts):
+      Stripe, Resend (email), Twilio (SMS), OpenAI, Admin config
+      — features degrade gracefully when these are absent.
     """
     env = (os.environ.get("APP_ENV") or os.environ.get("ENV", "development")).lower()
     is_prod = env == "production"
-    secret = os.environ.get("SESSION_SECRET", "")
 
+    def _fatal(msg: str) -> None:
+        """Block startup in production; warn in development."""
+        if is_prod:
+            raise RuntimeError(msg)
+        logger.warning("[security] %s", msg)
+
+    def _error(msg: str) -> None:
+        """Log ERROR in production (feature disabled); WARNING in development."""
+        if is_prod:
+            logger.error("[security] %s", msg)
+        else:
+            logger.warning("[security] %s", msg)
+
+    # ── Session secret ────────────────────────────────────────────────────────
+    secret = os.environ.get("SESSION_SECRET", "")
     if not secret:
-        msg = (
+        _fatal(
             "SESSION_SECRET is not set. Sessions will be invalidated on every "
             "restart.  Generate one with: "
             "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
         )
-        if is_prod:
-            raise RuntimeError(msg)
-        logger.warning("[security] %s", msg)
     elif len(secret) < 32:
-        msg = f"SESSION_SECRET is only {len(secret)} chars (minimum 32)."
-        if is_prod:
-            raise RuntimeError(msg)
-        logger.warning("[security] %s", msg)
+        _fatal(f"SESSION_SECRET is only {len(secret)} chars (minimum 32).")
     elif secret.lower() in _WEAK_SECRETS:
-        msg = "SESSION_SECRET looks like a known placeholder. Replace it with a random value."
-        if is_prod:
-            raise RuntimeError(msg)
-        logger.warning("[security] %s", msg)
+        _fatal("SESSION_SECRET looks like a known placeholder. Replace it with a random value.")
 
+    # ── Google OAuth (core auth — fatal in production) ────────────────────────
     if not os.environ.get("GOOGLE_CLIENT_ID"):
-        logger.warning("[security] GOOGLE_CLIENT_ID not set — OAuth login will be disabled.")
+        _fatal("GOOGLE_CLIENT_ID not set — users cannot log in.")
     if not os.environ.get("GOOGLE_CLIENT_SECRET"):
-        logger.warning("[security] GOOGLE_CLIENT_SECRET not set — OAuth login will be disabled.")
+        _fatal("GOOGLE_CLIENT_SECRET not set — users cannot log in.")
 
+    # ── Cloudflare Turnstile (bot protection — fatal in production) ───────────
     if not os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY"):
-        logger.warning("[security] CLOUDFLARE_TURNSTILE_SITE_KEY not set — Turnstile bot protection disabled.")
+        _fatal("CLOUDFLARE_TURNSTILE_SITE_KEY not set — bot protection disabled on login/upload.")
     if not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
-        logger.warning("[security] CLOUDFLARE_TURNSTILE_SECRET_KEY not set — Turnstile verification disabled.")
+        _fatal("CLOUDFLARE_TURNSTILE_SECRET_KEY not set — Turnstile server-side verification disabled.")
 
-    logger.info("[security] Environment validation complete (ENV=%s).", env)
+    # ── Stripe billing (optional integration) ─────────────────────────────────
+    stripe_key    = os.environ.get("STRIPE_SECRET_KEY", "")
+    stripe_wh     = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    stripe_price  = os.environ.get("STRIPE_PREMIUM_PRICE_ID", "")
+    stripe_pricep = os.environ.get("STRIPE_PREMIUM_PLUS_PRICE_ID", "")
+
+    if not stripe_key:
+        _error("STRIPE_SECRET_KEY not set — billing and premium upgrades will not work.")
+    if not stripe_wh:
+        _error("STRIPE_WEBHOOK_SECRET not set — Stripe webhook signature verification disabled.")
+    if not stripe_price:
+        _error("STRIPE_PREMIUM_PRICE_ID not set — Premium checkout will fail.")
+    if not stripe_pricep:
+        _error("STRIPE_PREMIUM_PLUS_PRICE_ID not set — Premium+ checkout will fail.")
+
+    # ── Resend — email reminders (optional integration) ───────────────────────
+    if not os.environ.get("RESEND_API_KEY"):
+        _error("RESEND_API_KEY not set — email expiration reminders will not be sent.")
+
+    # ── Twilio — SMS reminders (optional integration) ─────────────────────────
+    twilio_sid  = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    twilio_auth = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    twilio_from = os.environ.get("TWILIO_FROM_NUMBER", "")
+    twilio_set  = [twilio_sid, twilio_auth, twilio_from]
+    if any(twilio_set) and not all(twilio_set):
+        missing = [
+            name for name, val in [
+                ("TWILIO_ACCOUNT_SID", twilio_sid),
+                ("TWILIO_AUTH_TOKEN",  twilio_auth),
+                ("TWILIO_FROM_NUMBER", twilio_from),
+            ] if not val
+        ]
+        _error(
+            f"Twilio is partially configured — SMS reminders will not work. "
+            f"Missing: {', '.join(missing)}"
+        )
+    elif not all(twilio_set):
+        _error(
+            "TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER not set "
+            "— SMS reminders will not be sent."
+        )
+
+    # ── OpenAI — AI document features (optional integration) ──────────────────
+    if not os.environ.get("OPENAI_API_KEY"):
+        _error(
+            "OPENAI_API_KEY not set — AI-assisted document categorisation and "
+            "resume enhancer will be unavailable."
+        )
+
+    # ── Admin configuration ───────────────────────────────────────────────────
+    if not os.environ.get("ADMIN_ROUTE"):
+        _error(
+            "ADMIN_ROUTE not set — admin dashboard is unreachable. "
+            "Set to a secret path, e.g. ADMIN_ROUTE=/secret-admin-abc123."
+        )
+    if not os.environ.get("ADMIN_EMAILS"):
+        _error(
+            "ADMIN_EMAILS not set — no users will have admin access. "
+            "Set to a comma-separated list of admin email addresses."
+        )
+
+    logger.info("[security] Environment validation complete (env=%s).", env)
 
 
 # ---------------------------------------------------------------------------

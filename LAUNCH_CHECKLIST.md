@@ -56,7 +56,7 @@ Set each of these in **Replit Secrets** (lock icon → Secrets). None should be 
 | # | Issue | Reference | Fix |
 |---|---|---|---|
 | C1 | ~~Add global 500 error handler~~ | CRIT-01 | ✅ Done — `generic_exception_handler` added to `app/main.py` |
-| C2 | Fix TWILIO_FROM_NUMBER KeyError | HIGH-06 | Change `os.environ["TWILIO_FROM_NUMBER"]` to `.get()` in `sms_service.py` |
+| C2 | ~~Fix TWILIO_FROM_NUMBER KeyError~~ | HIGH-06 | ✅ Done — `os.environ["KEY"]` → `.get()` in `sms_service.py` |
 | C3 | ~~Add CSRF protection~~ | CRIT-03 | ✅ Done — `CsrfMiddleware` + per-session tokens + JS auto-injection |
 | C4 | ~~Fix SESSION_SECRET env var mismatch~~ | CRIT-02 | ✅ Done — `validate_env()` now reads `APP_ENV` first (matches `is_production()`) |
 | C5 | Guard BETA_MODE in production | HIGH-02 | Add `is_production()` check in `app/premium.py` |
@@ -128,7 +128,7 @@ These are not launch blockers but meaningfully reduce risk.
 |---|---|---|
 | P1 | ~~Add `Content-Security-Policy` header~~ | HIGH-01 | ✅ Done |
 | P2 | ~~Add CSRF protection~~ | CRIT-03 | ✅ Done |
-| P3 | Add startup validation for all integration env vars | MED-07 |
+| P3 | ~~Add startup validation for all integration env vars~~ | MED-07 | ✅ Done |
 | P4 | Enable SQLite WAL mode (`PRAGMA journal_mode=WAL`) | LOW-04 |
 | P5 | Replace `except Exception: pass` blocks with logging | MED-05 |
 

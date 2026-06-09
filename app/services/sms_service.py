@@ -99,12 +99,12 @@ def _send(phone: str, body: str) -> dict:
 
     try:
         client = Client(
-            os.environ["TWILIO_ACCOUNT_SID"],
-            os.environ["TWILIO_AUTH_TOKEN"],
+            os.environ.get("TWILIO_ACCOUNT_SID", ""),
+            os.environ.get("TWILIO_AUTH_TOKEN", ""),
         )
         msg = client.messages.create(
             body=body,
-            from_=os.environ["TWILIO_FROM_NUMBER"],
+            from_=os.environ.get("TWILIO_FROM_NUMBER", ""),
             to=phone,
         )
         _LOG.info("[sms] sent to %s sid=%s", phone, msg.sid)
