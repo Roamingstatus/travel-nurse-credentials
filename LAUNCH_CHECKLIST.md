@@ -60,7 +60,7 @@ Set each of these in **Replit Secrets** (lock icon → Secrets). None should be 
 | C3 | ~~Add CSRF protection~~ | CRIT-03 | ✅ Done — `CsrfMiddleware` + per-session tokens + JS auto-injection |
 | C4 | ~~Fix SESSION_SECRET env var mismatch~~ | CRIT-02 | ✅ Done — `validate_env()` now reads `APP_ENV` first (matches `is_production()`) |
 | C5 | Guard BETA_MODE in production | HIGH-02 | Add `is_production()` check in `app/premium.py` |
-| C6 | Fix Stripe API key in webhook handler | MED-04 | Use `_secret_key()` instead of inline `os.environ.get` in `app/main.py:1952` |
+| C6 | ~~Fix Stripe API key in webhook handler~~ | MED-04 | ✅ Done — `_stripe_secret_key()` used in webhook handler; Connector + env var fallback now consistent with all other billing functions |
 
 ---
 

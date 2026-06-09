@@ -182,10 +182,9 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 ---
 
 ### MED-04 — Duplicate Stripe API key assignment in webhook handler
-**Status:** 🟡 WARNING  
-**Location:** `app/main.py:1952` — `_stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")`  
-**Risk:** The webhook handler directly sets `stripe.api_key` inline, duplicating the logic already centralized in `app/stripe_billing.py:_secret_key()`. If the key is sourced from a Replit Connector (the primary path in `stripe_billing.py`), the webhook handler's fallback won't find it via env var, causing webhook subscription-update logic to fail with an authentication error.  
-**Recommended fix:** Replace the inline assignment with `from .stripe_billing import _secret_key; _stripe.api_key = _secret_key()`.
+**Status:** ✅ RESOLVED  
+**Location:** `app/main.py` — `billing_webhook` handler  
+**Resolution:** Replaced `_stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")` with `_stripe.api_key = _stripe_secret_key()` (imported as `_secret_key as _stripe_secret_key` from `stripe_billing`). The handler now goes through the same credential path as every other billing function — Replit Connector first, `STRIPE_SECRET_KEY` env var as fallback. Also removed the redundant inline `import logging` inside the function and converted all f-string `logging.*` calls to use the module-level `logger` with `%s` formatting.
 
 ---
 

@@ -32,6 +32,7 @@ from collections import defaultdict
 from .ai_docs import ai_enabled, ai_refine_category_expiry, extract_text_sample
 from .auth import current_user, google_configured, oauth, require_user
 from .stripe_billing import (
+    _secret_key as _stripe_secret_key,
     construct_webhook_event,
     create_checkout_session,
     create_portal_session,
@@ -2025,17 +2026,16 @@ def billing_portal(request: Request, db: Session = Depends(get_session)):
 
 @app.post("/billing/webhook")
 async def billing_webhook(request: Request, db: Session = Depends(get_session)):
-    import logging
     payload = await request.body()
     sig = request.headers.get("stripe-signature", "")
     try:
         event = construct_webhook_event(payload, sig)
     except Exception as exc:
-        logging.warning(f"[Stripe] webhook signature error: {exc}")
+        logger.warning("[Stripe] webhook signature error: %s", exc)
         raise HTTPException(400, "Invalid webhook signature")
 
     etype = event["type"]
-    logging.info(f"[Stripe] webhook event: {etype}")
+    logger.info("[Stripe] webhook event: %s", etype)
 
     if etype == "checkout.session.completed":
         obj = event["data"]["object"]
@@ -2047,14 +2047,14 @@ async def billing_webhook(request: Request, db: Session = Depends(get_session)):
             db_user = db.query(User).filter_by(stripe_customer_id=customer_id).first()
         if db_user and subscription_id:
             import stripe as _stripe
-            _stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+            _stripe.api_key = _stripe_secret_key()
             sub = _stripe.Subscription.retrieve(subscription_id)
             price_id = sub["items"]["data"][0]["price"]["id"]
             db_user.stripe_customer_id = customer_id
             db_user.stripe_subscription_id = subscription_id
             db_user.subscription_tier = tier_for_price_id(price_id)
             db.commit()
-            logging.info(f"[Stripe] user {db_user.id} upgraded to {db_user.subscription_tier}")
+            logger.info("[Stripe] user %s upgraded to %s", db_user.id, db_user.subscription_tier)
 
     elif etype == "customer.subscription.updated":
         sub = event["data"]["object"]
@@ -2070,7 +2070,7 @@ async def billing_webhook(request: Request, db: Session = Depends(get_session)):
             db_user.stripe_subscription_id = sub["id"]
             db.commit()
             log_event("stripe_subscription_changed", user_id=db_user.id, meta={"tier": db_user.subscription_tier, "status": status}, db=db)
-            logging.info(f"[Stripe] subscription updated → user {db_user.id}: {db_user.subscription_tier}")
+            logger.info("[Stripe] subscription updated → user %s: %s", db_user.id, db_user.subscription_tier)
 
     elif etype == "customer.subscription.deleted":
         sub = event["data"]["object"]
@@ -2081,7 +2081,7 @@ async def billing_webhook(request: Request, db: Session = Depends(get_session)):
             db_user.stripe_subscription_id = None
             db.commit()
             log_event("stripe_subscription_changed", user_id=db_user.id, meta={"tier": "free", "status": "cancelled"}, db=db)
-            logging.info(f"[Stripe] subscription cancelled → user {db_user.id} downgraded to free")
+            logger.info("[Stripe] subscription cancelled → user %s downgraded to free", db_user.id)
 
     return JSONResponse({"received": True})
 
