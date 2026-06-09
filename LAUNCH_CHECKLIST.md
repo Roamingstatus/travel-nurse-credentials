@@ -126,8 +126,8 @@ These are not launch blockers but meaningfully reduce risk.
 
 | # | Item | Reference |
 |---|---|---|
-| P1 | Add `Content-Security-Policy` header to `SecurityHeadersMiddleware` | HIGH-01 |
-| P2 | Add CSRF protection (`starlette-csrf` or per-form tokens) | CRIT-03 |
+| P1 | ~~Add `Content-Security-Policy` header~~ | HIGH-01 | ✅ Done |
+| P2 | ~~Add CSRF protection~~ | CRIT-03 | ✅ Done |
 | P3 | Add startup validation for all integration env vars | MED-07 |
 | P4 | Enable SQLite WAL mode (`PRAGMA journal_mode=WAL`) | LOW-04 |
 | P5 | Replace `except Exception: pass` blocks with logging | MED-05 |

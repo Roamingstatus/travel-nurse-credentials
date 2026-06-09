@@ -36,7 +36,7 @@
 | Resume Enhancer | 🟢 PASS | 0 | 0 | 0 | 1 |
 | Analytics | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Mobile Responsiveness | 🟢 PASS | 0 | 0 | 0 | 0 |
-| Security — Headers | 🟡 WARNING | 0 | 1 | 0 | 1 |
+| Security — Headers | 🟢 PASS | 0 | 0 | 0 | 1 |
 | Security — CSRF | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Security — Error Handling | 🟡 WARNING | 0 | 0 | 1 | 0 |
 | Security — Session Secret | 🟢 PASS | 0 | 0 | 0 | 0 |

@@ -512,7 +512,28 @@ def verify_download_token(token_str: str, doc_id: int, share_token: str) -> bool
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adds standard security headers to every HTTP response."""
 
+    # Content-Security-Policy directives:
+    #   script-src includes 'unsafe-inline' because the app has ~16 inline <script>
+    #   blocks spread across Jinja2 templates.  The long-term path to remove it is to
+    #   introduce per-request nonces via render() and stamp them on every <script> tag.
+    #   All other directives are as strict as practical.
+    _CSP = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' "
+            "https://challenges.cloudflare.com "
+            "https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "frame-src https://challenges.cloudflare.com; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "frame-ancestors 'self';"
+    )
+
     _HEADERS: dict[str, str] = {
+        "Content-Security-Policy": _CSP,
         "X-Content-Type-Options":  "nosniff",
         "X-Frame-Options":         "SAMEORIGIN",
         "X-XSS-Protection":        "1; mode=block",
@@ -524,7 +545,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         for header, value in self._HEADERS.items():
             response.headers.setdefault(header, value)
-        if os.environ.get("ENV", "").lower() == "production":
+        # Read APP_ENV first (matches is_production()), fall back to ENV
+        env = (
+            os.environ.get("APP_ENV", "")
+            or os.environ.get("ENV", "")
+        ).lower()
+        if env == "production":
             response.headers.setdefault(
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
