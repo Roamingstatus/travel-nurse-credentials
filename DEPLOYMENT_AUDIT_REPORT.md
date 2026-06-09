@@ -1,0 +1,291 @@
+# Credanta — Pre-Deployment Readiness Audit
+
+**Date:** 2026-06-08  
+**Auditor:** Automated deep-scan across authentication, authorization, uploads, security, integrations, and UX  
+**Codebase commit:** `ac5f6ee`
+
+---
+
+## Severity Legend
+
+| Symbol | Meaning |
+|---|---|
+| 🔴 FAIL | Must be resolved before launch |
+| 🟡 WARNING | Should be resolved before or shortly after launch |
+| 🟢 PASS | No action required |
+
+---
+
+## Summary
+
+| Category | Status | Critical | High | Medium | Low |
+|---|---|---|---|---|---|
+| Authentication | 🟡 WARNING | 0 | 1 | 0 | 0 |
+| Authorization | 🟡 WARNING | 0 | 1 | 0 | 0 |
+| Document Uploads | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Document Previews | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Expiration Tracking | 🟢 PASS | 0 | 0 | 0 | 0 |
+| NIH Custom Rules | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Packet Generation | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Recruiter Share Links | 🟢 PASS | 0 | 0 | 0 | 1 |
+| Premium Feature Gating | 🟡 WARNING | 0 | 1 | 0 | 0 |
+| Stripe Integration | 🟡 WARNING | 0 | 1 | 2 | 0 |
+| Email Reminders | 🟡 WARNING | 0 | 0 | 2 | 1 |
+| SMS Reminders | 🟡 WARNING | 0 | 0 | 1 | 0 |
+| Account Page | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Resume Enhancer | 🟢 PASS | 0 | 0 | 0 | 1 |
+| Analytics | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Mobile Responsiveness | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Security — Headers | 🟡 WARNING | 0 | 1 | 0 | 1 |
+| Security — CSRF | 🔴 FAIL | 1 | 0 | 0 | 0 |
+| Security — Error Handling | 🔴 FAIL | 1 | 0 | 1 | 0 |
+| Security — Session Secret | 🔴 FAIL | 1 | 0 | 0 | 0 |
+| API Key Exposure | 🟢 PASS | 0 | 0 | 0 | 0 |
+| Admin Route Protection | 🟢 PASS | 0 | 0 | 1 | 0 |
+| Cloudflare Turnstile | 🟡 WARNING | 0 | 1 | 0 | 0 |
+| **TOTAL** | | **3** | **6** | **7** | **4** |
+
+---
+
+## 🔴 Critical Issues
+
+---
+
+### CRIT-01 — No global handler for unhandled exceptions (500 errors)
+**Status:** 🔴 FAIL  
+**Location:** `app/main.py:164` — only `@app.exception_handler(HTTPException)` is registered  
+**Risk:** When a non-`HTTPException` (e.g., database failure, unexpected `None`, import error) escapes a route, uvicorn returns a raw ASGI 500 response. Depending on the ASGI configuration this can expose Python tracebacks, internal file paths, or module names to the end-user.  
+**Recommended fix:**
+```python
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception) -> HTMLResponse:
+    logging.error("[unhandled] %s %s → %s", request.method, request.url, exc, exc_info=True)
+    return templates.TemplateResponse(request, "error.html",
+        {"status_code": 500, "message": "Something went wrong. Please try again."},
+        status_code=500)
+```
+
+---
+
+### CRIT-02 — SESSION_SECRET not set causes session invalidation on every restart
+**Status:** 🔴 FAIL  
+**Location:** `app/main.py:155`, `app/mfa.py:60`  
+**Risk:** If `SESSION_SECRET` is absent, a random 32-byte key is generated at startup. Every redeploy or container restart logs all users out. Additionally, `app/mfa.py` falls back to `"dev-placeholder-not-for-production"` as the Fernet key derivation base — MFA tokens would be derived from a predictable value.  
+**Recommended fix:** Set `SESSION_SECRET` as a Replit Secret (32+ random characters). The validation in `app/security.py:54–71` already warns if the value is weak or missing — ensure this warning is treated as a hard block in production.
+
+---
+
+### CRIT-03 — No CSRF protection middleware
+**Status:** 🔴 FAIL  
+**Location:** `app/main.py` — no CSRF middleware installed  
+**Risk:** `SameSite=Lax` cookies provide partial mitigation but do not cover all cross-site POST scenarios (e.g., top-level navigation POST, certain redirect chains). State-changing routes (`/documents/upload`, `/share/create`, `/share/{id}/revoke`, `/billing/checkout`, `/logout`) are potentially vulnerable to CSRF from attacker-controlled pages.  
+**Recommended fix:** Install `starlette-csrf` middleware or implement double-submit cookie tokens on all mutating forms. Alternatively, switch to `SameSite=Strict` (which breaks OAuth redirects without additional handling) or add per-form CSRF tokens using `itsdangerous`.
+
+---
+
+## 🟡 High Priority Issues
+
+---
+
+### HIGH-01 — No Content-Security-Policy (CSP) header
+**Status:** 🟡 WARNING  
+**Location:** `app/security.py:483–503` — `SecurityHeadersMiddleware` sets 6 headers but not `Content-Security-Policy`  
+**Risk:** Without CSP, any XSS vulnerability (e.g., stored XSS via document titles or feedback messages) can execute arbitrary JavaScript in users' browsers — including stealing session cookies, redirecting to phishing pages, or exfiltrating credentials.  
+**Recommended fix:** Add a CSP header. A starting baseline for this app:
+```
+Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none';
+```
+Note: The Cloudflare Turnstile widget requires the `challenges.cloudflare.com` allowance. Audit all inline `<script>` blocks for `'unsafe-inline'` exceptions.
+
+---
+
+### HIGH-02 — BETA_MODE=true bypasses all premium and premium-plus checks
+**Status:** 🟡 WARNING  
+**Location:** `app/premium.py:50–51`, `app/premium.py:124, 133`  
+**Risk:** `BETA_MODE=true` is an env var that grants every signed-in user full Premium Plus access for free. If accidentally set in the production environment, no user will ever be charged. There is no production guard preventing it.  
+**Recommended fix:**
+```python
+_BETA_MODE: bool = (
+    os.environ.get("BETA_MODE", "false").lower() == "true"
+    and not is_production()
+)
+```
+Also add a startup warning: `if _BETA_MODE and is_production(): raise RuntimeError("BETA_MODE must not be enabled in production")`
+
+---
+
+### HIGH-03 — STRIPE_WEBHOOK_SECRET not set causes all webhook events to be rejected
+**Status:** 🟡 WARNING  
+**Location:** `app/stripe_billing.py:138–139`  
+**Risk:** `stripe.Webhook.construct_event(payload, sig, "")` raises `SignatureVerificationError` when the secret is an empty string. All subscription lifecycle events (`checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`) silently fail — users who pay won't be upgraded; users who cancel won't be downgraded.  
+**Recommended fix:** Set `STRIPE_WEBHOOK_SECRET` in Replit Secrets. Add a startup validation:
+```python
+if is_production() and not os.environ.get("STRIPE_WEBHOOK_SECRET"):
+    logging.critical("[stripe] STRIPE_WEBHOOK_SECRET is not set — webhooks will fail")
+```
+
+---
+
+### HIGH-04 — Cloudflare Turnstile fails open when secret key is missing
+**Status:** 🟡 WARNING  
+**Location:** `app/security.py` — `verify_turnstile()` returns `True` if `CLOUDFLARE_TURNSTILE_SECRET_KEY` is absent  
+**Risk:** If the Turnstile secret key is not set in production, all bot-protection checks on file uploads and recruiter feedback automatically pass. This was likely a development convenience but becomes a security hole in production.  
+**Recommended fix:** In production mode, if the key is not set, `verify_turnstile` should return `False` (fail closed). The startup warning already exists — escalate it to a hard failure in production:
+```python
+if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
+    raise RuntimeError("Turnstile key required in production")
+```
+
+---
+
+### HIGH-05 — ADMIN_EMAILS not set = admin panel fully locked out in production
+**Status:** 🟡 WARNING  
+**Location:** `app/events.py:55–58`  
+**Risk:** In production, if `ADMIN_EMAILS` is empty or not set, `require_admin` raises HTTP 403 for every admin request. The admin dashboard, analytics, feedback, and testing panels become completely inaccessible. A warning is logged at startup but the app does not fail — leaving an operator unaware that they have no admin access.  
+**Recommended fix:** Set `ADMIN_EMAILS=your@email.com` in Replit Secrets before deploying. Also set `ADMIN_ROUTE` to a secret path (not `/admin`). If neither is set in production, the admin panel is permanently locked.
+
+---
+
+### HIGH-06 — TWILIO_FROM_NUMBER accessed via os.environ[] — raises KeyError if missing
+**Status:** 🟡 WARNING  
+**Location:** `app/services/sms_service.py:107` — `os.environ["TWILIO_FROM_NUMBER"]` (not `.get()`)  
+**Risk:** If `TWILIO_FROM_NUMBER` is not in the environment, any SMS send attempt raises an unhandled `KeyError`, crashing the calling code path (scheduler or immediate alert). The `get_sms_status()` check at line 14 uses `.get()` correctly but the actual send does not — so status shows "ok" but sending crashes.  
+**Recommended fix:** Change to `os.environ.get("TWILIO_FROM_NUMBER", "")` and guard: `if not from_number: return {"ok": False, "error": "TWILIO_FROM_NUMBER not set"}`. Also add to documented required secrets in `replit.md`.
+
+---
+
+## 🟡 Medium Priority Issues
+
+---
+
+### MED-01 — Stripe Price ID env vars not validated at startup
+**Status:** 🟡 WARNING  
+**Location:** `app/stripe_billing.py:77–81`  
+**Risk:** The four `STRIPE_PRICE_*` env vars are only read when a checkout session is created. If any are missing, the Stripe API call fails at the moment a user tries to subscribe — with no pre-launch warning. The user sees a generic error.  
+**Recommended fix:** Add startup validation that logs `WARNING` for each missing price ID env var, similar to the existing OAuth check in `app/security.py:76–79`.
+
+---
+
+### MED-02 — APScheduler runs in-process (duplicate reminders if multi-worker)
+**Status:** 🟡 WARNING  
+**Location:** `app/services/reminder_scheduler.py`  
+**Risk:** `APScheduler`'s `BackgroundScheduler` runs inside the same Python process. If Replit deploys with multiple worker processes (e.g., via gunicorn with multiple workers), every worker spawns its own scheduler, firing reminders N × per day. Replit's current single-process `uvicorn` setup avoids this, but it becomes a problem if the deployment config changes.  
+**Recommended fix:** For the current single-worker deployment, this is acceptable. Document the single-worker requirement. Long-term, consider `APScheduler`'s `SQLAlchemyJobStore` for distributed-safe scheduling or use a dedicated task queue.
+
+---
+
+### MED-03 — RESEND_FROM_EMAIL defaults to unverified domain
+**Status:** 🟡 WARNING  
+**Location:** `app/services/email_service.py:31` — default `"reminders@credanta.com"`  
+**Risk:** Resend requires the sender domain to be verified in the dashboard. If `credanta.com` is not verified with Resend's DNS records, all reminder emails will be rejected/bounced. The app will report success (Resend API call returns 200) but the email never reaches the recipient.  
+**Recommended fix:** Verify `credanta.com` (or your chosen sender domain) in the Resend dashboard and confirm DNS records are live. Set `RESEND_FROM_EMAIL` explicitly in Replit Secrets.
+
+---
+
+### MED-04 — Duplicate Stripe API key assignment in webhook handler
+**Status:** 🟡 WARNING  
+**Location:** `app/main.py:1952` — `_stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")`  
+**Risk:** The webhook handler directly sets `stripe.api_key` inline, duplicating the logic already centralized in `app/stripe_billing.py:_secret_key()`. If the key is sourced from a Replit Connector (the primary path in `stripe_billing.py`), the webhook handler's fallback won't find it via env var, causing webhook subscription-update logic to fail with an authentication error.  
+**Recommended fix:** Replace the inline assignment with `from .stripe_billing import _secret_key; _stripe.api_key = _secret_key()`.
+
+---
+
+### MED-05 — Silent `except Exception: pass` blocks mask production errors
+**Status:** 🟡 WARNING  
+**Location:** `app/db.py:418–419` (`_ensure_sqlite_columns`), `app/admin.py` (multiple), `app/smart_categorize.py` (multiple)  
+**Risk:** A broad `except Exception: pass` block in the DB migration function means any migration failure silently succeeds — tables may be missing without any log entry. Similarly, errors in admin metrics or document parsing are swallowed entirely.  
+**Recommended fix:** Replace bare `pass` with at minimum `logging.error("[context] Migration/parse failed: %s", exc, exc_info=True)`. For the DB migration specifically, consider re-raising after logging.
+
+---
+
+### MED-06 — `AdminAccessLog` table has no admin UI viewer
+**Status:** 🟡 WARNING  
+**Location:** `app/main.py` — no admin route for `/admin/access-logs`  
+**Risk:** The audit log system (built in the previous hardening task) faithfully records every admin access attempt to `admin_access_logs`, but there is no way to view these records without direct DB access. The security value of an audit log is zero if it can't be reviewed.  
+**Recommended fix:** Add a read-only admin page at `{ADMIN_ROUTE}/access-logs` that lists recent entries, filterable by email, success/fail, and date.
+
+---
+
+### MED-07 — No startup validation for required secrets
+**Status:** 🟡 WARNING  
+**Location:** `app/security.py` — `validate_env()` only checks `SESSION_SECRET` and OAuth keys  
+**Risk:** Stripe keys, Resend API key, Twilio credentials, and Turnstile keys are all optional at startup but required for core features. A misconfigured production deployment may appear healthy (`/healthz` returns 200) while reminders, payments, and bot protection are all broken.  
+**Recommended fix:** Extend `validate_env()` to warn (or raise in production) for each missing integration key: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `CLOUDFLARE_TURNSTILE_SECRET_KEY`.
+
+---
+
+## 🟢 Low Priority Issues
+
+---
+
+### LOW-01 — `X-XSS-Protection` header is deprecated in modern browsers
+**Status:** 🟢 PASS (informational)  
+**Location:** `app/security.py:489`  
+**Risk:** This header is ignored by Chrome (removed in v78+), Firefox, and Safari. It only affects legacy IE11. Its presence is harmless but creates a false sense of XSS protection.  
+**Recommended fix:** Remove once CSP (HIGH-01) is implemented; CSP is the proper XSS mitigation.
+
+---
+
+### LOW-02 — Recruiter share links have no default expiration
+**Status:** 🟢 PASS (informational)  
+**Location:** `app/main.py` — `share_create` endpoint, `expires_days` is optional with no default  
+**Risk:** Links created without an expiry date persist forever unless manually revoked. A nurse who forgets to revoke a link after a job search has their credentials accessible indefinitely.  
+**Recommended fix:** Add a sensible default expiration (e.g., 90 days) that users can override. Communicate this clearly in the share link creation UI.
+
+---
+
+### LOW-03 — Email templates are hardcoded f-strings (not Jinja2 templates)
+**Status:** 🟢 PASS (informational)  
+**Location:** `app/services/email_service.py` — all email HTML is embedded as Python f-strings  
+**Risk:** Maintenance burden. Updating email branding, wording, or links requires editing Python source files. No preview possible without sending. No support for different locales.  
+**Recommended fix:** Move email HTML to `app/templates/email/*.html` (Jinja2). Render them with `templates.get_template(...).render(...)`.
+
+---
+
+### LOW-04 — SQLite is single-file and may struggle under concurrent load
+**Status:** 🟢 PASS (acceptable for launch)  
+**Location:** `app/db.py` — SQLite engine  
+**Risk:** SQLite supports limited write concurrency (WAL mode helps but doesn't eliminate write contention). A database corruption under power-loss or crash is recoverable from `app/data/app.db` backups, but there are no automated backups configured.  
+**Recommended fix:** For launch with low traffic, SQLite is acceptable. Plan PostgreSQL migration once user count grows. Enable WAL mode (`PRAGMA journal_mode=WAL`) now for better concurrency.
+
+---
+
+### LOW-05 — Resume enhancer AI path (OpenAI) not tested
+**Status:** 🟢 PASS (informational)  
+**Location:** `app/ai_docs.py`, `app/resume_enhancer.py`  
+**Risk:** The OpenAI integration path exists and is referenced but the primary engine is rule-based. If `OPENAI_API_KEY` is set in production without testing, the AI code path may behave unexpectedly.  
+**Recommended fix:** Either explicitly disable the AI path until tested, or add an integration test. Document clearly which code path is active by default.
+
+---
+
+## Area-by-Area Verdicts
+
+| Area | Verdict | Notes |
+|---|---|---|
+| Authentication | 🟡 WARNING | SESSION_SECRET must be set (CRIT-02) |
+| Authorization | 🟡 WARNING | ADMIN_EMAILS must be set (HIGH-05); BETA_MODE must be off (HIGH-02) |
+| Document Uploads | 🟢 PASS | Excellent layered validation — magic bytes, threat scan, dedup, rate limit |
+| Document Previews | 🟢 PASS | HMAC tokens, auth checks, safe MIME filtering all solid |
+| Expiration Tracking | 🟢 PASS | Dashboard logic correct; 60-day window well-implemented |
+| NIH Custom Rules | 🟢 PASS | State-specific 1yr/2yr rules with fallback date logic implemented |
+| Packet Generation | 🟢 PASS | Zip-slip protected; path traversal protected |
+| Recruiter Share Links | 🟢 PASS | 144-bit entropy tokens; HMAC download tokens; revocation works |
+| Premium Feature Gating | 🟡 WARNING | BETA_MODE bypass (HIGH-02) must be disabled in production |
+| Stripe Integration | 🟡 WARNING | No hardcoded keys ✅; webhook secret must be set (HIGH-03) |
+| Email Reminders | 🟡 WARNING | Resend domain must be verified (MED-03); scheduler is single-process (MED-02) |
+| SMS Reminders | 🟡 WARNING | KeyError on missing TWILIO_FROM_NUMBER (HIGH-06) must be fixed |
+| Account Page | 🟢 PASS | Storage limits, MFA status, subscription all correct |
+| Resume Enhancer | 🟢 PASS | Rule-based engine works; AI path optional |
+| Analytics | 🟢 PASS | Internal event log; no third-party tracking |
+| Mobile Responsiveness | 🟢 PASS | 10 breakpoints from 400px to 1000px; dark mode supported |
+| Security Headers | 🟡 WARNING | Missing CSP (HIGH-01); all other headers present |
+| CSRF Protection | 🔴 FAIL | No CSRF middleware (CRIT-03) |
+| Error Handling | 🔴 FAIL | No global 500 handler (CRIT-01); silent `except: pass` blocks (MED-05) |
+| Session Security | 🔴 FAIL | SESSION_SECRET required (CRIT-02) |
+| API Key Exposure | 🟢 PASS | No hardcoded keys; all from env vars |
+| Admin Route Protection | 🟢 PASS | ADMIN_ROUTE configurable; /admin returns 404; audit log active |
+| Cloudflare Turnstile | 🟡 WARNING | Fails open without secret key (HIGH-04) |
+
+---
+
+*Report generated from static analysis, codebase exploration, and targeted grep scans.*
