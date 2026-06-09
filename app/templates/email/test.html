@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;margin:0;padding:32px 16px;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);">
+    <div style="background:#4f46e5;padding:24px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Credanta</h1>
+      <p style="margin:4px 0 0;color:#c7d2fe;font-size:13px;">Test Reminder</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#111;">Hi {{ first_name }},</p>
+      <p style="margin:0 0 20px;font-size:15px;color:#374151;">
+        This is a <strong>test reminder email</strong> from Credanta. Your email reminders are configured correctly!
+      </p>
+      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">
+        When a credential is approaching its expiration date, you'll receive a message like this with the document name, category, and expiration date.
+      </p>
+      <a href="{{ dashboard_url }}"
+         style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
+        Go to Dashboard &rarr;
+      </a>
+    </div>
+  </div>
+</body>
+</html>

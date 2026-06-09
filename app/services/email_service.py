@@ -3,8 +3,21 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 _LOG = logging.getLogger(__name__)
+
+_EMAIL_DIR = Path(__file__).parent.parent / "templates" / "email"
+_jinja = Environment(
+    loader=FileSystemLoader(str(_EMAIL_DIR)),
+    autoescape=select_autoescape(["html"]),
+)
+
+
+def _render(template_name: str, **ctx) -> str:
+    return _jinja.get_template(template_name).render(**ctx)
 
 
 def _resend_configured() -> bool:
@@ -50,7 +63,8 @@ def send_expiration_email(user, document, days_until_expiration: int) -> dict:
         days_text = f"in {days_until_expiration} days"
         subject = f"Credanta Reminder: {document.title} expires in {days_until_expiration} days"
 
-    html = _build_html(
+    html = _render(
+        "reminder.html",
         first_name=first_name,
         doc_title=document.title,
         doc_category=document.category,
@@ -97,7 +111,8 @@ def send_expired_document_email(user, document) -> dict:
     first_name = (user.name or "").split()[0] if user.name else "there"
     exp_date = document.expires_at.strftime("%B %d, %Y") if document.expires_at else "N/A"
 
-    html = _build_expired_html(
+    html = _render(
+        "expired.html",
         first_name=first_name,
         doc_title=document.title,
         doc_category=document.category,
@@ -140,7 +155,7 @@ def send_test_email(user) -> dict:
     )
     first_name = (user.name or "").split()[0] if user.name else "there"
 
-    html = _build_test_html(first_name=first_name, dashboard_url=f"{app_url}/dashboard")
+    html = _render("test.html", first_name=first_name, dashboard_url=f"{app_url}/dashboard")
 
     try:
         resp = _resend.Emails.send({
@@ -162,120 +177,3 @@ def _app_url() -> str:
         if os.environ.get("REPLIT_DEV_DOMAIN")
         else "https://credanta.com"
     )
-
-
-def _build_expired_html(*, first_name, doc_title, doc_category, exp_date, app_url):
-    return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/></head>
-<body style="font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;margin:0;padding:32px 16px;">
-  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);">
-    <div style="background:#dc2626;padding:24px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Credanta</h1>
-      <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">Credential Expired Alert</p>
-    </div>
-    <div style="padding:28px 32px;">
-      <p style="margin:0 0 16px;font-size:15px;color:#111;">Hi {first_name},</p>
-      <p style="margin:0 0 20px;font-size:15px;color:#374151;">
-        Your document is marked as <strong>expired</strong> in Credanta:
-      </p>
-      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-        <table style="width:100%;border-collapse:collapse;">
-          <tr>
-            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Document</td>
-            <td style="font-size:14px;font-weight:600;color:#111;text-align:right;">{doc_title}</td>
-          </tr>
-          <tr>
-            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Category</td>
-            <td style="font-size:14px;color:#374151;text-align:right;">{doc_category}</td>
-          </tr>
-          <tr>
-            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Expiration Date</td>
-            <td style="font-size:14px;font-weight:600;color:#dc2626;text-align:right;">{exp_date}</td>
-          </tr>
-        </table>
-      </div>
-      <p style="margin:0 0 20px;font-size:14px;color:#374151;">
-        Please review or upload an updated version when available.
-      </p>
-      <a href="{app_url}"
-         style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
-        Open Credanta →
-      </a>
-    </div>
-  </div>
-</body>
-</html>"""
-
-
-def _build_html(*, first_name, doc_title, doc_category, exp_date, days_text, dashboard_url):
-    return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/></head>
-<body style="font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;margin:0;padding:32px 16px;">
-  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);">
-    <div style="background:#4f46e5;padding:24px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Credanta</h1>
-      <p style="margin:4px 0 0;color:#c7d2fe;font-size:13px;">Credential Expiration Reminder</p>
-    </div>
-    <div style="padding:28px 32px;">
-      <p style="margin:0 0 16px;font-size:15px;color:#111;">Hi {first_name},</p>
-      <p style="margin:0 0 20px;font-size:15px;color:#374151;">
-        This is a reminder that your credential <strong>{doc_title}</strong> expires <strong>{days_text}</strong>.
-      </p>
-      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-        <table style="width:100%;border-collapse:collapse;">
-          <tr>
-            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Document</td>
-            <td style="font-size:14px;font-weight:600;color:#111;text-align:right;">{doc_title}</td>
-          </tr>
-          <tr>
-            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Category</td>
-            <td style="font-size:14px;color:#374151;text-align:right;">{doc_category}</td>
-          </tr>
-          <tr>
-            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Expires</td>
-            <td style="font-size:14px;font-weight:600;color:#dc2626;text-align:right;">{exp_date}</td>
-          </tr>
-        </table>
-      </div>
-      <a href="{dashboard_url}"
-         style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
-        View Dashboard →
-      </a>
-      <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;">
-        Please log in to Credanta and upload a renewed version before it expires.<br/>
-        You are receiving this because you enabled expiration reminders.
-      </p>
-    </div>
-  </div>
-</body>
-</html>"""
-
-
-def _build_test_html(*, first_name, dashboard_url):
-    return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"/></head>
-<body style="font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;margin:0;padding:32px 16px;">
-  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);">
-    <div style="background:#4f46e5;padding:24px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Credanta</h1>
-      <p style="margin:4px 0 0;color:#c7d2fe;font-size:13px;">Test Reminder</p>
-    </div>
-    <div style="padding:28px 32px;">
-      <p style="margin:0 0 16px;font-size:15px;color:#111;">Hi {first_name},</p>
-      <p style="margin:0 0 20px;font-size:15px;color:#374151;">
-        This is a <strong>test reminder email</strong> from Credanta. Your email reminders are configured correctly!
-      </p>
-      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">
-        When a credential is approaching its expiration date, you'll receive a message like this with the document name, category, and expiration date.
-      </p>
-      <a href="{dashboard_url}"
-         style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
-        Go to Dashboard →
-      </a>
-    </div>
-  </div>
-</body>
-</html>"""

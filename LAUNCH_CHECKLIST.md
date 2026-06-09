@@ -142,7 +142,7 @@ Address these in the first sprint after launch.
 |---|---|---|
 | ~~A1~~ | ~~Add admin UI for `AdminAccessLog` viewer~~ | ~~MED-06~~ | ✅ Done |
 | ~~A2~~ | ~~Add default 90-day expiry to new share links~~ | ~~LOW-02~~ | ✅ Done |
-| A3 | Move email HTML to Jinja2 templates | LOW-03 |
+| ~~A3~~ | ~~Move email HTML to Jinja2 templates~~ | ~~LOW-03~~ | ✅ Done |
 | A4 | Add Stripe Price ID startup validation warnings | MED-01 |
 | A5 | Remove deprecated `X-XSS-Protection` header once CSP is live | LOW-01 |
 | A6 | Plan PostgreSQL migration path | LOW-04 |

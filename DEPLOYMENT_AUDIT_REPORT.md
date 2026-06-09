@@ -234,10 +234,10 @@ All integration groups now checked at startup:
 ---
 
 ### LOW-03 — Email templates are hardcoded f-strings (not Jinja2 templates)
-**Status:** 🟢 PASS (informational)  
+**Status:** ✅ RESOLVED (`app/services/email_service.py`; `app/templates/email/`)  
 **Location:** `app/services/email_service.py` — all email HTML is embedded as Python f-strings  
 **Risk:** Maintenance burden. Updating email branding, wording, or links requires editing Python source files. No preview possible without sending. No support for different locales.  
-**Recommended fix:** Move email HTML to `app/templates/email/*.html` (Jinja2). Render them with `templates.get_template(...).render(...)`.
+**Resolution:** Three Jinja2 templates created at `app/templates/email/reminder.html`, `expired.html`, and `test.html`. A dedicated `jinja2.Environment` with `FileSystemLoader` renders them via a `_render(template_name, **ctx)` helper. The three `_build_*` f-string functions have been removed.
 
 ---
 

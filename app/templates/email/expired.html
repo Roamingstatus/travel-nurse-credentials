@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;margin:0;padding:32px 16px;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);">
+    <div style="background:#dc2626;padding:24px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">Credanta</h1>
+      <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">Credential Expired Alert</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#111;">Hi {{ first_name }},</p>
+      <p style="margin:0 0 20px;font-size:15px;color:#374151;">
+        Your document is marked as <strong>expired</strong> in Credanta:
+      </p>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Document</td>
+            <td style="font-size:14px;font-weight:600;color:#111;text-align:right;">{{ doc_title }}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Category</td>
+            <td style="font-size:14px;color:#374151;text-align:right;">{{ doc_category }}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:4px 0;">Expiration Date</td>
+            <td style="font-size:14px;font-weight:600;color:#dc2626;text-align:right;">{{ exp_date }}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="margin:0 0 20px;font-size:14px;color:#374151;">
+        Please review or upload an updated version when available.
+      </p>
+      <a href="{{ app_url }}"
+         style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
+        Open Credanta &rarr;
+      </a>
+    </div>
+  </div>
+</body>
+</html>
