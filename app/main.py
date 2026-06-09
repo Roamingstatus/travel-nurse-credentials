@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import secrets
 import time
@@ -109,6 +110,8 @@ from .mfa import (
     consume_recovery_code,
 )
 
+logger = logging.getLogger(__name__)
+
 AUTO_CATEGORY = "__auto__"
 
 BASE_DIR = Path(__file__).parent
@@ -200,11 +203,11 @@ class CsrfMiddleware(BaseHTTPMiddleware):
                 try:
                     form = await request.form()
                     submitted = form.get("_csrf", "")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("[csrf] Failed to read form body: %s", exc)
 
         if not verify_csrf_token(submitted, request.session):
-            logging.warning("[csrf] token mismatch — %s %s", request.method, path)
+            logger.warning("[csrf] token mismatch — %s %s", request.method, path)
             raise HTTPException(
                 403,
                 "Your session has expired or the request was invalid. "
@@ -759,8 +762,8 @@ async def upload_submit(
     try:
         from .services.immediate_alerts import check_and_send_immediate_expired_alert
         check_and_send_immediate_expired_alert(user, doc, db)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("[upload] Immediate alert check failed: %s", exc)
     request.session["flash"] = f"Saved \"{doc.title}\"."
     return RedirectResponse("/documents", status_code=302)
 
@@ -835,8 +838,8 @@ def edit_document_submit(
     try:
         from .services.immediate_alerts import check_and_send_immediate_expired_alert
         check_and_send_immediate_expired_alert(user, doc, db)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("[edit_doc] Immediate alert check failed: %s", exc)
     request.session["flash"] = "Document updated."
     return RedirectResponse("/documents", status_code=302)
 
@@ -1070,8 +1073,8 @@ async def recruiter_feedback_opened(request: Request, db: Session = Depends(get_
         sl = db.query(ShareLink).filter_by(token=share_token).first() if share_token else None
         log_event("recruiter_feedback_opened", user_id=sl.user_id if sl else None,
                   meta={"share_token_id": sl.id if sl else None}, db=db)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("[recruiter_feedback_opened] Event log failed: %s", exc)
     return JSONResponse({"ok": True})
 
 
@@ -1167,8 +1170,8 @@ def admin_recruiter_feedback(request: Request, db: Session = Depends(get_session
         try:
             for d in _json.loads(r.required_documents or "[]"):
                 doc_counts[d] = doc_counts.get(d, 0) + 1
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[admin/recruiter-feedback] JSON parse error for row %s: %s", r.id, exc)
 
     top_docs  = sorted(doc_counts.items(), key=lambda x: x[1], reverse=True)[:15]
     top_roles = sorted(role_counts.items(), key=lambda x: x[1], reverse=True)
@@ -1544,7 +1547,8 @@ async def resume_enhance_post(
         try:
             from .smart_categorize import _extract_text as _smart_extract
             extracted_text = _smart_extract(raw, mime, fname)
-        except Exception:
+        except Exception as exc:
+            logger.warning("[resume_enhance] Text extraction failed for %r: %s", fname, exc)
             extracted_text = ""
     else:
         extracted_text = ""
@@ -1561,8 +1565,7 @@ async def resume_enhance_post(
             from .resume_rewriter import rewrite_resume
             versions = rewrite_resume(extracted_text, target_role)
         except Exception as _exc:
-            import logging
-            logging.getLogger(__name__).warning(f"[ResumeRewriter] failed: {_exc}")
+            logger.warning("[ResumeRewriter] failed: %s", _exc)
 
     log_event("resume_analyzed", user_id=user.id,
               meta={"target_role": target_role, "tone": tone,
@@ -1748,7 +1751,8 @@ async def mfa_confirm(
     user = require_user(request)
     try:
         raw_secret = _mfa_signer().loads(totp_secret)
-    except Exception:
+    except Exception as exc:
+        logger.warning("[mfa_setup_confirm] Signer decode failed: %s", exc)
         request.session["flash"] = "Setup session expired. Please start again."
         return RedirectResponse("/security/mfa/setup", status_code=302)
 

@@ -468,8 +468,8 @@ def _ensure_sqlite_columns() -> None:
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_email ON admin_access_logs (email)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_created_at ON admin_access_logs (created_at)"))
 
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.error("[db] Schema migration step failed — some columns or tables may be missing: %s", exc, exc_info=True)
 
 
 def get_session():

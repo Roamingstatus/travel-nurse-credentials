@@ -1,9 +1,12 @@
 import io
+import logging
 import zipfile
 from datetime import datetime
 
 from .db import Document, User
 from .storage import file_path
+
+logger = logging.getLogger(__name__)
 
 
 def _safe(name: str) -> str:
@@ -34,7 +37,8 @@ def build_zip(user: User, documents: list[Document]) -> bytes:
                     folder = _safe(d.category)
                     fname = f"{_safe(d.title)}__{_safe(d.original_filename)}"
                     zf.writestr(f"{folder}/{fname}", src.read_bytes())
-            except Exception:
+            except Exception as exc:
+                logger.warning("[packet] Skipping %r — failed to read file: %s", d.stored_filename, exc)
                 continue
 
         zf.writestr("MANIFEST.txt", "\n".join(manifest_lines))

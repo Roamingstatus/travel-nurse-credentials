@@ -190,10 +190,9 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 ---
 
 ### MED-05 — Silent `except Exception: pass` blocks mask production errors
-**Status:** 🟡 WARNING  
-**Location:** `app/db.py:418–419` (`_ensure_sqlite_columns`), `app/admin.py` (multiple), `app/smart_categorize.py` (multiple)  
-**Risk:** A broad `except Exception: pass` block in the DB migration function means any migration failure silently succeeds — tables may be missing without any log entry. Similarly, errors in admin metrics or document parsing are swallowed entirely.  
-**Recommended fix:** Replace bare `pass` with at minimum `logging.error("[context] Migration/parse failed: %s", exc, exc_info=True)`. For the DB migration specifically, consider re-raising after logging.
+**Status:** ✅ RESOLVED  
+**Location:** `app/db.py` (`_ensure_sqlite_columns`), `app/main.py` (CSRF, upload/edit alert, recruiter event, resume text extraction, MFA signer), `app/stripe_billing.py`, `app/packet.py`, `app/resume_enhancer.py`  
+**Resolution:** Added `import logging` + module-level `logger = logging.getLogger(__name__)` to every file that lacked one (`main.py`, `stripe_billing.py`, `packet.py`). All meaningful bare `except Exception: pass` blocks now capture the exception as `exc` and emit an appropriately-levelled log call — `logger.error(..., exc_info=True)` for the critical DB migration path, `logger.warning(...)` for operational failures (alert send, text extraction, packet file read, Stripe credential fetch, MFA signer), and `logger.debug(...)` for fire-and-forget event logging and CSRF form parse. Trivial fallbacks in ORM model methods (JSON field deserialisers returning `[]`/`{}`) and nested rollback cleanup were left silent intentionally — they already return safe values and logging every bad JSON row would produce noise with no actionable signal.
 
 ---
 
@@ -298,7 +297,7 @@ Note: SQLite WAL mode is persistent in the database file after the first connect
 | Mobile Responsiveness | 🟢 PASS | 10 breakpoints from 400px to 1000px; dark mode supported |
 | Security Headers | 🟢 PASS | Full CSP live (HIGH-01 ✅); X-XSS-Protection removed (LOW-01 ✅) |
 | CSRF Protection | 🔴 FAIL | No CSRF middleware (CRIT-03) |
-| Error Handling | 🔴 FAIL | No global 500 handler (CRIT-01); silent `except: pass` blocks (MED-05) |
+| Error Handling | 🟡 WARN | No global 500 handler (CRIT-01); silent `except: pass` blocks resolved (MED-05 ✅) |
 | Session Security | 🔴 FAIL | SESSION_SECRET required (CRIT-02) |
 | API Key Exposure | 🟢 PASS | No hardcoded keys; all from env vars |
 | Admin Route Protection | 🟢 PASS | ADMIN_ROUTE configurable; /admin returns 404; audit log active |

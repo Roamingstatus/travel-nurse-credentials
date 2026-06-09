@@ -1,9 +1,12 @@
 import json
+import logging
 import os
 import urllib.parse
 import urllib.request
 
 import stripe
+
+logger = logging.getLogger(__name__)
 
 
 def _fetch_connector_credentials() -> dict | None:
@@ -49,7 +52,8 @@ def _fetch_connector_credentials() -> dict | None:
                 "secret_key": key,
                 "publishable_key": settings.get("publishable"),
             }
-        except Exception:
+        except Exception as exc:
+            logger.warning("[stripe_billing] Failed to fetch connector credentials: %s", exc)
             return None
 
     result = _query(target_env)

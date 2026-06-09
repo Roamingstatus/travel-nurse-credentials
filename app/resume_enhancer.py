@@ -140,7 +140,8 @@ def _extract_text_from_bytes(raw: bytes, mime_type: str, filename: str) -> str:
     try:
         from .smart_categorize import _extract_text
         return _extract_text(raw, mime_type, filename)
-    except Exception:
+    except Exception as exc:
+        logger.warning("[resume_enhancer] Text extraction failed for %r: %s", filename, exc)
         return ""
 
 

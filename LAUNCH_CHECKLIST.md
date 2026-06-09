@@ -130,7 +130,7 @@ These are not launch blockers but meaningfully reduce risk.
 | P2 | ~~Add CSRF protection~~ | CRIT-03 | ✅ Done |
 | P3 | ~~Add startup validation for all integration env vars~~ | MED-07 | ✅ Done |
 | P4 | ~~Enable SQLite WAL mode~~ | LOW-04 | ✅ Done — WAL + synchronous=NORMAL + foreign_keys=ON on every connection |
-| P5 | Replace `except Exception: pass` blocks with logging | MED-05 |
+| P5 | ~~Replace `except Exception: pass` blocks with logging~~ | MED-05 | ✅ Done — all meaningful silent blocks now log at warning/error/debug; trivial JSON fallbacks left intentionally silent |
 
 ---
 
