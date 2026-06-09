@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -11,10 +12,13 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    event,
     inspect,
     text,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+
+_log = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -25,6 +29,28 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     future=True,
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, _connection_record):
+    """Apply per-connection SQLite settings.
+
+    WAL mode:       Allows concurrent readers during a write — no more
+                    "database is locked" errors when the scheduler and a
+                    web request hit the DB at the same time.
+    synchronous=NORMAL: Safe with WAL (the WAL file ensures durability at
+                    checkpoint time) and meaningfully faster than FULL.
+    foreign_keys:   SQLite ignores FK constraints unless this is set per
+                    connection; enabling it catches referential errors that
+                    the ORM cascade rules might otherwise mask.
+    """
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 Base = declarative_base()
 
@@ -223,6 +249,24 @@ class AdminAccessLog(Base):
 def init_db() -> None:
     Base.metadata.create_all(engine)
     _ensure_sqlite_columns()
+    _verify_wal_mode()
+
+
+def _verify_wal_mode() -> None:
+    """Log the active journal mode so WAL activation is visible at startup."""
+    try:
+        with engine.connect() as conn:
+            mode = conn.execute(text("PRAGMA journal_mode")).scalar()
+            sync = conn.execute(text("PRAGMA synchronous")).scalar()
+            _log.warning("[db] SQLite journal_mode=%s synchronous=%s foreign_keys=ON", mode, sync)
+            if mode != "wal":
+                _log.warning(
+                    "[db] journal_mode is %r — expected 'wal'. "
+                    "WAL mode may not have been applied correctly.",
+                    mode,
+                )
+    except Exception as exc:
+        _log.warning("[db] Could not verify WAL mode: %s", exc)
 
 
 def _ensure_sqlite_columns() -> None:

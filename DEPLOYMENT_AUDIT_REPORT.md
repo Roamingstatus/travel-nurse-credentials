@@ -242,10 +242,19 @@ All integration groups now checked at startup:
 ---
 
 ### LOW-04 — SQLite is single-file and may struggle under concurrent load
-**Status:** 🟢 PASS (acceptable for launch)  
-**Location:** `app/db.py` — SQLite engine  
-**Risk:** SQLite supports limited write concurrency (WAL mode helps but doesn't eliminate write contention). A database corruption under power-loss or crash is recoverable from `app/data/app.db` backups, but there are no automated backups configured.  
-**Recommended fix:** For launch with low traffic, SQLite is acceptable. Plan PostgreSQL migration once user count grows. Enable WAL mode (`PRAGMA journal_mode=WAL`) now for better concurrency.
+**Status:** ✅ RESOLVED (`app/db.py` — WAL mode + related pragmas enabled)
+
+A SQLAlchemy `@event.listens_for(engine, "connect")` listener now runs three `PRAGMA` statements on every new connection:
+
+| PRAGMA | Value | Reason |
+|---|---|---|
+| `journal_mode` | `WAL` | Concurrent readers during writes; no more "database is locked" errors under scheduler + web request overlap |
+| `synchronous` | `NORMAL` | Safe durability with WAL (checkpoint guarantees it); meaningfully faster than the default `FULL` |
+| `foreign_keys` | `ON` | SQLite ignores FK constraints unless set per-connection; enables referential integrity enforcement |
+
+`_verify_wal_mode()` called from `init_db()` logs `journal_mode` and `synchronous` at startup and warns if WAL is not active.
+
+Note: SQLite WAL mode is persistent in the database file after the first connection sets it, so subsequent connections inherit it even without the pragma. The per-connection pragma is belt-and-suspenders.
 
 ---
 
