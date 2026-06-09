@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Security Events · Admin · Credanta{% endblock %}
+{% block content %}
+
+<style>
+.sev-critical { background:#fee2e2; color:#991b1b; font-weight:700; border-radius:4px; padding:1px 6px; font-size:.78rem; text-transform:uppercase; }
+.sev-high     { background:#ffedd5; color:#9a3412; font-weight:700; border-radius:4px; padding:1px 6px; font-size:.78rem; text-transform:uppercase; }
+.sev-medium   { background:#fef9c3; color:#713f12; font-weight:700; border-radius:4px; padding:1px 6px; font-size:.78rem; text-transform:uppercase; }
+.sev-low      { background:#e0f2fe; color:#075985; font-weight:600; border-radius:4px; padding:1px 6px; font-size:.78rem; text-transform:uppercase; }
+.sev-resolved { background:#f1f5f9; color:#64748b; border-radius:4px; padding:1px 6px; font-size:.78rem; text-transform:uppercase; }
+.se-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+.se-table th { text-align:left; padding:6px 8px; background:var(--bg-alt,#f8f9fa); border-bottom:2px solid var(--border,#e2e8f0); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted,#6b7280); }
+.se-table td { padding:6px 8px; border-bottom:1px solid var(--border,#e2e8f0); vertical-align:top; }
+.se-table tr:hover td { background:var(--bg-hover,#f8fafc); }
+.se-meta { font-family:monospace; font-size:.72rem; color:var(--text-muted,#6b7280); max-width:220px; word-break:break-all; }
+.se-filter-row { display:flex; flex-wrap:wrap; gap:.5rem; align-items:flex-end; margin-bottom:1rem; }
+.se-filter-row label { font-size:.8rem; color:var(--text-muted,#6b7280); display:flex; flex-direction:column; gap:2px; }
+.se-filter-row select, .se-filter-row input[type=number] { font-size:.82rem; padding:4px 8px; border:1px solid var(--border,#ccc); border-radius:4px; background:var(--bg,#fff); }
+.se-badge { display:inline-block; border-radius:4px; padding:1px 7px; font-size:.72rem; font-weight:600; }
+.admin-card--critical { border-left:4px solid #ef4444; }
+.admin-card--high     { border-left:4px solid #f97316; }
+.admin-card--medium   { border-left:4px solid #eab308; }
+</style>
+
+<div class="admin-header">
+  <div>
+    <h1 class="admin-title">Security Events</h1>
+    <p class="admin-sub">Internal dashboard · {{ now }}</p>
+  </div>
+  <div class="admin-nav-links">
+    <a href="{{ admin_route }}" class="admin-nav-link">Overview</a>
+    <a href="{{ admin_route }}/analytics" class="admin-nav-link">Product Usage</a>
+    <a href="{{ admin_route }}/feedback" class="admin-nav-link">Feedback</a>
+    <a href="{{ admin_route }}/recruiter-feedback" class="admin-nav-link">Recruiter Feedback</a>
+    <a href="{{ admin_route }}/testing" class="admin-nav-link">Testing</a>
+    <a href="{{ admin_route }}/access-logs" class="admin-nav-link">Access Logs</a>
+    <a href="{{ admin_route }}/security-events" class="admin-nav-link admin-nav-link--active">Security Events</a>
+  </div>
+</div>
+
+<!-- ── Summary cards ──────────────────────────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Summary (all time)</h2>
+  <div class="admin-cards">
+    <div class="admin-card admin-card--critical">
+      <div class="admin-card-value">{{ total_critical }}</div>
+      <div class="admin-card-label">Critical Events</div>
+    </div>
+    <div class="admin-card admin-card--high">
+      <div class="admin-card-value">{{ total_high }}</div>
+      <div class="admin-card-label">High Severity</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ admin_attempts }}</div>
+      <div class="admin-card-label">Admin Attempts</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ unauth_data }}</div>
+      <div class="admin-card-label">Unauthorized Data Access</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ invalid_tokens }}</div>
+      <div class="admin-card-label">Invalid Share Tokens</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ turnstile_fails }}</div>
+      <div class="admin-card-label">Failed Turnstile Checks</div>
+    </div>
+    <div class="admin-card">
+      <div class="admin-card-value">{{ server_errors }}</div>
+      <div class="admin-card-label">Server Errors (500)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Filters ────────────────────────────────────────────────────────── -->
+<section class="admin-section">
+  <form method="get" action="{{ admin_route }}/security-events" class="se-filter-row">
+    <label>
+      Severity
+      <select name="severity">
+        <option value="">All</option>
+        {% for s in severities %}
+        <option value="{{ s }}" {% if filter_severity == s %}selected{% endif %}>{{ s|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Event Type
+      <select name="event_type">
+        <option value="">All</option>
+        {% for et in event_types %}
+        <option value="{{ et }}" {% if filter_event_type == et %}selected{% endif %}>{{ et }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Days
+      <select name="days">
+        <option value="7"  {% if filter_days == 7  %}selected{% endif %}>Last 7 days</option>
+        <option value="30" {% if filter_days == 30 %}selected{% endif %}>Last 30 days</option>
+        <option value="90" {% if filter_days == 90 %}selected{% endif %}>Last 90 days</option>
+        <option value="0"  {% if filter_days == 0  %}selected{% endif %}>All time</option>
+      </select>
+    </label>
+    <label style="flex-direction:row;align-items:center;gap:6px;font-size:.82rem;">
+      <input type="checkbox" name="unresolved" value="1" {% if filter_unresolved %}checked{% endif %}> Unresolved only
+    </label>
+    <button type="submit" class="btn small">Filter</button>
+    <a href="{{ admin_route }}/security-events" class="btn small ghost">Clear</a>
+    <a href="{{ admin_route }}/security-events/export.csv" class="btn small ghost" style="margin-left:auto">Export CSV</a>
+  </form>
+</section>
+
+<!-- ── Events table ───────────────────────────────────────────────────── -->
+<section class="admin-section">
+  <h2 class="admin-section-title">Events (showing {{ events|length }}{% if events|length == 500 %} — limit reached{% endif %})</h2>
+  {% if events %}
+  <div style="overflow-x:auto">
+  <table class="se-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Severity</th>
+        <th>Event Type</th>
+        <th>Email / User</th>
+        <th>IP Address</th>
+        <th>Route</th>
+        <th>Method</th>
+        <th>Details</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in events %}
+      {% set ev = row.ev %}
+      <tr>
+        <td style="white-space:nowrap;font-size:.75rem">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') if ev.created_at else '—' }}</td>
+        <td>
+          {% if ev.resolved %}
+            <span class="sev-resolved">resolved</span>
+          {% elif ev.severity == 'critical' %}
+            <span class="sev-critical">critical</span>
+          {% elif ev.severity == 'high' %}
+            <span class="sev-high">high</span>
+          {% elif ev.severity == 'medium' %}
+            <span class="sev-medium">medium</span>
+          {% else %}
+            <span class="sev-low">low</span>
+          {% endif %}
+        </td>
+        <td style="white-space:nowrap;font-family:monospace;font-size:.78rem">{{ ev.event_type }}</td>
+        <td style="font-size:.78rem">{{ ev.email or (ev.user_id|string if ev.user_id else '—') }}</td>
+        <td style="font-family:monospace;font-size:.76rem;white-space:nowrap">{{ ev.ip_address or '—' }}</td>
+        <td style="font-family:monospace;font-size:.74rem;max-width:160px;word-break:break-all">{{ ev.route or '—' }}</td>
+        <td style="font-size:.76rem">{{ ev.method or '—' }}</td>
+        <td class="se-meta">
+          {% if row.meta %}
+            {% for k, v in row.meta.items() %}
+              <span style="color:var(--text-muted)">{{ k }}:</span> {{ v }}<br>
+            {% endfor %}
+          {% else %}—{% endif %}
+        </td>
+        <td style="font-size:.76rem">{{ 'Resolved' if ev.resolved else 'Open' }}</td>
+        <td>
+          {% if not ev.resolved %}
+          <form method="post" action="{{ admin_route }}/security-events/{{ ev.id }}/resolve" style="margin:0">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button type="submit" class="btn small ghost" style="font-size:.72rem;padding:2px 8px">Resolve</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p style="color:var(--text-muted);font-size:.9rem;padding:.5rem 0">No security events match the current filters.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

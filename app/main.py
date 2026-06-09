@@ -22,7 +22,7 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -45,12 +45,21 @@ from .dashboard import days_until, status_for, summarize, ui_status_label
 from .services.email_service import get_email_status, send_test_email
 from .services.sms_service import get_sms_status, send_test_sms
 from .services.reminder_scheduler import start_scheduler, stop_scheduler
+from .services.security_monitor import (
+    log_security_event,
+    record_admin_probe,
+    record_login_failure,
+    record_share_token_invalid,
+    record_upload_rejected,
+    record_server_error,
+)
 from .db import (
     ChecklistResult,
     Document,
     Event,
     ReminderLog,
     ReminderSettings,
+    SecurityEvent,
     SessionLocal,
     ShareLink,
     User,
@@ -157,6 +166,55 @@ class EnforceMFAMiddleware(BaseHTTPMiddleware):
 _is_production = is_production()
 
 # ---------------------------------------------------------------------------
+# Admin probe middleware
+# ---------------------------------------------------------------------------
+
+_PROBE_PATHS: tuple[str, ...] = (
+    "/administrator",
+    "/wp-admin",
+    "/phpmyadmin",
+    "/cpanel",
+    "/server-status",
+    "/.env",
+    "/config",
+    "/backup",
+)
+
+
+def _is_probe_path(path: str) -> bool:
+    """Return True if *path* looks like a common web-scanner probe target."""
+    for prefix in _PROBE_PATHS:
+        if path == prefix or path.startswith(prefix + "/") or path.startswith(prefix + "?"):
+            return True
+    # Treat bare /admin as a probe unless ADMIN_ROUTE itself is /admin
+    real = ADMIN_ROUTE.rstrip("/").lower()
+    if real not in ("/admin", "/admin-dev"):
+        if path == "/admin" or path.startswith("/admin/") or path.startswith("/admin?"):
+            return True
+    return False
+
+
+class AdminProbeMiddleware(BaseHTTPMiddleware):
+    """Intercept common web-scanner probe targets, log them, and return 404."""
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if _is_probe_path(path):
+            try:
+                is_burst = record_admin_probe(request)
+                log_security_event(
+                    "admin_probe_detected",
+                    "critical" if is_burst else "medium",
+                    request,
+                    metadata={"path": path[:200], "burst": is_burst},
+                )
+            except Exception:
+                pass
+            return Response(status_code=404)
+        return await call_next(request)
+
+
+# ---------------------------------------------------------------------------
 # CSRF middleware
 # ---------------------------------------------------------------------------
 
@@ -218,6 +276,7 @@ class CsrfMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+app.add_middleware(AdminProbeMiddleware)
 app.add_middleware(EnforceMFAMiddleware)
 app.add_middleware(CsrfMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -258,6 +317,17 @@ async def generic_exception_handler(request: Request, exc: Exception) -> HTMLRes
         exc,
         exc_info=True,
     )
+    try:
+        _route = str(request.url.path)
+        _is_pattern = record_server_error(_route)
+        log_security_event(
+            "server_error",
+            "high" if _is_pattern else "medium",
+            request,
+            metadata={"error_id": error_id, "exc_type": type(exc).__name__, "pattern": _is_pattern},
+        )
+    except Exception:
+        pass
     is_logged_in = bool(request.session.get("user_id"))
     html = templates.TemplateResponse(
         "500.html",
@@ -419,6 +489,13 @@ def _admin_gate(request: Request, user, db: Session, route: str) -> None:
         _log_admin_access(db, user, route, request, success=True)
     except HTTPException:
         _log_admin_access(db, user, route, request, success=False)
+        try:
+            log_security_event(
+                "admin_access_denied", "medium", request, user,
+                metadata={"route": route},
+            )
+        except Exception:
+            pass
         raise
 
 
@@ -473,6 +550,16 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
     except Exception as e:
         import logging
         logging.warning(f"[OAuth] callback error: {e}")
+        try:
+            _is_brute = record_login_failure(request)
+            log_security_event(
+                "login_bruteforce_suspected" if _is_brute else "login_failure",
+                "high" if _is_brute else "low",
+                request,
+                metadata={"reason": "oauth_callback_error"},
+            )
+        except Exception:
+            pass
         request.session["flash"] = f"Google sign-in failed: {e}"
         return RedirectResponse("/login", status_code=302)
     info = token.get("userinfo") or {}
@@ -673,6 +760,7 @@ async def upload_submit(
         ip = (request.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip() or (request.client.host if request.client else "")
         if not verify_turnstile(cf_turnstile_response, ip):
             log_event("upload_blocked_turnstile", user_id=user.id, ok=False, db=db)
+            log_security_event("turnstile_failed", "medium", request, user, {"context": "upload"})
             request.session["flash"] = "Bot-protection check failed — please try again."
             return RedirectResponse("/documents/upload", status_code=302)
     raw = await file.read()
@@ -699,6 +787,15 @@ async def upload_submit(
     try:
         effective_mime = validate_upload(raw, fname, file.content_type)
     except HTTPException as exc:
+        try:
+            log_security_event(
+                "upload_rejected", "low", request, user,
+                metadata={"reason": str(exc.detail)[:200], "filename": fname[:100]},
+            )
+            if record_upload_rejected(request, user_id=user.id):
+                log_security_event("upload_abuse_detected", "high", request, user)
+        except Exception:
+            pass
         request.session["flash"] = exc.detail
         return RedirectResponse("/documents/upload", status_code=302)
     title_clean = title.strip()
@@ -808,6 +905,7 @@ def edit_document_form(doc_id: int, request: Request, db: Session = Depends(get_
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "edit"}, db=db)
+        log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "edit"})
         raise HTTPException(404)
     return render(request, "edit_document.html", doc=doc, categories=CREDENTIAL_CATEGORIES, us_states=US_STATES)
 
@@ -828,6 +926,7 @@ def edit_document_submit(
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "edit_post"}, db=db)
+        log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "edit_post"})
         raise HTTPException(404)
     doc.title = title.strip() or doc.title
     doc.category = category if category in CREDENTIAL_CATEGORIES else doc.category
@@ -854,6 +953,7 @@ def delete_document(doc_id: int, request: Request, db: Session = Depends(get_ses
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "delete"}, db=db)
+        log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "delete"})
         raise HTTPException(404)
     delete_file(user.id, doc.stored_filename)
     db.delete(doc)
@@ -869,6 +969,7 @@ def view_document(doc_id: int, request: Request, db: Session = Depends(get_sessi
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "view"}, db=db)
+        log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "view"})
         raise HTTPException(404)
     p = file_path(user.id, doc.stored_filename)
     if not p.exists():
@@ -893,6 +994,7 @@ def download_document(doc_id: int, request: Request, db: Session = Depends(get_s
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "download"}, db=db)
+        log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "download"})
         raise HTTPException(404)
     p = file_path(user.id, doc.stored_filename)
     if not p.exists():
@@ -1028,16 +1130,33 @@ def share_revoke(link_id: int, request: Request, db: Session = Depends(get_sessi
     return RedirectResponse("/share", status_code=302)
 
 
-def _resolve_share(token: str, db: Session) -> tuple[ShareLink, User]:
+def _resolve_share(token: str, db: Session, request: Request | None = None) -> tuple[ShareLink, User]:
     link = db.query(ShareLink).filter_by(token=token).one_or_none()
     if not link or link.revoked_at is not None:
+        if request is not None:
+            _log_share_invalid(request, token)
         raise HTTPException(404, "This share link is no longer active.")
     if link.expires_at is not None and link.expires_at < datetime.utcnow():
+        if request is not None:
+            _log_share_invalid(request, token)
         raise HTTPException(404, "This share link has expired.")
     user = db.get(User, link.user_id)
     if not user:
         raise HTTPException(404)
     return link, user
+
+
+def _log_share_invalid(request: Request, token: str) -> None:
+    try:
+        is_abuse = record_share_token_invalid(request)
+        log_security_event(
+            "share_token_abuse" if is_abuse else "share_token_invalid",
+            "high" if is_abuse else "low",
+            request,
+            metadata={"token_prefix": (token[:8] + "…") if len(token) > 8 else token},
+        )
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -1108,6 +1227,10 @@ async def recruiter_feedback_submit(request: Request, db: Session = Depends(get_
 
     ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "")
     if not verify_turnstile(cf_token, ip):
+        try:
+            log_security_event("turnstile_failed", "medium", request, metadata={"context": "recruiter_feedback"})
+        except Exception:
+            pass
         raise HTTPException(403, "Bot protection check failed")
 
     link_id: int | None = None
@@ -1231,7 +1354,7 @@ def admin_recruiter_feedback_csv(request: Request, db: Session = Depends(get_ses
 @app.get("/s/{token}", response_class=HTMLResponse)
 def share_view(token: str, request: Request, db: Session = Depends(get_session)):
     share_limiter.check(request)
-    link, owner = _resolve_share(token, db)
+    link, owner = _resolve_share(token, db, request)
     docs = db.query(Document).filter_by(user_id=owner.id).order_by(Document.category.asc(), Document.title.asc()).all()
     summary = summarize(docs)
     dl_tokens = {d.id: make_download_token(d.id, token) for d in docs}
@@ -1253,7 +1376,7 @@ def share_view(token: str, request: Request, db: Session = Depends(get_session))
 @app.get("/s/{token}/download/{doc_id}")
 def share_download(token: str, doc_id: int, request: Request, dl: str = "", db: Session = Depends(get_session)):
     preview_limiter.check(request)
-    link, owner = _resolve_share(token, db)
+    link, owner = _resolve_share(token, db, request)
     if dl and not verify_download_token(dl, doc_id, token):
         log_event("share_download_denied", user_id=owner.id, ok=False,
                   meta={"doc_id": doc_id, "reason": "invalid_dl_token"}, db=db)
@@ -1279,8 +1402,8 @@ def share_download(token: str, doc_id: int, request: Request, dl: str = "", db: 
 
 
 @app.get("/s/{token}/packet")
-def share_packet(token: str, db: Session = Depends(get_session)):
-    link, owner = _resolve_share(token, db)
+def share_packet(token: str, request: Request, db: Session = Depends(get_session)):
+    link, owner = _resolve_share(token, db, request)
     docs = db.query(Document).filter_by(user_id=owner.id).all()
     if not docs:
         raise HTTPException(404, "No documents to package.")
@@ -1294,8 +1417,8 @@ def share_packet(token: str, db: Session = Depends(get_session)):
 
 
 @app.get("/s/{token}/packet/pdf")
-def share_packet_pdf(token: str, db: Session = Depends(get_session)):
-    link, owner = _resolve_share(token, db)
+def share_packet_pdf(token: str, request: Request, db: Session = Depends(get_session)):
+    link, owner = _resolve_share(token, db, request)
     docs = db.query(Document).filter_by(user_id=owner.id).order_by(Document.category.asc(), Document.title.asc()).all()
     if not docs:
         raise HTTPException(404, "No documents to package.")
@@ -2191,6 +2314,123 @@ def admin_access_logs(
         sel_email=email,
         sel_result=result,
         sel_range=range_days,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin — Security Events
+# ---------------------------------------------------------------------------
+
+@app.get(f"{ADMIN_ROUTE}/security-events", response_class=HTMLResponse)
+def admin_security_events(
+    request: Request,
+    severity: str = "",
+    event_type: str = "",
+    days: int = 30,
+    unresolved: str = "",
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    _admin_gate(request, user, db, "security-events")
+
+    q = db.query(SecurityEvent).order_by(SecurityEvent.created_at.desc())
+    if severity:
+        q = q.filter(SecurityEvent.severity == severity)
+    if event_type:
+        q = q.filter(SecurityEvent.event_type == event_type)
+    if days and days > 0:
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        q = q.filter(SecurityEvent.created_at >= cutoff)
+    if unresolved:
+        q = q.filter(SecurityEvent.resolved == False)  # noqa: E712
+
+    events = q.limit(500).all()
+
+    total_critical  = db.query(func.count(SecurityEvent.id)).filter(SecurityEvent.severity == "critical").scalar() or 0
+    total_high      = db.query(func.count(SecurityEvent.id)).filter(SecurityEvent.severity == "high").scalar() or 0
+    admin_attempts  = db.query(func.count(SecurityEvent.id)).filter(
+        SecurityEvent.event_type.in_(["admin_access_denied", "admin_probe_detected"])
+    ).scalar() or 0
+    unauth_data     = db.query(func.count(SecurityEvent.id)).filter(SecurityEvent.event_type == "unauthorized_data_access").scalar() or 0
+    invalid_tokens  = db.query(func.count(SecurityEvent.id)).filter(
+        SecurityEvent.event_type.in_(["share_token_invalid", "share_token_abuse"])
+    ).scalar() or 0
+    turnstile_fails = db.query(func.count(SecurityEvent.id)).filter(SecurityEvent.event_type == "turnstile_failed").scalar() or 0
+    server_errors   = db.query(func.count(SecurityEvent.id)).filter(SecurityEvent.event_type == "server_error").scalar() or 0
+
+    import json as _json
+    rows = []
+    for ev in events:
+        try:
+            meta = _json.loads(ev.request_metadata or "{}")
+        except Exception:
+            meta = {}
+        rows.append({"ev": ev, "meta": meta})
+
+    return admin_render(
+        request,
+        "admin_security_events.html",
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        events=rows,
+        total_critical=total_critical,
+        total_high=total_high,
+        admin_attempts=admin_attempts,
+        unauth_data=unauth_data,
+        invalid_tokens=invalid_tokens,
+        turnstile_fails=turnstile_fails,
+        server_errors=server_errors,
+        filter_severity=severity,
+        filter_event_type=event_type,
+        filter_days=days,
+        filter_unresolved=unresolved,
+        severities=["low", "medium", "high", "critical"],
+        event_types=[
+            "admin_access_denied", "admin_probe_detected",
+            "login_failure", "login_bruteforce_suspected",
+            "unauthorized_data_access", "file_access_denied",
+            "share_token_invalid", "share_token_abuse",
+            "upload_rejected", "upload_abuse_detected",
+            "rate_limit_triggered", "turnstile_failed",
+            "server_error", "suspicious_request",
+        ],
+    )
+
+
+@app.post(f"{ADMIN_ROUTE}/security-events/{{event_id}}/resolve")
+def admin_security_event_resolve(
+    event_id: int, request: Request, db: Session = Depends(get_session)
+):
+    user = require_user(request)
+    _admin_gate(request, user, db, "security-events/resolve")
+    ev = db.get(SecurityEvent, event_id)
+    if not ev:
+        raise HTTPException(404)
+    ev.resolved = True
+    db.commit()
+    request.session["flash"] = "Event marked as resolved."
+    return RedirectResponse(f"{ADMIN_ROUTE}/security-events", status_code=302)
+
+
+@app.get(f"{ADMIN_ROUTE}/security-events/export.csv")
+def admin_security_events_export(request: Request, db: Session = Depends(get_session)):
+    import csv, io as _io
+    user = require_user(request)
+    _admin_gate(request, user, db, "security-events/export")
+    events = db.query(SecurityEvent).order_by(SecurityEvent.created_at.desc()).limit(5000).all()
+    buf = _io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["ID", "Created At", "Severity", "Event Type", "User ID", "Email", "IP", "Route", "Method", "Resolved"])
+    for ev in events:
+        w.writerow([
+            ev.id, ev.created_at, ev.severity, ev.event_type,
+            ev.user_id or "", ev.email or "", ev.ip_address or "",
+            ev.route or "", ev.method or "", ev.resolved,
+        ])
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="security-events.csv"'},
     )
 
 

@@ -246,6 +246,24 @@ class AdminAccessLog(Base):
     created_at  = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class SecurityEvent(Base):
+    """One row per notable security event detected by the monitoring layer."""
+    __tablename__ = "security_events"
+
+    id               = Column(Integer, primary_key=True)
+    event_type       = Column(String, nullable=False, index=True)
+    severity         = Column(String, nullable=False, default="low")
+    user_id          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    email            = Column(String, nullable=True, index=True)
+    ip_address       = Column(String, nullable=True, index=True)
+    user_agent       = Column(String, nullable=True)
+    route            = Column(String, nullable=True)
+    method           = Column(String, nullable=True)
+    request_metadata = Column(Text, nullable=True)
+    resolved         = Column(Boolean, nullable=False, default=False)
+    created_at       = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
     _ensure_sqlite_columns()
@@ -467,6 +485,30 @@ def _ensure_sqlite_columns() -> None:
                 ))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_email ON admin_access_logs (email)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_created_at ON admin_access_logs (created_at)"))
+
+        if "security_events" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS security_events ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  event_type VARCHAR NOT NULL,"
+                    "  severity VARCHAR NOT NULL DEFAULT 'low',"
+                    "  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,"
+                    "  email VARCHAR,"
+                    "  ip_address VARCHAR,"
+                    "  user_agent VARCHAR,"
+                    "  route VARCHAR,"
+                    "  method VARCHAR,"
+                    "  request_metadata TEXT,"
+                    "  resolved INTEGER NOT NULL DEFAULT 0,"
+                    "  created_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_event_type ON security_events (event_type)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_severity ON security_events (severity)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_ip_address ON security_events (ip_address)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_created_at ON security_events (created_at)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_user_id ON security_events (user_id)"))
 
     except Exception as exc:
         _log.error("[db] Schema migration step failed — some columns or tables may be missing: %s", exc, exc_info=True)

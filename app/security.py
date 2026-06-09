@@ -489,6 +489,14 @@ class _RateLimiter:
             hits = [t for t in self._buckets[key] if t > cutoff]
             if len(hits) >= self._max:
                 logger.warning("[security] Rate limit exceeded: limiter=%s ip=%s", self._name, key)
+                try:
+                    from .services.security_monitor import log_security_event
+                    log_security_event(
+                        "rate_limit_triggered", "low", request,
+                        metadata={"limiter": self._name},
+                    )
+                except Exception:
+                    pass
                 raise HTTPException(
                     429,
                     "Too many requests — please wait a moment before trying again.",
