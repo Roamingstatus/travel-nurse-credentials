@@ -515,7 +515,11 @@ def admin_render(request: Request, template: str, **ctx) -> HTMLResponse:
 def index(request: Request):
     if current_user(request):
         return RedirectResponse("/dashboard", status_code=302)
-    return RedirectResponse("/login", status_code=302)
+    return render(
+        request,
+        "login.html",
+        google_ready=google_configured(),
+    )
 
 
 @app.get("/login", response_class=HTMLResponse)
