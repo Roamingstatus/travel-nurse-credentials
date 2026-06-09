@@ -995,7 +995,7 @@ def share_create(
     if mfa_check:
         return mfa_check
     _days = expires_days.strip() if expires_days else ""
-    _days_int = int(_days) if _days.isdigit() else 90
+    _days_int = int(_days) if _days.isdigit() else 14
     exp: datetime | None = None if _days == "never" else datetime.utcnow() + timedelta(days=_days_int)
     link = ShareLink(
         user_id=user.id,
