@@ -82,8 +82,10 @@ from .storage import delete_file, file_path, save_upload
 from .security import (
     SecurityHeadersMiddleware,
     INLINE_SAFE_MIMES,
+    get_csrf_token,
     validate_env,
     validate_upload,
+    verify_csrf_token,
     upload_limiter,
     auth_limiter,
     share_limiter,
@@ -149,7 +151,71 @@ class EnforceMFAMiddleware(BaseHTTPMiddleware):
 
 
 _is_production = is_production()
+
+# ---------------------------------------------------------------------------
+# CSRF middleware
+# ---------------------------------------------------------------------------
+
+_CSRF_SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+
+# Paths that must be exempt: Stripe server-to-server webhook (no session/browser),
+# and the Google OAuth redirect (the callback arrives as a GET anyway, but keep
+# both legs explicit for clarity).
+_CSRF_EXEMPT_PREFIXES: tuple[str, ...] = (
+    "/billing/webhook",
+    "/auth/google",
+    "/s/",          # public recruiter share view (no session)
+    "/healthz",
+)
+
+
+class CsrfMiddleware(BaseHTTPMiddleware):
+    """Reject state-changing requests that lack a valid per-session CSRF token.
+
+    Accepts the token from either:
+      • The ``X-CSRF-Token`` HTTP header (AJAX / XHR / fetch)
+      • A ``_csrf`` field in ``application/x-www-form-urlencoded`` body
+        (standard HTML form POST — body is safely readable for this content type)
+
+    Multipart uploads rely on the ``X-CSRF-Token`` header set by the XHR
+    code in upload.html.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in _CSRF_SAFE_METHODS:
+            return await call_next(request)
+
+        path = request.url.path
+        if any(path == p or path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
+            return await call_next(request)
+
+        # Prefer the header (works for all content types; set by JS fetch-patch and XHR)
+        submitted = request.headers.get("X-CSRF-Token", "")
+
+        # Fallback: read hidden field from URL-encoded form body.
+        # Starlette caches the parsed body so the route handler still sees it.
+        if not submitted:
+            ct = request.headers.get("content-type", "").split(";")[0].strip()
+            if ct == "application/x-www-form-urlencoded":
+                try:
+                    form = await request.form()
+                    submitted = form.get("_csrf", "")
+                except Exception:
+                    pass
+
+        if not verify_csrf_token(submitted, request.session):
+            logging.warning("[csrf] token mismatch — %s %s", request.method, path)
+            raise HTTPException(
+                403,
+                "Your session has expired or the request was invalid. "
+                "Please reload the page and try again.",
+            )
+
+        return await call_next(request)
+
+
 app.add_middleware(EnforceMFAMiddleware)
+app.add_middleware(CsrfMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     SessionMiddleware,
@@ -302,6 +368,7 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
     ctx.setdefault("can_access_premium_plus", can_access_premium_plus_feature(u))
     ctx.setdefault("cf_turnstile_site_key", os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""))
     ctx.setdefault("admin_route", ADMIN_ROUTE)
+    ctx.setdefault("csrf_token", get_csrf_token(request.session))
     return templates.TemplateResponse(request, template, ctx)
 
 

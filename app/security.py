@@ -3,6 +3,7 @@ Credanta security utilities.
 
 Covers:
   - Environment variable validation at startup
+  - CSRF token generation and verification (per-session, HMAC constant-time compare)
   - File upload validation: MIME allow-list, magic-byte detection, extension block-list
   - In-memory sliding-window rate limiting (per client IP)
   - Cloudflare Turnstile bot-protection verification
@@ -17,6 +18,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 import urllib.parse
@@ -49,7 +51,7 @@ def validate_env() -> None:
     RuntimeError and prevents the app from starting.  In development the
     same issues are logged as warnings so the dev loop is not blocked.
     """
-    env = os.environ.get("ENV", "development").lower()
+    env = (os.environ.get("APP_ENV") or os.environ.get("ENV", "development")).lower()
     is_prod = env == "production"
     secret = os.environ.get("SESSION_SECRET", "")
 
@@ -84,6 +86,33 @@ def validate_env() -> None:
         logger.warning("[security] CLOUDFLARE_TURNSTILE_SECRET_KEY not set — Turnstile verification disabled.")
 
     logger.info("[security] Environment validation complete (ENV=%s).", env)
+
+
+# ---------------------------------------------------------------------------
+# CSRF protection
+# ---------------------------------------------------------------------------
+
+def get_csrf_token(session: dict) -> str:
+    """Return the per-session CSRF token, creating it if absent.
+
+    Call this inside every GET handler (via render()) so the token exists
+    in the session before the user submits any form.
+    """
+    if "_csrf" not in session:
+        session["_csrf"] = secrets.token_urlsafe(32)
+    return session["_csrf"]
+
+
+def verify_csrf_token(submitted: str, session: dict) -> bool:
+    """Constant-time comparison of the submitted token against the session token.
+
+    Returns False (not True) on any mismatch, empty value, or missing session token
+    so callers can treat the result as a simple boolean gate.
+    """
+    expected = session.get("_csrf", "")
+    if not expected or not submitted:
+        return False
+    return hmac.compare_digest(submitted, expected)
 
 
 # ---------------------------------------------------------------------------

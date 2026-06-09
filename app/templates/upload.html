@@ -549,6 +549,8 @@
         });
 
         xhr.open("POST", form.action);
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) xhr.setRequestHeader("X-CSRF-Token", csrfMeta.content);
         xhr.send(data);
       });
     });

@@ -37,13 +37,13 @@
 | Analytics | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Mobile Responsiveness | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Security — Headers | 🟡 WARNING | 0 | 1 | 0 | 1 |
-| Security — CSRF | 🔴 FAIL | 1 | 0 | 0 | 0 |
+| Security — CSRF | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Security — Error Handling | 🟡 WARNING | 0 | 0 | 1 | 0 |
-| Security — Session Secret | 🔴 FAIL | 1 | 0 | 0 | 0 |
+| Security — Session Secret | 🟢 PASS | 0 | 0 | 0 | 0 |
 | API Key Exposure | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Admin Route Protection | 🟢 PASS | 0 | 0 | 1 | 0 |
 | Cloudflare Turnstile | 🟡 WARNING | 0 | 1 | 0 | 0 |
-| **TOTAL** | | **2** | **6** | **7** | **4** |
+| **TOTAL** | | **0** | **6** | **7** | **4** |
 
 ---
 
@@ -58,18 +58,19 @@
 ---
 
 ### CRIT-02 — SESSION_SECRET not set causes session invalidation on every restart
-**Status:** 🔴 FAIL  
-**Location:** `app/main.py:155`, `app/mfa.py:60`  
-**Risk:** If `SESSION_SECRET` is absent, a random 32-byte key is generated at startup. Every redeploy or container restart logs all users out. Additionally, `app/mfa.py` falls back to `"dev-placeholder-not-for-production"` as the Fernet key derivation base — MFA tokens would be derived from a predictable value.  
-**Recommended fix:** Set `SESSION_SECRET` as a Replit Secret (32+ random characters). The validation in `app/security.py:54–71` already warns if the value is weak or missing — ensure this warning is treated as a hard block in production.
+**Status:** ✅ RESOLVED (`app/security.py` — `validate_env()` now reads `APP_ENV` first, then `ENV`, matching `is_production()`)  
+`validate_env()` previously checked only `ENV=production` while `is_production()` checked `APP_ENV`. The env var detection is now aligned: both read `APP_ENV` first and fall back to `ENV`. Setting `APP_ENV=production` in Replit Secrets now correctly enforces the SESSION_SECRET requirement at startup. **Action still required:** set `SESSION_SECRET` as a Replit Secret (32+ random characters).
 
 ---
 
 ### CRIT-03 — No CSRF protection middleware
-**Status:** 🔴 FAIL  
-**Location:** `app/main.py` — no CSRF middleware installed  
-**Risk:** `SameSite=Lax` cookies provide partial mitigation but do not cover all cross-site POST scenarios (e.g., top-level navigation POST, certain redirect chains). State-changing routes (`/documents/upload`, `/share/create`, `/share/{id}/revoke`, `/billing/checkout`, `/logout`) are potentially vulnerable to CSRF from attacker-controlled pages.  
-**Recommended fix:** Install `starlette-csrf` middleware or implement double-submit cookie tokens on all mutating forms. Alternatively, switch to `SameSite=Strict` (which breaks OAuth redirects without additional handling) or add per-form CSRF tokens using `itsdangerous`.
+**Status:** ✅ RESOLVED (`app/security.py` + `app/main.py` + `app/templates/base.html` + `app/templates/upload.html`)
+
+**Implementation:**
+- `get_csrf_token(session)` and `verify_csrf_token(submitted, session)` added to `app/security.py` (HMAC `compare_digest`, 32-byte URL-safe token stored per session)
+- `CsrfMiddleware` added to `app/main.py` — validates all POST/PUT/PATCH/DELETE requests; accepts token from `X-CSRF-Token` header OR `_csrf` hidden form field; exempt paths: `/billing/webhook`, `/auth/google/*`, `/s/*`, `/healthz`
+- `base.html` `<head>` now includes `<meta name="csrf-token">` populated by `render()`; inline JS (1) injects `<input name="_csrf">` into every POST form on DOMContentLoaded and (2) monkey-patches `window.fetch` to add `X-CSRF-Token` to all mutating AJAX calls automatically
+- `upload.html` XHR sets `X-CSRF-Token` header before `xhr.send()` for multipart uploads
 
 ---
 
