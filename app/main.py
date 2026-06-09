@@ -2151,9 +2151,21 @@ def billing_portal(request: Request, db: Session = Depends(get_session)):
     return RedirectResponse(portal.url, status_code=303)
 
 
+_WEBHOOK_MAX_BYTES = 65_536  # 64 KB — Stripe events are a few KB at most
+
 @app.post("/billing/webhook")
 async def billing_webhook(request: Request, db: Session = Depends(get_session)):
-    payload = await request.body()
+    cl = request.headers.get("content-length")
+    if cl and int(cl) > _WEBHOOK_MAX_BYTES:
+        raise HTTPException(413, "Payload too large")
+    chunks: list[bytes] = []
+    received = 0
+    async for chunk in request.stream():
+        received += len(chunk)
+        if received > _WEBHOOK_MAX_BYTES:
+            raise HTTPException(413, "Payload too large")
+        chunks.append(chunk)
+    payload = b"".join(chunks)
     sig = request.headers.get("stripe-signature", "")
     try:
         event = construct_webhook_event(payload, sig)
