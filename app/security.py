@@ -9,6 +9,7 @@ Covers:
   - Cloudflare Turnstile bot-protection verification
   - HMAC-signed time-limited download tokens for public share links
   - Security HTTP headers middleware
+  - Request body size limits (ASGI layer, before multipart buffering)
   - Path traversal guard for file serving
 """
 from __future__ import annotations
@@ -25,7 +26,7 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -659,6 +660,109 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "max-age=31536000; includeSubDomains",
             )
         return response
+
+
+# ---------------------------------------------------------------------------
+# Request body size limits
+# ---------------------------------------------------------------------------
+
+class RequestBodyLimitMiddleware:
+    """
+    Pure-ASGI middleware that hard-caps incoming request bodies *before*
+    python-multipart (or any other body parser) buffers them.
+
+    Two enforcement layers:
+      1. Content-Length header — immediate 413 before the first byte is read.
+      2. Streaming receive wrapper — aborts mid-stream if Content-Length was
+         absent or lied about; intercepts the app's response and replaces it
+         with 413 so the client gets the right status code.
+
+    Per-path limits cover multipart upload routes; every other mutating method
+    falls back to _DEFAULT_LIMIT (512 KB).
+    """
+
+    _MB = 1024 * 1024
+
+    # One slack MB above the in-handler limit so the handler check stays the
+    # canonical enforcement and middleware is a hard backstop.
+    _PATH_LIMITS: dict[str, int] = {
+        "/documents/upload":        26 * _MB,
+        "/documents/scan":          26 * _MB,
+        "/documents/analyze":       26 * _MB,
+        "/premium/resume/enhance":  11 * _MB,
+        "/feedback":                 6 * _MB,
+    }
+    _DEFAULT_LIMIT = 512 * 1024  # 512 KB for all other POST/PUT/PATCH
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") != "http" or scope.get("method") not in ("POST", "PUT", "PATCH"):
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        max_bytes = self._PATH_LIMITS.get(path, self._DEFAULT_LIMIT)
+
+        # ── Layer 1: Content-Length fast rejection ───────────────────────────
+        headers: dict[bytes, bytes] = {k.lower(): v for k, v in scope.get("headers", [])}
+        cl_value = headers.get(b"content-length")
+        if cl_value:
+            try:
+                if int(cl_value) > max_bytes:
+                    await self._send_413(scope, receive, send)
+                    return
+            except ValueError:
+                pass
+
+        # ── Layer 2: Streaming receive wrapper ───────────────────────────────
+        received: int = 0
+        too_large: bool = False
+
+        async def limited_receive() -> Any:
+            nonlocal received, too_large
+            msg = await receive()
+            if msg.get("type") == "http.request":
+                received += len(msg.get("body", b""))
+                if received > max_bytes:
+                    too_large = True
+                    # Signal disconnect so the framework stops reading the body.
+                    return {"type": "http.disconnect"}
+            return msg
+
+        async def intercepting_send(message: Any) -> None:
+            if too_large:
+                if message.get("type") == "http.response.start":
+                    await send({
+                        "type": "http.response.start",
+                        "status": 413,
+                        "headers": [(b"content-type", b"text/plain; charset=utf-8")],
+                    })
+                    return
+                if message.get("type") == "http.response.body":
+                    await send({
+                        "type": "http.response.body",
+                        "body": b"Payload too large",
+                        "more_body": False,
+                    })
+                    return
+            await send(message)
+
+        await self.app(scope, limited_receive, intercepting_send)
+
+    @staticmethod
+    async def _send_413(scope: Any, receive: Any, send: Any) -> None:
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [(b"content-type", b"text/plain; charset=utf-8")],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": b"Payload too large",
+            "more_body": False,
+        })
 
 
 # ---------------------------------------------------------------------------

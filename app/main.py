@@ -91,6 +91,7 @@ from .expiration_rules import apply_custom_expiration_rules
 from .smart_categorize import extract_document_metadata, extract_document_text, infer_category, infer_expiry_from_text
 from .storage import delete_file, file_path, save_upload
 from .security import (
+    RequestBodyLimitMiddleware,
     SecurityHeadersMiddleware,
     INLINE_SAFE_MIMES,
     get_csrf_token,
@@ -286,6 +287,9 @@ app.add_middleware(
     same_site="lax",
     https_only=_is_production,
 )
+# Must be added last so it wraps all other middleware — runs first on every
+# incoming request, before python-multipart buffers any multipart body.
+app.add_middleware(RequestBodyLimitMiddleware)
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
