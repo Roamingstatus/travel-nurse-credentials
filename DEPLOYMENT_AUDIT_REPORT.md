@@ -38,12 +38,12 @@
 | Mobile Responsiveness | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Security — Headers | 🟡 WARNING | 0 | 1 | 0 | 1 |
 | Security — CSRF | 🔴 FAIL | 1 | 0 | 0 | 0 |
-| Security — Error Handling | 🔴 FAIL | 1 | 0 | 1 | 0 |
+| Security — Error Handling | 🟡 WARNING | 0 | 0 | 1 | 0 |
 | Security — Session Secret | 🔴 FAIL | 1 | 0 | 0 | 0 |
 | API Key Exposure | 🟢 PASS | 0 | 0 | 0 | 0 |
 | Admin Route Protection | 🟢 PASS | 0 | 0 | 1 | 0 |
 | Cloudflare Turnstile | 🟡 WARNING | 0 | 1 | 0 | 0 |
-| **TOTAL** | | **3** | **6** | **7** | **4** |
+| **TOTAL** | | **2** | **6** | **7** | **4** |
 
 ---
 
@@ -52,18 +52,8 @@
 ---
 
 ### CRIT-01 — No global handler for unhandled exceptions (500 errors)
-**Status:** 🔴 FAIL  
-**Location:** `app/main.py:164` — only `@app.exception_handler(HTTPException)` is registered  
-**Risk:** When a non-`HTTPException` (e.g., database failure, unexpected `None`, import error) escapes a route, uvicorn returns a raw ASGI 500 response. Depending on the ASGI configuration this can expose Python tracebacks, internal file paths, or module names to the end-user.  
-**Recommended fix:**
-```python
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception) -> HTMLResponse:
-    logging.error("[unhandled] %s %s → %s", request.method, request.url, exc, exc_info=True)
-    return templates.TemplateResponse(request, "error.html",
-        {"status_code": 500, "message": "Something went wrong. Please try again."},
-        status_code=500)
-```
+**Status:** ✅ RESOLVED (`app/main.py` — `generic_exception_handler` added)  
+`@app.exception_handler(Exception)` now catches all unhandled exceptions, logs the full traceback server-side, and renders the user-facing `error.html` with a generic "Something went wrong" message and a 500 status code.
 
 ---
 

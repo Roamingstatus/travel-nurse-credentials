@@ -55,7 +55,7 @@ Set each of these in **Replit Secrets** (lock icon → Secrets). None should be 
 
 | # | Issue | Reference | Fix |
 |---|---|---|---|
-| C1 | Add global 500 error handler | CRIT-01 | Add `@app.exception_handler(Exception)` in `app/main.py` |
+| C1 | ~~Add global 500 error handler~~ | CRIT-01 | ✅ Done — `generic_exception_handler` added to `app/main.py` |
 | C2 | Fix TWILIO_FROM_NUMBER KeyError | HIGH-06 | Change `os.environ["TWILIO_FROM_NUMBER"]` to `.get()` in `sms_service.py` |
 | C3 | Guard BETA_MODE in production | HIGH-02 | Add `is_production()` check in `app/premium.py` |
 | C4 | Fix Stripe API key in webhook handler | MED-04 | Use `_secret_key()` instead of inline `os.environ.get` in `app/main.py:1952` |

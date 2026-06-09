@@ -175,6 +175,26 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> HTMLRe
     return resp
 
 
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception) -> HTMLResponse:
+    logging.error(
+        "[unhandled] %s %s → %s",
+        request.method,
+        request.url,
+        exc,
+        exc_info=True,
+    )
+    resp = render(
+        request,
+        "error.html",
+        status_code=500,
+        message="Something went wrong on our end. Please try again.",
+        is_premium_gate=False,
+    )
+    resp.status_code = 500
+    return resp
+
+
 @app.on_event("startup")
 def _startup() -> None:
     validate_env()
