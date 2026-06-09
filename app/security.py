@@ -99,19 +99,21 @@ def validate_env() -> None:
         _fatal("CLOUDFLARE_TURNSTILE_SECRET_KEY not set — Turnstile server-side verification disabled.")
 
     # ── Stripe billing (optional integration) ─────────────────────────────────
-    stripe_key    = os.environ.get("STRIPE_SECRET_KEY", "")
-    stripe_wh     = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-    stripe_price  = os.environ.get("STRIPE_PREMIUM_PRICE_ID", "")
-    stripe_pricep = os.environ.get("STRIPE_PREMIUM_PLUS_PRICE_ID", "")
-
-    if not stripe_key:
+    if not os.environ.get("STRIPE_SECRET_KEY"):
         _error("STRIPE_SECRET_KEY not set — billing and premium upgrades will not work.")
-    if not stripe_wh:
+    if not os.environ.get("STRIPE_WEBHOOK_SECRET"):
         _error("STRIPE_WEBHOOK_SECRET not set — Stripe webhook signature verification disabled.")
-    if not stripe_price:
-        _error("STRIPE_PREMIUM_PRICE_ID not set — Premium checkout will fail.")
-    if not stripe_pricep:
-        _error("STRIPE_PREMIUM_PLUS_PRICE_ID not set — Premium+ checkout will fail.")
+
+    # Four granular price-ID vars read by stripe_billing.PRICE_VARS
+    _stripe_price_vars = {
+        "STRIPE_PRICE_PREMIUM_MONTHLY":      "Premium monthly checkout",
+        "STRIPE_PRICE_PREMIUM_YEARLY":       "Premium yearly checkout",
+        "STRIPE_PRICE_PREMIUM_PLUS_MONTHLY": "Premium+ monthly checkout",
+        "STRIPE_PRICE_PREMIUM_PLUS_YEARLY":  "Premium+ yearly checkout",
+    }
+    for _var, _desc in _stripe_price_vars.items():
+        if not os.environ.get(_var):
+            _error(f"{_var} not set — {_desc} will fail.")
 
     # ── Resend — email reminders (optional integration) ───────────────────────
     if not os.environ.get("RESEND_API_KEY"):

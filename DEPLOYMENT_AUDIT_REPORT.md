@@ -148,10 +148,10 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 ---
 
 ### MED-01 — Stripe Price ID env vars not validated at startup
-**Status:** 🟡 WARNING  
+**Status:** ✅ RESOLVED (`app/security.py` — `validate_env()` Stripe section)  
 **Location:** `app/stripe_billing.py:77–81`  
 **Risk:** The four `STRIPE_PRICE_*` env vars are only read when a checkout session is created. If any are missing, the Stripe API call fails at the moment a user tries to subscribe — with no pre-launch warning. The user sees a generic error.  
-**Recommended fix:** Add startup validation that logs `WARNING` for each missing price ID env var, similar to the existing OAuth check in `app/security.py:76–79`.
+**Resolution:** `validate_env()` now iterates all four `STRIPE_PRICE_PREMIUM_MONTHLY`, `STRIPE_PRICE_PREMIUM_YEARLY`, `STRIPE_PRICE_PREMIUM_PLUS_MONTHLY`, `STRIPE_PRICE_PREMIUM_PLUS_YEARLY` and calls `_error()` for each one that is absent (logs ERROR in production, WARNING in dev). The two stale checks for the wrong names `STRIPE_PREMIUM_PRICE_ID` / `STRIPE_PREMIUM_PLUS_PRICE_ID` were replaced in the same edit.
 
 ---
 
