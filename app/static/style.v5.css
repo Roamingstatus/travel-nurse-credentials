@@ -750,9 +750,14 @@ a:hover {
   display: flex;
   gap: 6px;
   align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.doc-card:hover .doc-card-actions,
+.doc-card:focus-within .doc-card-actions {
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 0.15s;
 }
 
 /* Square icon-only button */
