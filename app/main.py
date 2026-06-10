@@ -63,6 +63,7 @@ from .db import (
     SessionLocal,
     ShareLink,
     User,
+    engine,
     get_session,
     init_db,
 )
