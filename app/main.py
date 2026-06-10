@@ -197,6 +197,7 @@ _CSRF_EXEMPT_PREFIXES: tuple[str, ...] = (
     "/auth/google",
     "/s/",          # public recruiter share view (no session)
     "/healthz",
+    "/portal-credanta-9f3k2m7x/reset-all-data",  # TEMPORARY — remove with endpoint
 )
 
 
