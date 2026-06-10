@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fpdf import FPDF
-
 from .db import Document, User
+
+# fpdf (fpdf2) is imported lazily inside build_manifest_pdf — it adds ~1 s to
+# cold-start import time and is only needed when a packet is downloaded.
 
 
 def _ascii(s: str) -> str:
@@ -14,6 +15,7 @@ def _ascii(s: str) -> str:
 
 
 def build_manifest_pdf(user: User, documents: list[Document]) -> bytes:
+    from fpdf import FPDF
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()

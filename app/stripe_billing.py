@@ -4,9 +4,10 @@ import os
 import urllib.parse
 import urllib.request
 
-import stripe
-
 logger = logging.getLogger(__name__)
+
+# stripe is imported lazily inside each function — it adds ~150 ms to cold-start
+# import time and is only needed when a billing action is actually taken.
 
 
 def _fetch_connector_credentials() -> dict | None:
@@ -99,6 +100,7 @@ def tier_for_price_id(price_id: str) -> str:
 
 
 def get_or_create_customer(user) -> str:
+    import stripe
     stripe.api_key = _secret_key()
     if user.stripe_customer_id:
         return user.stripe_customer_id
@@ -111,6 +113,7 @@ def get_or_create_customer(user) -> str:
 
 
 def create_checkout_session(user, price_id: str, success_url: str, cancel_url: str):
+    import stripe
     stripe.api_key = _secret_key()
     customer_id = get_or_create_customer(user)
     session = stripe.checkout.Session.create(
@@ -128,6 +131,7 @@ def create_checkout_session(user, price_id: str, success_url: str, cancel_url: s
 
 
 def create_portal_session(user, return_url: str):
+    import stripe
     stripe.api_key = _secret_key()
     if not user.stripe_customer_id:
         return None
@@ -139,5 +143,6 @@ def create_portal_session(user, return_url: str):
 
 
 def construct_webhook_event(payload: bytes, sig_header: str):
+    import stripe
     secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
     return stripe.Webhook.construct_event(payload, sig_header, secret)
