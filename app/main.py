@@ -780,6 +780,31 @@ def _parse_date(value: str) -> Optional[datetime]:
         return None
 
 
+async def _read_limited(file: UploadFile, max_bytes: int) -> bytes:
+    """Read an UploadFile in chunks, raising HTTP 413 if content exceeds max_bytes.
+
+    Reading chunk-by-chunk means we never materialise more than
+    max_bytes + one chunk worth of data in RAM, even though Starlette
+    has already spooled the body to a SpooledTemporaryFile on disk
+    during multipart parsing.
+    """
+    _CHUNK = 64 * 1024  # 64 KB read granularity
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File exceeds the maximum allowed size ({max_bytes // (1024 * 1024)} MB).",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @app.post("/documents/scan")
 async def scan_upload(
     request: Request,
@@ -788,7 +813,11 @@ async def scan_upload(
     """Pre-upload threat scan. Returns JSON so the client can animate the result."""
     require_user(request)
     from .security import scan_file, validate_upload
-    raw = await file.read()
+    try:
+        raw = await _read_limited(file, 25 * 1024 * 1024)
+    except HTTPException:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"clean": False, "threat": "File exceeds the maximum allowed size (25 MB).", "checks": []})
     if not raw:
         from fastapi.responses import JSONResponse
         return JSONResponse({"clean": False, "threat": "Empty file.", "checks": []})
@@ -825,12 +854,13 @@ async def upload_submit(
             log_security_event("turnstile_failed", "medium", request, user, {"context": "upload"})
             request.session["flash"] = "Bot-protection check failed — please try again."
             return RedirectResponse("/documents/upload", status_code=302)
-    raw = await file.read()
+    try:
+        raw = await _read_limited(file, 25 * 1024 * 1024)
+    except HTTPException:
+        request.session["flash"] = "Files must be 25 MB or smaller."
+        return RedirectResponse("/documents/upload", status_code=302)
     if not raw:
         request.session["flash"] = "Please choose a file to upload."
-        return RedirectResponse("/documents/upload", status_code=302)
-    if len(raw) > 25 * 1024 * 1024:
-        request.session["flash"] = "Files must be 25 MB or smaller."
         return RedirectResponse("/documents/upload", status_code=302)
 
     content_hash = hashlib.sha256(raw).hexdigest()
@@ -1715,8 +1745,9 @@ async def resume_enhance_post(
 
     raw, mime, fname = b"", "", ""
     if file and file.filename:
-        raw = await file.read()
-        if len(raw) > 10 * 1024 * 1024:
+        try:
+            raw = await _read_limited(file, 10 * 1024 * 1024)
+        except HTTPException:
             request.session["flash"] = "Resume file must be 10 MB or smaller."
             return RedirectResponse("/premium/resume/enhance", status_code=302)
         mime  = file.content_type or ""
@@ -2213,11 +2244,16 @@ def billing_portal(request: Request, db: Session = Depends(get_session)):
 
 _WEBHOOK_MAX_BYTES = 65_536  # 64 KB — Stripe events are a few KB at most
 
+
 @app.post("/billing/webhook")
 async def billing_webhook(request: Request, db: Session = Depends(get_session)):
     cl = request.headers.get("content-length")
-    if cl and int(cl) > _WEBHOOK_MAX_BYTES:
-        raise HTTPException(413, "Payload too large")
+    if cl:
+        try:
+            if int(cl) > _WEBHOOK_MAX_BYTES:
+                raise HTTPException(413, "Payload too large")
+        except (ValueError, TypeError):
+            pass
     chunks: list[bytes] = []
     received = 0
     async for chunk in request.stream():
