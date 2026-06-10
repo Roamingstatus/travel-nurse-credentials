@@ -41,6 +41,34 @@ def get_totp_uri(secret: str, email: str) -> str:
     return totp.provisioning_uri(name=email, issuer_name=ISSUER)
 
 
+def generate_qr_data_url(uri: str) -> str:
+    """Return a data: URL containing a PNG QR code for *uri*.
+
+    Uses the qrcode library with Pillow backend so the image is generated
+    entirely server-side — no CDN dependency, always visible.
+    Returns an empty string if generation fails (template falls back to JS).
+    """
+    try:
+        import io
+        import qrcode
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=4,
+        )
+        qr.add_data(uri)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        return f"data:image/png;base64,{b64}"
+    except Exception as exc:
+        logger.warning("[mfa] QR generation failed: %s", exc)
+        return ""
+
+
 def verify_totp(secret: str, code: str) -> bool:
     """Return True if *code* is valid for *secret* (±1 30-second window)."""
     import pyotp

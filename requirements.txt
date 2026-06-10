@@ -18,6 +18,7 @@ resend>=2.0
 twilio>=9.0
 apscheduler>=3.10
 pyotp>=2.9
+qrcode[pil]>=7.4
 stripe>=15.0
 cryptography>=42.0
 openai>=1.0

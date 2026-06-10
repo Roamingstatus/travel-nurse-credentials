@@ -110,6 +110,7 @@ from .security import (
 )
 import itsdangerous as _itsd
 from .mfa import (
+    generate_qr_data_url,
     decrypt_totp_secret,
     encrypt_totp_secret,
     generate_recovery_codes,
@@ -1863,6 +1864,7 @@ def mfa_setup_page(request: Request):
     secret = generate_totp_secret()
     uri = get_totp_uri(secret, user.email)
     token = _mfa_signer().dumps(secret)
+    qr_data_url = generate_qr_data_url(uri)
     return render(
         request,
         "mfa_setup.html",
@@ -1870,6 +1872,7 @@ def mfa_setup_page(request: Request):
         totp_uri=uri,
         totp_secret_token=token,
         totp_secret_display=secret,
+        qr_data_url=qr_data_url,
     )
 
 

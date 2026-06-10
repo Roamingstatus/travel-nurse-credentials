@@ -6,29 +6,56 @@
   <p class="vault-sub">Follow the steps below to connect your authenticator app.</p>
 </div>
 
-<div class="settings-card mfa-setup-card" style="max-width:520px;">
+{% if request.session.get("flash") %}
+<div class="flash flash-error">{{ request.session.pop("flash") }}</div>
+{% endif %}
 
+<div class="settings-card mfa-setup-card">
+
+  <!-- Step 1: QR code -->
   <div class="mfa-step">
     <div class="mfa-step-num">1</div>
-    <div>
+    <div class="mfa-step-body">
       <h3 class="mfa-step-title">Scan this QR code</h3>
       <p class="mfa-step-desc">Open Google Authenticator, Authy, or any TOTP app and scan the code below.</p>
-      <div id="mfa-qr" class="mfa-qr-box"></div>
+
+      <div class="mfa-qr-wrap">
+        {% if qr_data_url %}
+          <img
+            src="{{ qr_data_url }}"
+            alt="Authenticator setup QR code"
+            class="mfa-qr-img"
+            width="200"
+            height="200"
+          />
+        {% else %}
+          <!-- Server-side generation failed — render via client-side JS -->
+          <div id="mfa-qr-js" class="mfa-qr-js-box">
+            <span class="mfa-qr-loading">Generating QR code…</span>
+          </div>
+        {% endif %}
+      </div>
+
       <details class="mfa-manual-entry">
-        <summary>Can't scan? Enter code manually</summary>
+        <summary class="mfa-manual-summary">Can't scan? Enter code manually</summary>
         <div class="mfa-manual-inner">
-          <p class="mfa-step-desc">In your app, choose "Enter setup key" and use these details:</p>
+          <p class="mfa-step-desc">In your authenticator app choose "Enter setup key" and use these details:</p>
           <div class="mfa-key-row">
             <span class="mfa-key-label">Account</span>
             <code class="mfa-key-val">{{ user.email }}</code>
           </div>
           <div class="mfa-key-row">
             <span class="mfa-key-label">Key</span>
-            <code class="mfa-key-val" id="totp-secret-display">{{ totp_secret_display }}</code>
+            <div class="mfa-key-copyrow">
+              <code class="mfa-key-val" id="totp-secret-display">{{ totp_secret_display }}</code>
+              <button type="button" class="btn-copy" id="copy-secret-btn" title="Copy secret">
+                Copy
+              </button>
+            </div>
           </div>
           <div class="mfa-key-row">
             <span class="mfa-key-label">Type</span>
-            <code class="mfa-key-val">Time based</code>
+            <code class="mfa-key-val">Time based (TOTP)</code>
           </div>
         </div>
       </details>
@@ -37,9 +64,10 @@
 
   <hr class="mfa-divider" />
 
+  <!-- Step 2: verify -->
   <div class="mfa-step">
     <div class="mfa-step-num">2</div>
-    <div style="width:100%;">
+    <div class="mfa-step-body">
       <h3 class="mfa-step-title">Enter the 6-digit code</h3>
       <p class="mfa-step-desc">Enter the code shown in your authenticator app to confirm setup.</p>
       <form method="post" action="/security/mfa/confirm" class="mfa-verify-form">
@@ -65,24 +93,55 @@
 
 </div>
 
+{% if not qr_data_url %}
+<!-- Fallback: client-side QR when server-side generation failed -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js" crossorigin="anonymous"></script>
 <script>
-  QRCode.toCanvas(
-    document.createElement("canvas"),
-    {{ totp_uri | tojson }},
-    { width: 200, margin: 2, color: { dark: "#000", light: "#fff" } },
-    function(err, canvas) {
-      if (err) {
-        document.getElementById("mfa-qr").textContent = "QR generation failed — use the manual code above.";
-        return;
-      }
-      document.getElementById("mfa-qr").appendChild(canvas);
+(function () {
+  var box = document.getElementById("mfa-qr-js");
+  if (!box) return;
+  var uri = {{ totp_uri | tojson }};
+  if (typeof QRCode === "undefined") {
+    box.innerHTML = '<span class="mfa-qr-error">QR generation unavailable — use the manual code above.</span>';
+    return;
+  }
+  QRCode.toCanvas(uri, { width: 200, margin: 2, color: { dark: "#000", light: "#fff" } }, function (err, canvas) {
+    if (err || !canvas) {
+      box.innerHTML = '<span class="mfa-qr-error">QR generation failed — use the manual code above.</span>';
+      return;
     }
-  );
+    canvas.setAttribute("aria-label", "Authenticator setup QR code");
+    box.innerHTML = "";
+    box.appendChild(canvas);
+  });
+})();
+</script>
+{% endif %}
+
+<script>
+(function () {
+  var btn = document.getElementById("copy-secret-btn");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var secret = document.getElementById("totp-secret-display").textContent.trim();
+    navigator.clipboard.writeText(secret).then(function () {
+      var orig = btn.textContent;
+      btn.textContent = "Copied!";
+      btn.classList.add("btn-copy-done");
+      setTimeout(function () {
+        btn.textContent = orig;
+        btn.classList.remove("btn-copy-done");
+      }, 2000);
+    }).catch(function () {
+      btn.textContent = "Copy failed";
+    });
+  });
+})();
 </script>
 
 <style>
 .vault-sub { color: var(--text-muted); margin: .25rem 0 0; }
+
 .settings-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
@@ -90,8 +149,11 @@
   padding: 1.75rem;
   margin-bottom: 1rem;
 }
-.mfa-setup-card { max-width: 520px; }
+.mfa-setup-card { max-width: 540px; }
+
 .mfa-step { display: flex; gap: 1rem; align-items: flex-start; }
+.mfa-step-body { flex: 1; min-width: 0; }
+
 .mfa-step-num {
   flex-shrink: 0;
   width: 28px; height: 28px;
@@ -100,29 +162,83 @@
   color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: .85rem;
+  margin-top: 2px;
 }
+
 .mfa-step-title { font-size: .95rem; font-weight: 600; margin: 0 0 .3rem; }
-.mfa-step-desc { font-size: .85rem; color: var(--text-muted); margin: 0 0 .75rem; line-height: 1.5; }
-.mfa-qr-box {
-  background: #fff;
+.mfa-step-desc  { font-size: .85rem; color: var(--text-muted); margin: 0 0 .75rem; line-height: 1.5; }
+
+/* QR container — always shows a white background so the code is scannable */
+.mfa-qr-wrap {
+  display: inline-block;
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 8px;
-  display: inline-flex;
-  padding: 8px;
+  padding: 10px;
   margin-bottom: .75rem;
+  line-height: 0;   /* prevents gap under img */
 }
+
+.mfa-qr-img {
+  display: block;
+  width: 200px;
+  height: 200px;
+  image-rendering: pixelated;
+}
+
+/* JS-rendered fallback box */
+.mfa-qr-js-box {
+  min-width: 200px;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mfa-qr-loading { font-size: .8rem; color: #666; }
+.mfa-qr-error   { font-size: .8rem; color: var(--text-muted); text-align: center; white-space: normal; max-width: 180px; }
+
+/* Manual entry */
 .mfa-manual-entry { margin-top: .5rem; }
-.mfa-manual-entry summary {
+.mfa-manual-summary {
   cursor: pointer;
-  font-size: .8rem;
-  color: var(--text-muted);
+  font-size: .82rem;
+  color: var(--accent, #6366f1);
   user-select: none;
+  list-style: none;
 }
+.mfa-manual-summary::-webkit-details-marker { display: none; }
+.mfa-manual-summary::before { content: "▸ "; }
+details[open] .mfa-manual-summary::before { content: "▾ "; }
 .mfa-manual-inner { margin-top: .75rem; }
-.mfa-key-row { display: flex; align-items: center; gap: .75rem; margin-bottom: .4rem; }
+
+.mfa-key-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .4rem;
+  flex-wrap: wrap;
+}
 .mfa-key-label { font-size: .75rem; color: var(--text-muted); width: 56px; flex-shrink: 0; }
-.mfa-key-val { font-size: .8rem; word-break: break-all; }
+.mfa-key-val   { font-size: .82rem; word-break: break-all; background: var(--input-bg, rgba(0,0,0,.04)); padding: .15rem .35rem; border-radius: 4px; }
+
+.mfa-key-copyrow { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+.btn-copy {
+  font-size: .75rem;
+  padding: .2rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.btn-copy:hover { background: var(--accent, #6366f1); color: #fff; border-color: var(--accent, #6366f1); }
+.btn-copy-done { background: #22c55e !important; color: #fff !important; border-color: #22c55e !important; }
+
 .mfa-divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+/* Verify form */
 .mfa-verify-form { margin-top: .5rem; }
 .mfa-code-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .mfa-code-input {
@@ -136,6 +252,10 @@
   letter-spacing: .25em;
   text-align: center;
 }
-.mfa-code-input:focus { outline: 2px solid var(--accent, #6366f1); }
+.mfa-code-input:focus { outline: 2px solid var(--accent, #6366f1); outline-offset: 1px; }
+
+/* Flash */
+.flash { padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+.flash-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 </style>
 {% endblock %}
