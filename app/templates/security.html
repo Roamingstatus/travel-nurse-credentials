@@ -28,7 +28,7 @@
   <div class="settings-card-header">
     <div>
       <h2 class="settings-card-title">Two-Step Verification</h2>
-      <p class="settings-card-desc">Add an extra layer of security. When enabled, you'll be asked to verify your identity when accessing sensitive features like shared links and billing.</p>
+      <p class="settings-card-desc">Two-step verification is optional but strongly recommended. When enabled, you'll enter a one-time code from your authenticator app each time you sign in.</p>
     </div>
     <span class="mfa-badge {% if user.mfa_enabled %}mfa-badge--on{% else %}mfa-badge--off{% endif %}">
       {% if user.mfa_enabled %}Enabled{% else %}Not enabled{% endif %}
