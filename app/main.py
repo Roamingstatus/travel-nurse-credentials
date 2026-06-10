@@ -461,6 +461,21 @@ import logging as _admin_log_mod
 _admin_logger = _admin_log_mod.getLogger("app.admin")
 
 _raw_admin_route = os.environ.get("ADMIN_ROUTE", "").strip().rstrip("/")
+
+# Defensive: if someone pasted a full URL (e.g. https://credantaapp.com/portal-x),
+# extract just the path component so we register the right route.
+if _raw_admin_route and ("://" in _raw_admin_route or _raw_admin_route.startswith("http")):
+    try:
+        from urllib.parse import urlparse as _urlparse
+        _parsed = _urlparse(_raw_admin_route)
+        _raw_admin_route = _parsed.path.rstrip("/")
+        _admin_logger.warning(
+            "[admin] ADMIN_ROUTE looked like a full URL — extracted path: %s",
+            _raw_admin_route,
+        )
+    except Exception:
+        _raw_admin_route = ""
+
 if not _raw_admin_route:
     _admin_logger.warning(
         "[admin] ADMIN_ROUTE env var is not set. "
