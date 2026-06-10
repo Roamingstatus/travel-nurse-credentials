@@ -1,1 +1,2 @@
 - [Audit findings summary](audit-findings.md) — pre-deploy audit complete; 3 critical gaps + 7 missing env vars block launch
+- [CSRF middleware body consumption](csrf-body-consumption.md) — BaseHTTPMiddleware + await request.form() consumed the ASGI receive stream; fixed with pure ASGI body-replay pattern

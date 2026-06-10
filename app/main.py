@@ -7,7 +7,7 @@ import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import (
     Depends,
@@ -233,49 +233,102 @@ _CSRF_EXEMPT_PREFIXES: tuple[str, ...] = (
 )
 
 
-class CsrfMiddleware(BaseHTTPMiddleware):
-    """Reject state-changing requests that lack a valid per-session CSRF token.
+class CsrfMiddleware:
+    """Pure-ASGI CSRF middleware — buffers + replays the body so downstream
+    route handlers always receive the full form fields.
 
-    Accepts the token from either:
-      • The ``X-CSRF-Token`` HTTP header (AJAX / XHR / fetch)
-      • A ``_csrf`` field in ``application/x-www-form-urlencoded`` body
-        (standard HTML form POST — body is safely readable for this content type)
+    Root cause of the previous BaseHTTPMiddleware version: calling
+    ``await request.form()`` inside BaseHTTPMiddleware consumed the ASGI
+    receive stream.  Even though Starlette caches ``request._form``, the
+    downstream route handler receives a *different* Request object (created
+    from a wrapped receive), so it saw an empty body and raised 422.
 
-    Multipart uploads rely on the ``X-CSRF-Token`` header set by the XHR
-    code in upload.html.
+    This version:
+      1. Checks the ``X-CSRF-Token`` header first — the base.html fetch-patch
+         always sets this for XHR/fetch calls, so body reading is skipped
+         entirely for those paths.
+      2. For native HTML form POSTs (``application/x-www-form-urlencoded``),
+         buffers the raw bytes, parses ``_csrf``, then wraps ``receive`` with a
+         replay callable so the route handler sees the complete body.
     """
 
-    async def dispatch(self, request: Request, call_next):
-        if request.method in _CSRF_SAFE_METHODS:
-            return await call_next(request)
+    def __init__(self, app: Any) -> None:
+        self.app = app
 
-        path = request.url.path
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        method: str = scope.get("method", "").upper()
+        if method in _CSRF_SAFE_METHODS:
+            await self.app(scope, receive, send)
+            return
+
+        path: str = scope.get("path", "")
         if any(path == p or path.startswith(p) for p in _CSRF_EXEMPT_PREFIXES):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        # Prefer the header (works for all content types; set by JS fetch-patch and XHR)
-        submitted = request.headers.get("X-CSRF-Token", "")
+        raw_headers: dict[bytes, bytes] = {k.lower(): v for k, v in scope.get("headers", [])}
 
-        # Fallback: read hidden field from URL-encoded form body.
-        # Starlette caches the parsed body so the route handler still sees it.
+        # ── Fast path: X-CSRF-Token header (fetch/XHR, multipart uploads) ───
+        submitted: str = raw_headers.get(b"x-csrf-token", b"").decode("latin-1", errors="replace").strip()
+
+        # ── Slow path: _csrf field embedded in URL-encoded form body ─────────
+        buffered_body: bytes | None = None
         if not submitted:
-            ct = request.headers.get("content-type", "").split(";")[0].strip()
+            ct = raw_headers.get(b"content-type", b"").decode("latin-1").split(";")[0].strip()
             if ct == "application/x-www-form-urlencoded":
+                chunks: list[bytes] = []
+                more = True
+                while more:
+                    msg = await receive()
+                    chunks.append(msg.get("body", b""))
+                    more = msg.get("more_body", False)
+                buffered_body = b"".join(chunks)
                 try:
-                    form = await request.form()
-                    submitted = form.get("_csrf", "")
+                    from urllib.parse import parse_qs
+                    fields = parse_qs(buffered_body.decode("latin-1", errors="replace"))
+                    submitted = (fields.get("_csrf") or [""])[0]
                 except Exception as exc:
-                    logger.debug("[csrf] Failed to read form body: %s", exc)
+                    logger.debug("[csrf] body parse error: %s", exc)
 
-        if not verify_csrf_token(submitted, request.session):
-            logger.warning("[csrf] token mismatch — %s %s", request.method, path)
-            raise HTTPException(
-                403,
+        # ── Verify against the per-session token ─────────────────────────────
+        session: dict = scope.get("session", {})
+        if not verify_csrf_token(submitted, session):
+            logger.warning("[csrf] token mismatch — %s %s", method, path)
+            # Set flash and redirect back to referrer so the user sees an error
+            # rather than a raw JSON 403.  SessionMiddleware (outer layer) will
+            # save the updated session cookie on its way back to the client.
+            session["flash"] = (
                 "Your session has expired or the request was invalid. "
-                "Please reload the page and try again.",
+                "Please reload the page and try again."
             )
+            referrer = raw_headers.get(b"referer", b"").decode("latin-1", errors="replace").strip()
+            redirect_to = referrer if referrer else "/"
+            body_bytes = b""
+            await send({"type": "http.response.start", "status": 303,
+                        "headers": [(b"location", redirect_to.encode("latin-1", errors="replace")),
+                                    (b"content-length", b"0")]})
+            await send({"type": "http.response.body", "body": body_bytes, "more_body": False})
+            return
 
-        return await call_next(request)
+        # ── Pass through — replay buffered body if we consumed it ────────────
+        if buffered_body is not None:
+            _body = buffered_body
+            _replayed = False
+
+            async def replay_receive() -> Any:
+                nonlocal _replayed
+                if not _replayed:
+                    _replayed = True
+                    return {"type": "http.request", "body": _body, "more_body": False}
+                return await receive()
+
+            await self.app(scope, replay_receive, send)
+        else:
+            await self.app(scope, receive, send)
 
 
 app.add_middleware(AdminProbeMiddleware)
