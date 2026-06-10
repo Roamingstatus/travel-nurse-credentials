@@ -198,7 +198,6 @@ _CSRF_EXEMPT_PREFIXES: tuple[str, ...] = (
     "/auth/google",
     "/s/",          # public recruiter share view (no session)
     "/healthz",
-    "/portal-credanta-9f3k2m7x/reset-all-data",  # TEMPORARY — remove with endpoint
 )
 
 
@@ -2534,79 +2533,6 @@ def admin_security_events_export(request: Request, db: Session = Depends(get_ses
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="security-events.csv"'},
     )
-
-
-# ---------------------------------------------------------------------------
-# TEMPORARY — one-shot data reset (remove after use)
-# ---------------------------------------------------------------------------
-
-@app.get(f"{ADMIN_ROUTE}/reset-all-data", response_class=HTMLResponse)
-def admin_reset_form(request: Request, db: Session = Depends(get_session)):
-    user = require_user(request)
-    _admin_gate(request, user, db, "reset-all-data")
-    return HTMLResponse("""
-<!doctype html><html><head><title>Reset All Data</title></head><body
-style="font-family:sans-serif;max-width:480px;margin:4rem auto;padding:0 1rem">
-<h2 style="color:#dc2626">⚠️ Reset All Live Data</h2>
-<p>This will permanently delete <strong>every user, document, share link, event, and uploaded file</strong>
-from the production database and filesystem. This cannot be undone.</p>
-<form method="post">
-  <label>Type <strong>RESET</strong> to confirm:
-    <input name="confirm" style="display:block;margin:.5rem 0;padding:.5rem;font-size:1rem;width:100%" />
-  </label>
-  <button type="submit"
-    style="background:#dc2626;color:#fff;border:none;padding:.75rem 1.5rem;font-size:1rem;border-radius:6px;cursor:pointer;margin-top:.5rem">
-    Wipe everything
-  </button>
-</form>
-</body></html>""")
-
-
-@app.post(f"{ADMIN_ROUTE}/reset-all-data")
-async def admin_reset_execute(
-    request: Request,
-    confirm: str = Form(""),
-    db: Session = Depends(get_session),
-):
-    user = require_user(request)
-    _admin_gate(request, user, db, "reset-all-data")
-    if confirm.strip() != "RESET":
-        return HTMLResponse("<p>Confirmation did not match. <a href=''>Go back</a>.</p>", status_code=400)
-
-    import shutil
-    from sqlalchemy import text as _text
-
-    with engine.begin() as conn:
-        conn.execute(_text("PRAGMA foreign_keys=OFF"))
-        for table in [
-            "test_failures", "test_runs",
-            "reminder_logs", "checklist_results", "resume_analyses",
-            "recruiter_template_feedback", "beta_feedback",
-            "events", "admin_access_logs", "security_events",
-            "share_links", "documents", "reminder_settings", "users",
-        ]:
-            conn.execute(_text(f"DELETE FROM {table}"))
-        conn.execute(_text("PRAGMA foreign_keys=ON"))
-
-    uploads_dir = BASE_DIR / "uploads"
-    wiped_dirs = 0
-    if uploads_dir.exists():
-        for child in uploads_dir.iterdir():
-            if child.is_dir() and child.name != "feedback":
-                shutil.rmtree(child, ignore_errors=True)
-                wiped_dirs += 1
-
-    log_event("admin_data_reset", user_id=None, db=db)
-
-    return HTMLResponse(f"""
-<!doctype html><html><head><title>Reset complete</title></head><body
-style="font-family:sans-serif;max-width:480px;margin:4rem auto;padding:0 1rem">
-<h2 style="color:#16a34a">✓ Reset complete</h2>
-<p>All user data and {wiped_dirs} upload folder(s) have been deleted.</p>
-<p>Remove the <code>/reset-all-data</code> endpoint from <code>app/main.py</code>,
-redeploy, then sign in fresh.</p>
-<p><a href="/">Home</a></p>
-</body></html>""")
 
 
 # ---------------------------------------------------------------------------
