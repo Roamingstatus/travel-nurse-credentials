@@ -1712,7 +1712,6 @@ def resume_enhancer_alias(request: Request):
 def resume_enhance_get(request: Request):
     from .resume_enhancer import TARGET_ROLES, TONES
     user = require_user(request)
-    require_premium(user)
     return render(request, "premium_resume.html",
                   analysis=None, filename=None, versions={},
                   target_roles=TARGET_ROLES, tones=TONES,
