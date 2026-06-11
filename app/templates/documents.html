@@ -12,6 +12,29 @@
   </a>
 </div>
 
+{# ── Mobile-only: upgrade nudge + quick packet access ──────── #}
+{% if not is_premium and docs %}
+<a class="mob-upgrade-banner" href="/premium">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+  Upgrade for automatic expiration alerts →
+</a>
+{% endif %}
+<div class="mob-packet-bar">
+  <a href="/packet">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Download ZIP
+  </a>
+  <a href="/packet/pdf">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Manifest PDF
+  </a>
+</div>
+<div class="vault-view-toggle">
+  <span>View:</span>
+  <button class="vvbtn on" id="vv-list" type="button">List</button>
+  <button class="vvbtn" id="vv-compact" type="button">Compact</button>
+</div>
+
 <form class="vault-search" method="get" action="/documents" role="search">
   <input type="search" name="q" value="{{ q }}" placeholder="Search vault…" autocomplete="off" />
   {% if q %}<a class="btn small ghost" href="/documents">Clear</a>{% endif %}
@@ -40,7 +63,10 @@
         tabindex="{% if loop.first %}0{% else %}-1{% endif %}"
         data-tab-index="{{ loop.index0 }}"
       >
-        <span class="vault-tab-label">{{ cat }}</span>
+        <span class="vault-tab-label">
+          <span class="tab-label-full">{{ cat }}</span>
+          <span class="tab-label-short">{{ {'Identity':'Identity','Licenses & Certifications':'Licenses','Health & Compliance':'Health','Education':'Education','Other':'Other'}.get(cat, cat) }}</span>
+        </span>
         <span class="vault-tab-count">{{ n }}</span>
       </button>
       {% endfor %}
@@ -69,7 +95,11 @@
         data-preview-title="{{ d.title | e }}"
         data-preview-mime="{{ d.mime_type or '' }}"
         data-preview-filename="{{ d.original_filename | e }}"
-        data-preview-category="{{ d.category | e }}">
+        data-preview-category="{{ d.category | e }}"
+        data-status="{{ us }}"
+        data-expires="{{ d.expires_at|dt if d.expires_at else '' }}"
+        data-doc-dl="/documents/{{ d.id }}/download"
+        data-doc-edit="/documents/{{ d.id }}/edit">
         <div class="drag-handle" title="Drag to reorder">⠿</div>
 
         {# Colored 40×40 type/status icon — click opens full preview modal #}
@@ -88,7 +118,7 @@
 
         {# Name + contextual subtitle #}
         <div class="doc-card-body">
-          <p class="doc-card-name">{{ d.title }}</p>
+          <p class="doc-card-name" title="{{ d.title }}">{{ d.title }}</p>
           <p class="doc-card-sub">
             {%- if d.expires_at -%}Renew by {{ d.expires_at|dt }}
             {%- else -%}{{ cat_label }} · Uploaded {{ d.created_at|dt }}{%- endif -%}
@@ -700,6 +730,189 @@
       (e.shiftKey ? last : first).focus();
     }
   });
+})();
+</script>
+
+<!-- ── Mobile bottom sheet ──────────────────────────────────── -->
+<div id="mob-sheet-bd" aria-hidden="true"></div>
+<div id="mob-sheet" role="dialog" aria-modal="true" aria-label="Document actions">
+  <div class="msh-pill"></div>
+  <div class="msh-head">
+    <p class="msh-name" id="msh-name">—</p>
+    <p class="msh-meta" id="msh-meta"></p>
+  </div>
+  <div class="msh-actions">
+    <a class="msh-action" id="msh-preview" href="#" tabindex="0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      Preview
+    </a>
+    <a class="msh-action" id="msh-dl" href="#" tabindex="0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download
+    </a>
+    <a class="msh-action" id="msh-edit" href="#" tabindex="0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit
+    </a>
+    <div class="msh-divider"></div>
+    <button class="msh-action msh-action--del" id="msh-del" type="button" tabindex="0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      Delete
+    </button>
+  </div>
+</div>
+<!-- hidden delete form for mobile sheet -->
+<form id="msh-del-form" method="post" action="#" style="display:none;"></form>
+
+<!-- ── Mobile sticky bar (Portfolio page) ───────────────────── -->
+<nav class="doc-mob-bar" aria-label="Quick actions">
+  <a class="doc-mob-bar-item active" href="/documents">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    Portfolio
+  </a>
+  <a class="doc-mob-bar-item" href="/packet">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Packet
+  </a>
+  <a class="doc-mob-bar-item doc-mob-bar-item--upload" href="/documents/upload">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
+    Upload
+  </a>
+</nav>
+
+<!-- ── Mobile interactions ───────────────────────────────────── -->
+<script>
+(function () {
+  'use strict';
+
+  /* ── View toggle (List / Compact) ────────────────── */
+  var STORAGE_KEY = 'credanta_view';
+  var btnList    = document.getElementById('vv-list');
+  var btnCompact = document.getElementById('vv-compact');
+  var allGrids   = document.querySelectorAll('.vault-cards');
+
+  function setView(mode) {
+    allGrids.forEach(function (g) {
+      if (mode === 'compact') {
+        g.setAttribute('data-view', 'compact');
+      } else {
+        g.removeAttribute('data-view');
+      }
+    });
+    if (btnList)    btnList.classList.toggle('on', mode !== 'compact');
+    if (btnCompact) btnCompact.classList.toggle('on', mode === 'compact');
+    try { localStorage.setItem(STORAGE_KEY, mode); } catch (e) {}
+  }
+
+  var savedView = 'list';
+  try { savedView = localStorage.getItem(STORAGE_KEY) || 'list'; } catch (e) {}
+  setView(savedView);
+
+  if (btnList)    btnList.addEventListener('click', function () { setView('list'); });
+  if (btnCompact) btnCompact.addEventListener('click', function () { setView('compact'); });
+
+  /* ── Mobile bottom sheet ─────────────────────────── */
+  var isMobile = window.matchMedia('(max-width: 768px)').matches;
+  if (!isMobile) return;
+
+  var bd       = document.getElementById('mob-sheet-bd');
+  var sheet    = document.getElementById('mob-sheet');
+  var mshName  = document.getElementById('msh-name');
+  var mshMeta  = document.getElementById('msh-meta');
+  var mshPrev  = document.getElementById('msh-preview');
+  var mshDl    = document.getElementById('msh-dl');
+  var mshEdit  = document.getElementById('msh-edit');
+  var mshDel   = document.getElementById('msh-del');
+  var delForm  = document.getElementById('msh-del-form');
+
+  if (!sheet || !bd) return;
+
+  var currentCard = null;
+
+  function openSheet(card) {
+    currentCard = card;
+    var title    = card.dataset.previewTitle    || card.dataset.previewFilename || 'Document';
+    var cat      = card.dataset.previewCategory || '';
+    var expires  = card.dataset.expires         || '';
+    var status   = card.dataset.status          || '';
+    var id       = card.dataset.docId           || card.dataset.previewId;
+    var dl       = card.dataset.docDl           || ('/documents/' + id + '/download');
+    var edit     = card.dataset.docEdit         || ('/documents/' + id + '/edit');
+    var delUrl   = '/documents/' + id + '/delete';
+
+    mshName.textContent = title;
+
+    var metaParts = [];
+    if (cat)     metaParts.push(cat);
+    if (expires) metaParts.push('Renew by ' + expires);
+    if (status === 'expired') metaParts.push('⚠ Expired');
+    else if (status === 'expiring_soon') metaParts.push('⚠ Expiring soon');
+    mshMeta.textContent = metaParts.join(' · ');
+
+    mshPrev.href  = '#';
+    mshPrev.onclick = function (e) {
+      e.preventDefault();
+      closeSheet();
+      /* Trigger the doc icon click to open preview modal */
+      var icon = card.querySelector('[data-open-preview]');
+      if (icon) icon.click();
+    };
+    mshDl.href    = dl;
+    mshEdit.href  = edit;
+
+    if (delForm) {
+      delForm.action = delUrl;
+    }
+
+    bd.classList.add('open');
+    bd.setAttribute('aria-hidden', 'false');
+    sheet.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    mshPrev.focus();
+  }
+
+  function closeSheet() {
+    bd.classList.remove('open');
+    bd.setAttribute('aria-hidden', 'true');
+    sheet.classList.remove('open');
+    document.body.style.overflow = '';
+    currentCard = null;
+  }
+
+  bd.addEventListener('click', closeSheet);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sheet.classList.contains('open')) closeSheet();
+  });
+
+  if (mshDel && delForm) {
+    mshDel.addEventListener('click', function () {
+      if (confirm('Remove this document?')) {
+        delForm.submit();
+      }
+    });
+  }
+
+  /* ── Wire card taps → sheet (skip icon / actions) ── */
+  document.querySelectorAll('.doc-card').forEach(function (card) {
+    card.addEventListener('click', function (e) {
+      /* Let icon click through to preview modal */
+      if (e.target.closest('[data-open-preview]')) return;
+      /* Let any real links/buttons through */
+      if (e.target.closest('a[href], button, form')) return;
+      openSheet(card);
+    });
+  });
+
+  /* ── Swipe-down to close sheet ───────────────────── */
+  var startY = 0;
+  sheet.addEventListener('touchstart', function (e) {
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  sheet.addEventListener('touchend', function (e) {
+    var delta = e.changedTouches[0].clientY - startY;
+    if (delta > 60) closeSheet();
+  }, { passive: true });
+
 })();
 </script>
 {% endblock %}
