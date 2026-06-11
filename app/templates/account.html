@@ -191,7 +191,7 @@
       <div class="acct-toggle-row">
         <div>
           <div class="acct-toggle-label">Email Reminders</div>
-          <div class="acct-toggle-desc">Get notified before credentials expire</div>
+          <div class="acct-toggle-desc">Get notified before documents expire</div>
         </div>
         <label class="toggle-switch">
           <input type="checkbox" {% if reminder_settings and reminder_settings.email_enabled %}checked{% endif %}
@@ -225,7 +225,7 @@
 <dialog id="delete-modal" class="acct-modal">
   <div class="acct-modal-inner">
     <h3 class="acct-modal-title">Delete your account?</h3>
-    <p class="acct-modal-desc">This will permanently remove your account, all uploaded documents, and credentials. This action cannot be undone.</p>
+    <p class="acct-modal-desc">This will permanently remove your account and all uploaded documents. This action cannot be undone.</p>
     <div class="acct-modal-actions">
       <button type="button" class="btn ghost" onclick="document.getElementById('delete-modal').close()">Cancel</button>
       <form method="post" action="/account/delete" style="margin:0;">

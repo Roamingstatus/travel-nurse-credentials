@@ -12,7 +12,7 @@
     <h1>Hi, {{ username }} 👋</h1>
     <p class="dash-page-sub">
       {% if summary.total > 0 %}
-        {{ valid_count }} of {{ summary.total }} credentials up to date
+        {{ valid_count }} of {{ summary.total }} documents up to date
         <span class="dash-progress-wrap">
           <span class="dash-progress-track">
             <span class="dash-progress-fill" style="width:{{ pct }}%"></span>
@@ -20,7 +20,7 @@
           <span>{{ pct }}%</span>
         </span>
       {% else %}
-        Your credential vault is empty — add your first credential below.
+        Your portfolio is empty — add your first document below.
       {% endif %}
     </p>
   </div>
@@ -49,12 +49,12 @@
 {# ── Alert banner ────────────────────────────────────── #}
 {% if summary.expired %}
 <div class="dash-alert dash-alert--bad anim-fade-up d2">
-  <span class="dash-alert-msg">⛔ {{ summary.expired|length }} credential{% if summary.expired|length != 1 %}s{% endif %} expired</span>
+  <span class="dash-alert-msg">⛔ {{ summary.expired|length }} document{% if summary.expired|length != 1 %}s{% endif %} expired</span>
   <a class="dash-alert-link" href="/documents">View →</a>
 </div>
 {% elif summary.expiring %}
 <div class="dash-alert dash-alert--warn anim-fade-up d2">
-  <span class="dash-alert-msg">⚠ {{ summary.expiring|length }} credential{% if summary.expiring|length != 1 %}s{% endif %} expiring soon</span>
+  <span class="dash-alert-msg">⚠ {{ summary.expiring|length }} document{% if summary.expiring|length != 1 %}s{% endif %} expiring soon</span>
   <a class="dash-alert-link" href="/documents">Review →</a>
 </div>
 {% endif %}
@@ -184,7 +184,7 @@
   <a class="btn ghost" href="/packet">Download packet (.zip)</a>
   <a class="btn ghost" href="/packet/pdf">Download manifest (.pdf)</a>
   {% endif %}
-  <a class="btn ghost" href="/documents">Browse all credentials</a>
+  <a class="btn ghost" href="/documents">Browse all documents</a>
 </div>
 
 <style>

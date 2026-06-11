@@ -4,7 +4,7 @@
 <div class="page-head-min">
   <a href="/premium" class="nav-small">← Premium</a>
   <h1>Expiration Reminders</h1>
-  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Get notified before credentials expire so you never miss a renewal.</p>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Get notified before documents expire so you never miss a renewal.</p>
 </div>
 
 {% set email_status = email_status %}
@@ -17,7 +17,7 @@
     <p style="font-size:28px;margin:0 0 12px;">🔔</p>
     <h2 style="margin:0 0 8px;">Automated Reminders</h2>
     <p style="color:var(--muted);font-size:14px;max-width:360px;margin:0 auto 20px;">
-      Upgrade to Premium to enable automated email reminders before credentials expire.
+      Upgrade to Premium to enable automated email reminders before documents expire.
     </p>
     <a href="/premium" class="btn primary">Upgrade to Premium</a>
   </div>
@@ -57,7 +57,7 @@
           <input type="checkbox" name="email_enabled" value="1"
             {% if settings and settings.email_enabled %}checked{% endif %}
             {% if email_status != 'ok' %}disabled title="Provider not configured"{% endif %} />
-          <span>Send me email reminders before credentials expire</span>
+          <span>Send me email reminders before documents expire</span>
         </label>
       </div>
 

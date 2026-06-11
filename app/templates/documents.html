@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Credentials · Credanta{% endblock %}
+{% block title %}Professional Portfolio · Credanta{% endblock %}
 {% block content %}
 <div class="content-page-head">
   <div class="content-page-title">
@@ -27,7 +27,7 @@
 
 <div class="vault-tab-shell" data-vault-tabs>
   <div class="vault-tabs-scroll">
-    <div class="vault-tabs" role="tablist" aria-label="Credential categories">
+    <div class="vault-tabs" role="tablist" aria-label="Document categories">
       {% for cat in vault_tabs %}
       {% set n = docs_by_category[cat]|length %}
       <button
