@@ -824,12 +824,16 @@ async def upload_submit(
     notes: str = Form(""),
     issuing_state: str = Form(""),
     file: UploadFile = File(...),
-    cf_turnstile_response: str = Form(""),
     db: Session = Depends(get_session),
 ):
     user = require_user(request)
     upload_limiter.check(request)
     if not has_premium(user):
+        # Cloudflare Turnstile injects a field named "cf-turnstile-response" (hyphenated).
+        # FastAPI Form() parameters cannot have hyphens in their names and do NOT
+        # auto-convert, so we must read the token directly from the cached form data.
+        _form = await request.form()
+        cf_turnstile_response = str(_form.get("cf-turnstile-response", "") or "")
         ip = (request.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip() or (request.client.host if request.client else "")
         if not verify_turnstile(cf_turnstile_response, ip):
             log_event("upload_blocked_turnstile", user_id=user.id, ok=False, db=db)
