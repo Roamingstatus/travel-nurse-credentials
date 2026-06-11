@@ -273,6 +273,7 @@ class CsrfMiddleware:
                 "Your session has expired or the request was invalid. "
                 "Please reload the page and try again."
             )
+            session["flash_type"] = "error"
             referrer = raw_headers.get(b"referer", b"").decode("latin-1", errors="replace").strip()
             redirect_to = referrer if referrer else "/"
             body_bytes = b""
@@ -461,6 +462,7 @@ ADMIN_ROUTE: str = _raw_admin_route if _raw_admin_route.startswith("/") else f"/
 def render(request: Request, template: str, **ctx) -> HTMLResponse:
     ctx.setdefault("user", current_user(request))
     ctx.setdefault("flash", request.session.pop("flash", None))
+    ctx.setdefault("flash_type", request.session.pop("flash_type", "info"))
     u = ctx.get("user")
     is_prem = has_premium(u)
     is_prem_plus = has_premium_plus(u)
@@ -833,14 +835,17 @@ async def upload_submit(
             log_event("upload_blocked_turnstile", user_id=user.id, ok=False, db=db)
             log_security_event("turnstile_failed", "medium", request, user, {"context": "upload"})
             request.session["flash"] = "Bot-protection check failed — please try again."
+            request.session["flash_type"] = "error"
             return RedirectResponse("/documents/upload", status_code=302)
     try:
         raw = await _read_limited(file, 25 * 1024 * 1024)
     except HTTPException:
         request.session["flash"] = "Files must be 25 MB or smaller."
+        request.session["flash_type"] = "error"
         return RedirectResponse("/documents/upload", status_code=302)
     if not raw:
         request.session["flash"] = "Please choose a file to upload."
+        request.session["flash_type"] = "error"
         return RedirectResponse("/documents/upload", status_code=302)
 
     content_hash = hashlib.sha256(raw).hexdigest()
@@ -851,6 +856,7 @@ async def upload_submit(
     )
     if dup:
         request.session["flash"] = "Duplicate file: this upload matches an existing document (same contents)."
+        request.session["flash_type"] = "error"
         return RedirectResponse("/documents", status_code=302)
 
     fname = file.filename or ""
@@ -869,6 +875,7 @@ async def upload_submit(
         except Exception:
             pass
         request.session["flash"] = exc.detail
+        request.session["flash_type"] = "error"
         return RedirectResponse("/documents/upload", status_code=302)
     title_clean = title.strip()
     cat = category.strip()
@@ -935,6 +942,7 @@ async def upload_submit(
     except Exception as exc:
         logger.warning("[upload] Immediate alert check failed: %s", exc)
     request.session["flash"] = f"Saved \"{doc.title}\"."
+    request.session["flash_type"] = "success"
     return RedirectResponse("/documents", status_code=302)
 
 

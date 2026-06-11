@@ -132,7 +132,7 @@
   </aside>
   <div class="app-main">
     <main class="app-content">
-      {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+      {% if flash %}<div class="flash flash--{{ flash_type or 'info' }}">{{ flash }}</div>{% endif %}
 {% else %}
 {% if not public_view %}
 <header class="topbar">
@@ -145,7 +145,7 @@
 </header>
 {% endif %}
 <main class="container main-pad">
-  {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+  {% if flash %}<div class="flash flash--{{ flash_type or 'info' }}">{{ flash }}</div>{% endif %}
 {% endif %}
 
 {# ─── page content ─────────────────────────────────── #}
