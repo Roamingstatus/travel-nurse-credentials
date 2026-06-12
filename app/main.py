@@ -2922,17 +2922,6 @@ def admin_testing_export(request: Request, db: Session = Depends(get_session)):
 
 
 # ---------------------------------------------------------------------------
-# Upload audit checklist
-# ---------------------------------------------------------------------------
-
-@app.get("/upload-audit")
-def upload_audit(request: Request):
-    user = require_user(request)
-    require_admin(user)
-    return render(request, "audit_checklist.html")
-
-
-# ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
 
