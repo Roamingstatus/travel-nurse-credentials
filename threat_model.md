@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Travel Nurse Credentials is a FastAPI application for storing professional credential documents, tracking expirations, and sharing recruiter-facing credential packets. It uses Google OAuth for login, Starlette session cookies for authenticated web sessions, SQLite for application data, and the local filesystem for uploaded documents and feedback screenshots. The current production deployment is publicly reachable at its primary domain rather than password-gated, so the attacker model includes the unrestricted public internet in addition to authenticated users, users who possess shared bearer links or feed URLs, and admins.
+Travel Nurse Credentials is a FastAPI application for storing professional credential documents, tracking expirations, and sharing recruiter-facing credential packets. The current production code also includes email/password login, TOTP MFA, Stripe billing and trials, admin dashboards and exports, feedback uploads, recruiter feedback, share links, calendar feeds, and AI-assisted document/resume processing. It uses Starlette session cookies for authenticated web sessions, SQLite for application data, and a storage abstraction that can serve files from local disk or object storage. The current production deployment is publicly reachable at its primary domain rather than password-gated, so the attacker model includes the unrestricted public internet in addition to authenticated users, users who possess shared bearer links or feed URLs, and admins.
 
 ## Assets
 
@@ -15,18 +15,22 @@ Travel Nurse Credentials is a FastAPI application for storing professional crede
 ## Trust Boundaries
 
 - **Browser ↔ application server** — all client input is untrusted, including multipart uploads, JSON bodies, and form fields.
-- **Application server ↔ SQLite/filesystem** — the server can read and write sensitive documents, screenshots, tokens, and admin data locally; authorization and path controls must be correct before any file/database access.
+- **Application server ↔ SQLite/storage backends** — the server can read and write sensitive documents, screenshots, tokens, admin data, and derived exports through local storage and object-storage paths; authorization, path controls, and content handling must be correct before any file/database access.
 - **Public internet/unauthenticated ↔ authenticated user** — internet-reachable surfaces include `/, /login`, OAuth routes, `/healthz`, Stripe webhook, recruiter feedback, share-link routes, and calendar feeds; most sensitive features should still require a valid session or a high-entropy bearer secret.
 - **Authenticated user ↔ admin** — admin dashboards and exports consume attacker-influenced data and therefore need strong server-side access control plus safe rendering/export handling.
 - **Application server ↔ third parties** — Google OAuth, Stripe, Cloudflare Turnstile, and optional email/SMS providers are external trust boundaries whose responses must be validated and whose secrets must stay server-side.
 
 ## Scan Anchors
 
-- `app/main.py` is the primary production route surface, including uploads, document analysis/scan helpers, share links, calendar feeds, billing webhook, feedback, admin views, reminders, MFA, and premium features.
-- `app/security.py` contains upload validation, rate limiting, CSRF, CSP, Turnstile verification, and download-token logic.
-- `app/storage.py`, `app/packet.py`, and `app/reminders.py` are the main filesystem/export paths.
+- `app/main.py` is the primary production route surface, including uploads, document analysis/scan helpers, share links, calendar feeds, billing webhook, feedback, admin views and exports, reminders, MFA, and premium/trial features.
+- `app/security.py` contains upload validation, rate limiting, CSRF, CSP, Turnstile verification, CSV sanitization helpers, and download-token logic.
+- `app/mfa.py` contains TOTP verification and recovery-code handling for second-factor enforcement.
+- `app/services/security_monitor.py` is security-relevant because untrusted request metadata is persisted and later surfaced to admins.
+- `app/storage.py`, `app/services/storage_service.py`, `app/packet.py`, `app/packet_pdf.py`, and `app/reminders.py` are the main storage/export paths.
+- `app/smart_categorize.py` is a high-risk parser surface because it processes attacker-controlled PDF, DOCX, and image content inline during upload/analyze flows.
 - Highest-risk production areas: file uploads/previews, document analysis/scan helpers, share/bearer-token routes, reminder/test-message endpoints, admin exports, billing webhook, and MFA/session handling.
 - Likely dev-only or lower-priority surfaces: admin testing utilities and explicit dev helpers; skip unless production reachability is demonstrated.
+- Premium-entitlement findings require extra care because the codebase supports a beta-unlock mode (`BETA_MODE` / `BETA_UNLOCK_ALL_FEATURES`) that intentionally bypasses paid-feature gates while active. Do not report simple paid-feature access as a vulnerability unless the issue remains exploitable independent of that beta mode or contradicts current production behavior.
 
 ## Threat Categories
 
