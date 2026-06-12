@@ -1,0 +1,229 @@
+Migrate Credanta document uploads to persistent storage before launch.
+
+Do NOT rebuild the app.
+Do NOT delete existing upload functionality.
+Do NOT store uploaded files only in local filesystem.
+Do NOT expose public file URLs.
+
+Goal:
+Make uploaded documents persist safely across deployments, restarts, and production sessions.
+
+Use Replit Object Storage if available.
+
+────────────────────────
+AUDIT CURRENT STORAGE
+────────────────────────
+
+First inspect current upload implementation.
+
+Identify:
+- where files are currently saved
+- whether uploads use local filesystem
+- whether files are saved to /uploads, /tmp, static folders, or memory
+- how document metadata is stored
+- how previews/downloads are served
+- whether deployed app can write to the current location
+
+Create:
+
+STORAGE_AUDIT_REPORT.md
+
+Include:
+- current storage method
+- why it is unsafe for production
+- files/routes affected
+- recommended migration path
+
+────────────────────────
+PERSISTENT FILE STORAGE
+────────────────────────
+
+Migrate uploaded document files to persistent object storage.
+
+Preferred:
+Replit Object Storage
+
+If Replit Object Storage is not available:
+prepare adapter pattern so another provider can be used later.
+
+Create storage service:
+
+services/storage_service.py
+or equivalent for current stack
+
+Functions:
+- upload_file(user_id, file, metadata)
+- get_file(document_id, user_id)
+- generate_download_url(document_id, user_id)
+- delete_file(document_id, user_id)
+- file_exists(document_id, user_id)
+
+Storage key format:
+
+users/{user_id}/documents/{document_id}/{safe_filename}
+
+Do not use original filename alone as storage key.
+
+────────────────────────
+DATABASE METADATA
+────────────────────────
+
+Keep document metadata in database.
+
+Ensure documents table stores:
+- id
+- user_id
+- original_filename
+- safe_filename
+- storage_key
+- storage_provider
+- mime_type
+- file_size
+- category
+- expiration_date
+- status
+- uploaded_at
+
+Do not store raw file contents in database.
+
+────────────────────────
+UPLOAD ROUTE
+────────────────────────
+
+Update upload flow:
+
+1. User selects file
+2. Backend validates user session
+3. Validate file type
+4. Validate file size
+5. Create document database record
+6. Upload file to object storage
+7. Save storage_key/provider to database
+8. Return success response
+
+If storage upload fails:
+- do not leave broken document records
+- rollback or mark failed
+- show clean error
+
+Allowed file types:
+- PDF
+- JPG
+- JPEG
+- PNG
+- DOCX
+- TXT
+
+Reject:
+- EXE
+- HTML
+- JS
+- unknown binary files
+- oversized files
+
+────────────────────────
+PREVIEW / DOWNLOAD ROUTES
+────────────────────────
+
+Update preview/download to stream from persistent storage.
+
+Routes should:
+- verify logged-in user owns document
+- fetch object by storage_key
+- return file stream or temporary signed URL
+- never expose private storage path
+- never allow users to access another user's files
+
+Public recruiter share links:
+- only allow files included in share packet
+- never expose unshared documents
+- use secure token checks
+
+────────────────────────
+SECURITY
+────────────────────────
+
+Protect files:
+
+- no public bucket
+- no public static upload folder
+- no direct guessable file URLs
+- verify ownership on every download/preview
+- sanitize filenames
+- strip path traversal attempts
+- reject suspicious filenames
+
+Do not allow:
+../../secret.env
+
+────────────────────────
+MIGRATION OF EXISTING FILES
+────────────────────────
+
+If local files already exist:
+
+Create migration script:
+
+migrate_local_uploads_to_object_storage.py
+
+Steps:
+- find existing local uploaded files
+- match to database documents
+- upload each to object storage
+- update storage_key/provider
+- log migrated files
+- skip missing files safely
+
+Do not delete local files until migration is confirmed.
+
+Create:
+MIGRATION_REPORT.md
+
+────────────────────────
+ERROR HANDLING
+────────────────────────
+
+If object storage is not configured:
+- uploads should show:
+“Document storage is temporarily unavailable.”
+- app should not crash
+- log clear server-side warning
+
+Do not show stack traces.
+
+────────────────────────
+TESTING
+────────────────────────
+
+Test:
+
+- upload PDF
+- upload JPG
+- upload PNG
+- upload DOCX
+- upload oversized file rejected
+- upload bad file type rejected
+- uploaded file persists after app restart
+- preview works after restart
+- download works after restart
+- delete removes storage object
+- User A cannot access User B file
+- recruiter share link only exposes selected files
+
+────────────────────────
+FINAL REPORT
+────────────────────────
+
+Create:
+
+PERSISTENT_STORAGE_MIGRATION_REPORT.md
+
+Include:
+- storage provider used
+- files changed
+- migration status
+- tests passed/failed
+- remaining risks
+
+Important:
+Do not launch real users until uploaded documents persist after restart/redeploy.
