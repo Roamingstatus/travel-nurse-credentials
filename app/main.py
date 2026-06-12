@@ -632,6 +632,11 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
     is_new = user.id is None
     db.commit()
     log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
+    if getattr(user, "mfa_enabled", False):
+        request.session.clear()
+        request.session["mfa_pending_user_id"] = user.id
+        request.session["mfa_next"] = "/dashboard"
+        return RedirectResponse("/security/mfa/challenge", status_code=302)
     request.session["user_id"] = user.id
     request.session["flash"] = f"Signed in as {user.email}"
     return RedirectResponse("/dashboard", status_code=302)
@@ -2021,6 +2026,10 @@ async def mfa_disable(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
     db_user = db.get(User, user.id)
     if db_user and db_user.mfa_enabled:
+        mfa_check = _mfa_gate(request, db_user)
+        if mfa_check:
+            return mfa_check
+    if db_user and db_user.mfa_enabled:
         db_user.mfa_enabled = False
         db_user.mfa_method = None
         db_user.mfa_totp_secret = None
@@ -2032,11 +2041,29 @@ async def mfa_disable(request: Request, db: Session = Depends(get_session)):
     return RedirectResponse("/security", status_code=302)
 
 
+def _resolve_mfa_challenge_user(request: Request, db: Session) -> "User | None":
+    """Return the User for the MFA challenge, whether coming from a post-OAuth
+    pending state (mfa_pending_user_id) or from an already-authenticated
+    session that needs a re-verification (user_id).  Returns None if neither
+    key is present or the user cannot be found."""
+    pending_id = request.session.get("mfa_pending_user_id")
+    if pending_id:
+        return db.get(User, pending_id)
+    user_id = request.session.get("user_id")
+    if user_id:
+        return db.get(User, user_id)
+    return None
+
+
 @app.get("/security/mfa/challenge", response_class=HTMLResponse)
-def mfa_challenge_page(request: Request):
-    user = require_user(request)
+def mfa_challenge_page(request: Request, db: Session = Depends(get_session)):
+    user = _resolve_mfa_challenge_user(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
     if not getattr(user, "mfa_enabled", False):
-        return RedirectResponse("/security", status_code=302)
+        if request.session.get("user_id"):
+            return RedirectResponse("/security", status_code=302)
+        return RedirectResponse("/login", status_code=302)
     next_url = request.session.get("mfa_next", "/dashboard")
     return render(request, "mfa_challenge.html", user=user, next_url=next_url)
 
@@ -2049,9 +2076,14 @@ async def mfa_challenge_submit(
     is_recovery: str = Form(""),
     db: Session = Depends(get_session),
 ):
-    user = require_user(request)
-    db_user = db.get(User, user.id)
+    db_user = _resolve_mfa_challenge_user(request, db)
+    if not db_user:
+        return RedirectResponse("/login", status_code=302)
+
     if not db_user.mfa_enabled:
+        if request.session.get("mfa_pending_user_id"):
+            request.session.pop("mfa_pending_user_id", None)
+            request.session["user_id"] = db_user.id
         safe_next = next if next.startswith("/") else "/dashboard"
         return RedirectResponse(safe_next, status_code=302)
 
@@ -2070,6 +2102,11 @@ async def mfa_challenge_submit(
     if not verified:
         request.session["flash"] = "Incorrect code — please try again."
         return RedirectResponse("/security/mfa/challenge", status_code=302)
+
+    if request.session.get("mfa_pending_user_id"):
+        request.session.pop("mfa_pending_user_id", None)
+        request.session["user_id"] = db_user.id
+        request.session["flash"] = f"Signed in as {db_user.email}"
 
     request.session["mfa_verified_at"] = time.time()
     request.session.pop("mfa_next", None)
