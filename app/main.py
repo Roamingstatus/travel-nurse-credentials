@@ -119,6 +119,7 @@ from .security import (
     validate_name,
     validate_password_strength,
     sanitize_csv_cell,
+    mfa_limiter,
 )
 from .email_auth import (
     hash_password,
@@ -318,8 +319,11 @@ class CsrfMiddleware:
                 "Please reload the page and try again."
             )
             session["flash_type"] = "error"
-            referrer = raw_headers.get(b"referer", b"").decode("latin-1", errors="replace").strip()
-            redirect_to = referrer if referrer else "/"
+            # Do NOT use the Referer header as a redirect target — it is fully
+            # attacker-controlled and would create an open redirect regardless
+            # of origin checks (e.g. network-path refs like //evil.com).
+            # Always redirect to "/" so the user sees the flash error there.
+            redirect_to = "/"
             body_bytes = b""
             await send({"type": "http.response.start", "status": 303,
                         "headers": [(b"location", redirect_to.encode("latin-1", errors="replace")),
@@ -2448,6 +2452,10 @@ def mfa_challenge_page(request: Request, db: Session = Depends(get_session)):
     return render(request, "mfa_challenge.html", user=user, next_url=next_url)
 
 
+# Maximum failed MFA attempts per session before the session is invalidated
+_MFA_MAX_ATTEMPTS = 5
+
+
 @app.post("/security/mfa/challenge")
 async def mfa_challenge_submit(
     request: Request,
@@ -2456,6 +2464,16 @@ async def mfa_challenge_submit(
     is_recovery: str = Form(""),
     db: Session = Depends(get_session),
 ):
+    # Per-IP rate limit: 10 attempts per 15 minutes
+    try:
+        mfa_limiter.check(request)
+    except HTTPException:
+        log_security_event("mfa_bruteforce_suspected", "high", request)
+        request.session.clear()
+        request.session["flash"] = "Too many verification attempts. Please log in again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
     db_user = _resolve_mfa_challenge_user(request, db)
     if not db_user:
         return RedirectResponse("/login", status_code=302)
@@ -2466,6 +2484,16 @@ async def mfa_challenge_submit(
             request.session["user_id"] = db_user.id
         safe_next = next if next.startswith("/") else "/dashboard"
         return RedirectResponse(safe_next, status_code=302)
+
+    # Per-session attempt counter — invalidate session after too many failures
+    attempt_count = int(request.session.get("mfa_attempt_count", 0))
+    if attempt_count >= _MFA_MAX_ATTEMPTS:
+        log_security_event("mfa_bruteforce_suspected", "high", request,
+                           metadata={"user_id": db_user.id, "reason": "session_lockout"})
+        request.session.clear()
+        request.session["flash"] = "Too many incorrect codes. Please log in again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
 
     verified = False
     if is_recovery:
@@ -2480,7 +2508,13 @@ async def mfa_challenge_submit(
             verified = True
 
     if not verified:
-        request.session["flash"] = "Incorrect code — please try again."
+        request.session["mfa_attempt_count"] = attempt_count + 1
+        remaining = _MFA_MAX_ATTEMPTS - (attempt_count + 1)
+        if remaining > 0:
+            request.session["flash"] = f"Incorrect code — please try again. ({remaining} attempt{'s' if remaining != 1 else ''} remaining)"
+        else:
+            request.session["flash"] = "Incorrect code — no attempts remaining."
+        request.session["flash_type"] = "error"
         return RedirectResponse("/security/mfa/challenge", status_code=302)
 
     if request.session.get("mfa_pending_user_id"):

@@ -518,6 +518,7 @@ reminder_test_limiter  = _RateLimiter(max_calls=3,  window_seconds=300,  name="r
 login_email_limiter    = _RateLimiter(max_calls=10, window_seconds=900,  name="login_email")   # 10/IP/15 min
 register_limiter       = _RateLimiter(max_calls=5,  window_seconds=3600, name="register")       # 5/IP/hour
 forgot_pw_limiter      = _RateLimiter(max_calls=5,  window_seconds=3600, name="forgot_pw")      # 5/IP/hour
+mfa_limiter            = _RateLimiter(max_calls=10, window_seconds=900,  name="mfa_challenge")  # 10/IP/15 min
 
 
 # ---------------------------------------------------------------------------
