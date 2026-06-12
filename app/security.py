@@ -87,11 +87,11 @@ def validate_env() -> None:
     elif secret.lower() in _WEAK_SECRETS:
         _fatal("SESSION_SECRET looks like a known placeholder. Replace it with a random value.")
 
-    # ── Google OAuth (core auth — fatal in production) ────────────────────────
+    # ── Google OAuth (optional — email/password auth is also available) ──────
     if not os.environ.get("GOOGLE_CLIENT_ID"):
-        _fatal("GOOGLE_CLIENT_ID not set — users cannot log in.")
+        _error("GOOGLE_CLIENT_ID not set — Google sign-in will not appear on the login page. Email/password auth is still available.")
     if not os.environ.get("GOOGLE_CLIENT_SECRET"):
-        _fatal("GOOGLE_CLIENT_SECRET not set — users cannot log in.")
+        _error("GOOGLE_CLIENT_SECRET not set — Google sign-in will not appear on the login page. Email/password auth is still available.")
 
     # ── Cloudflare Turnstile (bot protection — fatal in production) ───────────
     if not os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY"):
@@ -506,14 +506,133 @@ class _RateLimiter:
             self._buckets[key] = hits
 
 
-upload_limiter        = _RateLimiter(max_calls=10, window_seconds=60,   name="upload")
-auth_limiter          = _RateLimiter(max_calls=20, window_seconds=60,   name="auth")
-share_limiter         = _RateLimiter(max_calls=15, window_seconds=60,   name="share")
-preview_limiter       = _RateLimiter(max_calls=60, window_seconds=60,   name="preview")
-feedback_limiter      = _RateLimiter(max_calls=5,  window_seconds=60,   name="feedback")
-admin_limiter         = _RateLimiter(max_calls=30, window_seconds=900,  name="admin")
-analyze_limiter       = _RateLimiter(max_calls=10, window_seconds=60,   name="analyze")
-reminder_test_limiter = _RateLimiter(max_calls=3,  window_seconds=300,  name="reminder_test")
+upload_limiter         = _RateLimiter(max_calls=10, window_seconds=60,   name="upload")
+auth_limiter           = _RateLimiter(max_calls=20, window_seconds=60,   name="auth")
+share_limiter          = _RateLimiter(max_calls=15, window_seconds=60,   name="share")
+preview_limiter        = _RateLimiter(max_calls=60, window_seconds=60,   name="preview")
+feedback_limiter       = _RateLimiter(max_calls=5,  window_seconds=60,   name="feedback")
+admin_limiter          = _RateLimiter(max_calls=30, window_seconds=900,  name="admin")
+analyze_limiter        = _RateLimiter(max_calls=10, window_seconds=60,   name="analyze")
+reminder_test_limiter  = _RateLimiter(max_calls=3,  window_seconds=300,  name="reminder_test")
+# Auth-specific limiters (tighter windows per spec)
+login_email_limiter    = _RateLimiter(max_calls=10, window_seconds=900,  name="login_email")   # 10/IP/15 min
+register_limiter       = _RateLimiter(max_calls=5,  window_seconds=3600, name="register")       # 5/IP/hour
+forgot_pw_limiter      = _RateLimiter(max_calls=5,  window_seconds=3600, name="forgot_pw")      # 5/IP/hour
+
+
+# ---------------------------------------------------------------------------
+# Per-email brute-force tracker (complements per-IP limiter)
+# ---------------------------------------------------------------------------
+
+class _EmailRateLimiter:
+    """Sliding-window rate limiter keyed by lowercase email address."""
+
+    def __init__(self, max_calls: int, window_seconds: int, name: str = "") -> None:
+        self._max = max_calls
+        self._window = float(window_seconds)
+        self._name = name
+        self._buckets: dict[str, list[float]] = defaultdict(list)
+        self._lock = threading.Lock()
+
+    def check(self, email: str) -> None:
+        """Raise HTTP 429 if this email has exceeded the rate limit."""
+        key = email.lower().strip()
+        now = time.monotonic()
+        cutoff = now - self._window
+        with self._lock:
+            hits = [t for t in self._buckets[key] if t > cutoff]
+            if len(hits) >= self._max:
+                logger.warning("[security] Rate limit (email): limiter=%s email=%s", self._name, key)
+                raise HTTPException(
+                    429,
+                    "Too many attempts. Please try again later.",
+                )
+            hits.append(now)
+            self._buckets[key] = hits
+
+
+login_email_by_email_limiter  = _EmailRateLimiter(max_calls=5,  window_seconds=900,  name="login_by_email")
+forgot_pw_by_email_limiter    = _EmailRateLimiter(max_calls=3,  window_seconds=3600, name="forgot_pw_by_email")
+
+
+# ---------------------------------------------------------------------------
+# Input validation helpers
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+_EMAIL_RE = _re.compile(
+    r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
+)
+
+_COMMON_PASSWORDS: frozenset[str] = frozenset({
+    "password", "password1", "password123", "123456", "12345678", "123456789",
+    "111111", "abc123", "letmein", "qwerty", "qwertyuiop", "iloveyou",
+    "admin", "welcome", "monkey", "dragon", "master", "hello", "sunshine",
+    "princess", "football", "shadow", "baseball", "superman", "michael",
+    "qwerty123", "pass123", "passw0rd", "password!", "password@123",
+    "1234567890", "test123", "admin123", "root", "toor", "12345",
+})
+
+_HTML_RE = _re.compile(r"<[^>]+>")
+
+
+def validate_email_format(email: str) -> str:
+    """Return normalised email or raise ValueError with a descriptive message."""
+    email = email.strip().lower()
+    if len(email) > 254:
+        raise ValueError("Email address is too long (maximum 254 characters).")
+    if not _EMAIL_RE.match(email):
+        raise ValueError("Please enter a valid email address.")
+    return email
+
+
+def validate_name(name: str) -> str:
+    """Return sanitised name or raise ValueError."""
+    name = _HTML_RE.sub("", name).strip()
+    if len(name) > 80:
+        raise ValueError("Name must be 80 characters or fewer.")
+    return name
+
+
+def is_common_password(plain: str) -> bool:
+    """Return True if *plain* appears on the common-password list."""
+    return plain.lower() in _COMMON_PASSWORDS
+
+
+def validate_password_strength(plain: str) -> None:
+    """Raise ValueError if *plain* does not meet strength requirements.
+
+    Rules:
+    - Minimum 12 characters (allows password managers with longer phrases)
+    - Not on common-password block-list
+    - No further composition rules — allow any characters including spaces,
+      symbols, unicode (compatible with password managers).
+    """
+    if len(plain) < 12:
+        raise ValueError("Password must be at least 12 characters long.")
+    if is_common_password(plain):
+        raise ValueError("This password is too common. Please choose a stronger one.")
+
+
+# ---------------------------------------------------------------------------
+# CSV injection sanitisation
+# ---------------------------------------------------------------------------
+
+_CSV_DANGEROUS_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def sanitize_csv_cell(value: str) -> str:
+    """Prefix dangerous CSV formula starters with an apostrophe.
+
+    Prevents formula injection when cells are opened in spreadsheet apps.
+    Example: '=IMPORTXML(...)' → "'=IMPORTXML(...)"
+    """
+    if not value:
+        return value
+    if value[0] in _CSV_DANGEROUS_PREFIXES:
+        return f"'{value}"
+    return value
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,430 @@
+Update the existing Credanta authentication and feature-access system.
+
+Do NOT rebuild the app.
+Do NOT delete existing databases.
+Do NOT delete Stripe code.
+Do NOT delete premium-gated pages/components.
+Do NOT delete subscription_tier fields.
+Do NOT delete premium UI logic permanently.
+
+Goal:
+Create a simpler public beta experience where users can sign in easily and access all features, while preserving premium/Stripe code in the codebase for future use.
+
+────────────────────────
+1. LOGIN PAGE REDESIGN
+────────────────────────
+
+Create a login/register interface inspired by the Cloudflare login layout, but do not copy it exactly.
+
+Layout:
+- centered card
+- Credanta logo at top
+- clean white background
+- rounded corners
+- subtle border/shadow
+- mobile responsive
+
+Top auth buttons:
+- Continue with Google
+- Continue with Apple placeholder if not implemented
+- Continue with GitHub placeholder if not implemented
+
+Only enable providers that are actually configured.
+
+Then divider:
+or
+
+Email/password section:
+- Email
+- Password
+- Show/hide password button
+- Continue button
+
+Secondary links:
+- Create account
+- Forgot password
+
+Human verification:
+- Cloudflare Turnstile under password field
+
+Do not use Cloudflare branding beyond the official Turnstile widget.
+
+────────────────────────
+2. EMAIL + PASSWORD AUTH
+────────────────────────
+
+Add traditional email/password authentication.
+
+Registration fields:
+- name
+- email
+- password
+- confirm password
+
+Login fields:
+- email
+- password
+
+Security:
+- hash passwords using bcrypt or argon2
+- never store plaintext passwords
+- never log passwords
+- never expose password hashes to frontend
+- normalize emails lowercase
+- enforce strong password minimum:
+  - at least 12 characters
+  - reject common passwords
+  - allow password managers
+- add show/hide password toggle
+
+Session:
+- secure HTTP-only cookies
+- SameSite=Lax or Strict
+- Secure=true in production
+- session expiration
+- regenerate session after login
+
+────────────────────────
+3. CLOUDFARE TURNSTILE BOT PROTECTION
+────────────────────────
+
+Protect:
+- registration
+- login
+- forgot password
+- waitlist form if present
+
+Environment variables:
+CLOUDFLARE_TURNSTILE_SITE_KEY
+CLOUDFLARE_TURNSTILE_SECRET_KEY
+
+Backend must verify Turnstile token.
+
+If verification fails:
+“Please verify you are human and try again.”
+
+Fail closed in production if Turnstile secret is missing.
+
+────────────────────────
+4. CSRF PROTECTION
+────────────────────────
+
+Add CSRF protection to:
+- login
+- register
+- forgot password
+- profile updates
+- password changes
+- document upload/delete actions if not already protected
+
+Use:
+- CSRF token generated server-side
+- secure SameSite cookie/session
+- token submitted with forms/API requests
+- server-side validation
+
+Failure message:
+“Session expired. Please refresh and try again.”
+
+────────────────────────
+5. BRUTE-FORCE PROTECTION
+────────────────────────
+
+Add rate limits:
+
+Login:
+- 5 failed attempts per email per 15 minutes
+- 10 failed attempts per IP per 15 minutes
+
+Registration:
+- 5 attempts per IP per hour
+
+Forgot password:
+- 3 attempts per email per hour
+- 5 attempts per IP per hour
+
+If exceeded:
+“Too many attempts. Please try again later.”
+
+Add optional account cooldown:
+- if 10 failed login attempts for same email in 1 hour, temporarily lock login for 15 minutes
+
+Do not reveal whether email exists.
+
+Use same message:
+“Invalid email or password.”
+
+────────────────────────
+6. XSS / INJECTION HARDENING
+────────────────────────
+
+Sanitize and validate all auth inputs.
+
+Email:
+- valid email format
+- max 254 characters
+- lowercase
+- trim whitespace
+
+Name:
+- max 80 characters
+- strip HTML
+- reject script tags
+
+Password:
+- do not sanitize destructively
+- do not log
+- only validate length/rules
+
+Use parameterized queries only.
+
+Add security headers if not present:
+- Content-Security-Policy
+- X-Content-Type-Options: nosniff
+- Referrer-Policy
+- Permissions-Policy
+- X-Frame-Options or frame-ancestors in CSP
+
+Do not display raw user input without escaping.
+
+────────────────────────
+7. CSV INJECTION PROTECTION
+────────────────────────
+
+For any CSV exports:
+- waitlist export
+- user export
+- beta feedback export
+- admin analytics export
+- security events export
+
+Sanitize cells starting with:
+=, +, -, @, tab, carriage return
+
+Prefix dangerous CSV values with apostrophe.
+
+Example:
+=IMPORTXML(...)
+becomes:
+'=IMPORTXML(...)
+
+Do not allow formulas to execute when exported.
+
+────────────────────────
+8. SPAM / ABUSE PROTECTION
+────────────────────────
+
+Add honeypot field to register/waitlist forms:
+website
+
+If filled:
+- return fake success
+- do not create account
+- log honeypot_triggered
+
+Add payload size limits.
+
+Reject suspicious patterns:
+- script tags
+- repeated automated submissions
+- malformed headers
+
+Log security events if security_events exists:
+- login_bruteforce_suspected
+- turnstile_failed
+- csrf_failed
+- auth_honeypot_triggered
+- suspicious_auth_payload
+- account_lockout_triggered
+
+Do not log passwords or tokens.
+
+────────────────────────
+9. GOOGLE OAUTH PRESERVATION
+────────────────────────
+
+Keep existing Google login.
+
+Fix redirect URI handling if needed.
+
+Support domains:
+- getcredanta.com
+- credantaapp.com
+- Replit preview/deployment domain
+- localhost development
+
+Do not force Google login.
+Google should be optional.
+
+Existing Google users must still be able to sign in.
+
+────────────────────────
+10. BETA ACCESS: UNLOCK ALL FEATURES
+────────────────────────
+
+Create feature flag:
+
+BETA_UNLOCK_ALL_FEATURES=true
+
+When true:
+- all logged-in users can access all app features
+- no premium gating blocks usage
+- no Stripe payment required
+- no Premium/Premium+ restrictions
+
+Features available to all logged-in users:
+- document upload
+- document preview
+- expiration tracking
+- email reminders if configured
+- SMS reminders if configured and user provides phone
+- packet generation
+- recruiter share links
+- resume enhancer
+- smart checklist
+- account page
+- security settings
+- beta feedback
+- admin only features remain admin-only
+
+Important:
+Admin pages still require ADMIN_EMAILS.
+Security-sensitive controls still require auth.
+
+────────────────────────
+11. PRESERVE PREMIUM CODE FOR FUTURE
+────────────────────────
+
+Do not delete:
+- premium page
+- Stripe checkout routes
+- Stripe webhook
+- subscription_tier fields
+- premium feature components
+- premium helper functions
+
+Instead:
+- keep code in place
+- bypass gating only when BETA_UNLOCK_ALL_FEATURES=true
+- add comments explaining this is temporary beta behavior
+
+Example helper:
+
+canAccessFeature(user, feature) {
+  if (process.env.BETA_UNLOCK_ALL_FEATURES === "true") return true;
+  return existingPremiumLogic(user, feature);
+}
+
+Do not remove existingPremiumLogic.
+
+────────────────────────
+12. SIMPLE BETA INTERFACE
+────────────────────────
+
+Create a simplified post-login interface for all users.
+
+Focus on:
+
+- Add Documents
+- Track Expiration Dates
+- Generate Submission Packet
+- Share Recruiter Link
+- Resume Enhancer
+- Feedback
+
+Avoid showing:
+- upgrade pressure
+- locked cards
+- payment prompts
+- premium badges
+
+If premium menu remains:
+- hide it when BETA_UNLOCK_ALL_FEATURES=true
+or
+- label it “Future Premium”
+
+Do not remove the premium page file.
+
+────────────────────────
+13. USER EXPERIENCE COPY
+────────────────────────
+
+Login headline:
+Sign in to Credanta
+
+Subtext:
+Organize, monitor, and share your professional documents.
+
+Email section:
+Email
+Password
+
+Buttons:
+Continue with Google
+Continue with Email
+Create Account
+
+Turnstile label:
+Let us know you are human
+
+Beta note:
+Credanta is currently in beta. All features are available while we improve the platform.
+
+────────────────────────
+14. TESTING
+────────────────────────
+
+Test:
+
+Auth:
+- Google login still works
+- email registration works
+- email/password login works
+- wrong password fails safely
+- password is hashed
+- session cookie is HTTP-only
+- logout works
+
+Security:
+- Turnstile failure blocks login/register
+- CSRF failure blocks login/register
+- brute force limit triggers
+- honeypot triggers
+- script injection rejected
+- CSV export sanitizes formula-like values
+
+Beta unlock:
+- free/new user can access all normal features
+- no premium gate blocks packet generation
+- no premium gate blocks recruiter links
+- no premium gate blocks reminders if provider configured
+- admin routes still require admin allowlist
+
+Regression:
+- uploads still work
+- document preview works
+- mobile portfolio works
+- resume enhancer works
+- waitlist form works
+- Stripe code still exists but is inactive/not required
+
+────────────────────────
+15. REPORT
+────────────────────────
+
+Create:
+
+BETA_AUTH_AND_ACCESS_REPORT.md
+
+Include:
+- auth changes made
+- security protections added
+- features unlocked for beta
+- premium code preserved
+- tests completed
+- known remaining issues
+
+Important:
+This is a beta simplification.
+The app should feel open and useful, not paywalled.
+Do not delete monetization code; just disable gating through the beta unlock flag.

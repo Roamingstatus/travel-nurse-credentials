@@ -110,6 +110,24 @@ from .security import (
     verify_turnstile,
     make_download_token,
     verify_download_token,
+    login_email_limiter,
+    register_limiter,
+    forgot_pw_limiter,
+    login_email_by_email_limiter,
+    forgot_pw_by_email_limiter,
+    validate_email_format,
+    validate_name,
+    validate_password_strength,
+    sanitize_csv_cell,
+)
+from .email_auth import (
+    hash_password,
+    verify_password as _verify_email_password,
+    register_email_user,
+    authenticate_email_user,
+    create_reset_token,
+    consume_reset_token,
+    check_account_lockout,
 )
 import itsdangerous as _itsd
 from .mfa import (
@@ -511,6 +529,11 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
     ctx.setdefault("cf_turnstile_site_key", os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""))
     ctx.setdefault("admin_route", ADMIN_ROUTE)
     ctx.setdefault("csrf_token", get_csrf_token(request.session))
+    # Beta unlock: when true, all premium gates are bypassed (temporary beta behaviour).
+    # Stripe code and premium logic are preserved; this flag disables the gating only.
+    _beta_unlock = os.environ.get("BETA_UNLOCK_ALL_FEATURES", "false").lower() == "true" or \
+                   os.environ.get("BETA_MODE", "false").lower() == "true"
+    ctx.setdefault("beta_unlock", _beta_unlock)
     # ── Trial banner context ──────────────────────────────────────────────
     if u and not ctx.get("public_view"):
         _tier = (getattr(u, "subscription_tier", "free") or "free")
@@ -710,6 +733,281 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
 @app.post("/logout")
 def logout(request: Request):
     request.session.clear()
+    return RedirectResponse("/login", status_code=302)
+
+
+# ---------------------------------------------------------------------------
+# Email / password registration
+# ---------------------------------------------------------------------------
+
+@app.get("/auth/register", response_class=HTMLResponse)
+def register_page(request: Request):
+    if current_user(request):
+        return RedirectResponse("/dashboard", status_code=302)
+    return render(
+        request,
+        "register.html",
+        google_ready=google_configured(),
+        cf_turnstile_site_key=os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""),
+    )
+
+
+@app.post("/auth/register")
+async def register_submit(
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    register_limiter.check(request)
+    _form = await request.form()
+
+    # Honeypot check — bots fill hidden "website" field; real users leave it blank
+    honeypot = str(_form.get("website", "") or "").strip()
+    if honeypot:
+        log_security_event("auth_honeypot_triggered", "medium", request,
+                           metadata={"context": "register"})
+        # Return fake success so bots can't enumerate the check
+        request.session["flash"] = "Account created! Please sign in."
+        return RedirectResponse("/login", status_code=302)
+
+    # Turnstile
+    ip = (request.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip() or (request.client.host if request.client else "")
+    cf_token = str(_form.get("cf-turnstile-response", "") or "")
+    if not verify_turnstile(cf_token, ip):
+        log_security_event("turnstile_failed", "medium", request, metadata={"context": "register"})
+        request.session["flash"] = "Please verify you are human and try again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/auth/register", status_code=302)
+
+    name_raw = str(_form.get("name", "") or "").strip()
+    email_raw = str(_form.get("email", "") or "").strip()
+    password_raw = str(_form.get("password", "") or "")
+    confirm_raw = str(_form.get("confirm_password", "") or "")
+
+    # Suspicious payload check
+    for field_val in (name_raw, email_raw):
+        if "<script" in field_val.lower() or "javascript:" in field_val.lower():
+            log_security_event("suspicious_auth_payload", "medium", request,
+                               metadata={"context": "register"})
+            request.session["flash"] = "Invalid characters in form fields."
+            request.session["flash_type"] = "error"
+            return RedirectResponse("/auth/register", status_code=302)
+
+    # Validate inputs
+    try:
+        email_clean = validate_email_format(email_raw)
+        name_clean = validate_name(name_raw) if name_raw else ""
+        validate_password_strength(password_raw)
+    except ValueError as exc:
+        request.session["flash"] = str(exc)
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/auth/register", status_code=302)
+
+    if password_raw != confirm_raw:
+        request.session["flash"] = "Passwords do not match."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/auth/register", status_code=302)
+
+    pw_hash = hash_password(password_raw)
+    try:
+        user = register_email_user(db, email=email_clean, name=name_clean, password_hash=pw_hash)
+        db.commit()
+        db.refresh(user)
+    except ValueError as exc:
+        if "email_taken" in str(exc):
+            # Don't reveal whether the email exists — use a generic message
+            request.session["flash"] = "Unable to create account. Check your details and try again."
+            request.session["flash_type"] = "error"
+        else:
+            request.session["flash"] = "Registration failed. Please try again."
+            request.session["flash_type"] = "error"
+        return RedirectResponse("/auth/register", status_code=302)
+
+    log_event("user_signup", user_id=user.id, db=db)
+    log_security_event("email_registration", "low", request, user,
+                       metadata={"context": "register"})
+
+    # Set trial eligibility
+    if is_trial_offer_active():
+        user.trial_eligible = True
+        user.trial_offer_expires_at = _TRIAL_OFFER_DEADLINE
+        db.commit()
+
+    request.session["user_id"] = user.id
+    request.session["flash"] = f"Welcome to Credanta, {user.name or user.email}!"
+    return RedirectResponse("/dashboard", status_code=302)
+
+
+# ---------------------------------------------------------------------------
+# Email / password login
+# ---------------------------------------------------------------------------
+
+@app.post("/auth/login-email")
+async def login_email_submit(
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    login_email_limiter.check(request)
+    _form = await request.form()
+
+    # Honeypot
+    honeypot = str(_form.get("website", "") or "").strip()
+    if honeypot:
+        log_security_event("auth_honeypot_triggered", "medium", request,
+                           metadata={"context": "login_email"})
+        request.session["flash"] = "Invalid email or password."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    # Turnstile
+    ip = (request.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip() or (request.client.host if request.client else "")
+    cf_token = str(_form.get("cf-turnstile-response", "") or "")
+    if not verify_turnstile(cf_token, ip):
+        log_security_event("turnstile_failed", "medium", request, metadata={"context": "login_email"})
+        request.session["flash"] = "Please verify you are human and try again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    email_raw = str(_form.get("email", "") or "").strip()
+    password_raw = str(_form.get("password", "") or "")
+
+    # Per-email rate limiting
+    try:
+        login_email_by_email_limiter.check(email_raw)
+    except HTTPException:
+        log_security_event("login_bruteforce_suspected", "high", request,
+                           metadata={"context": "login_email", "email": email_raw[:80]})
+        request.session["flash"] = "Too many attempts. Please try again later."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    user = authenticate_email_user(db, email_raw, password_raw)
+    if not user:
+        _is_brute = record_login_failure(request)
+        log_security_event(
+            "login_bruteforce_suspected" if _is_brute else "login_failure",
+            "high" if _is_brute else "low",
+            request,
+            metadata={"context": "login_email"},
+        )
+        request.session["flash"] = "Invalid email or password."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    log_event("user_login", user_id=user.id, db=db)
+
+    # MFA check
+    if getattr(user, "mfa_enabled", False):
+        request.session.clear()
+        request.session["mfa_pending_user_id"] = user.id
+        request.session["mfa_next"] = "/dashboard"
+        return RedirectResponse("/security/mfa/challenge", status_code=302)
+
+    request.session["user_id"] = user.id
+    request.session["flash"] = f"Signed in as {user.email}"
+    return RedirectResponse("/dashboard", status_code=302)
+
+
+# ---------------------------------------------------------------------------
+# Forgot password
+# ---------------------------------------------------------------------------
+
+@app.get("/auth/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(request: Request):
+    if current_user(request):
+        return RedirectResponse("/dashboard", status_code=302)
+    return render(
+        request,
+        "forgot_password.html",
+        cf_turnstile_site_key=os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""),
+    )
+
+
+@app.post("/auth/forgot-password")
+async def forgot_password_submit(
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    forgot_pw_limiter.check(request)
+    _form = await request.form()
+
+    ip = (request.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip() or (request.client.host if request.client else "")
+    cf_token = str(_form.get("cf-turnstile-response", "") or "")
+    if not verify_turnstile(cf_token, ip):
+        log_security_event("turnstile_failed", "medium", request, metadata={"context": "forgot_password"})
+        request.session["flash"] = "Please verify you are human and try again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/auth/forgot-password", status_code=302)
+
+    email_raw = str(_form.get("email", "") or "").strip().lower()
+
+    # Per-email rate limit
+    try:
+        forgot_pw_by_email_limiter.check(email_raw)
+    except HTTPException:
+        # Still show generic success — don't leak timing info
+        request.session["flash"] = "If that email is registered, you'll receive a reset link shortly."
+        return RedirectResponse("/login", status_code=302)
+
+    # Generic response regardless of whether email exists (don't leak enumeration)
+    user = db.query(User).filter(User.email == email_raw.lower(), User.auth_provider == "email").first()
+    if user:
+        raw_token = create_reset_token(db, user)
+        # Send reset email if Resend is configured
+        try:
+            from .services.email_service import send_password_reset_email
+            reset_url = str(request.base_url).rstrip("/") + f"/auth/reset-password?token={raw_token}"
+            send_password_reset_email(user.email, user.name or user.email, reset_url)
+        except Exception:
+            pass  # Fail silently — generic message shown either way
+
+    request.session["flash"] = "If that email is registered, you'll receive a reset link shortly."
+    return RedirectResponse("/login", status_code=302)
+
+
+@app.get("/auth/reset-password", response_class=HTMLResponse)
+def reset_password_page(request: Request, token: str = ""):
+    if not token:
+        return RedirectResponse("/login", status_code=302)
+    return render(
+        request,
+        "reset_password.html",
+        token=token,
+    )
+
+
+@app.post("/auth/reset-password")
+async def reset_password_submit(
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    _form = await request.form()
+    token = str(_form.get("token", "") or "")
+    password_raw = str(_form.get("password", "") or "")
+    confirm_raw = str(_form.get("confirm_password", "") or "")
+
+    if not token:
+        return RedirectResponse("/login", status_code=302)
+
+    if password_raw != confirm_raw:
+        request.session["flash"] = "Passwords do not match."
+        request.session["flash_type"] = "error"
+        return RedirectResponse(f"/auth/reset-password?token={token}", status_code=302)
+
+    try:
+        validate_password_strength(password_raw)
+    except ValueError as exc:
+        request.session["flash"] = str(exc)
+        request.session["flash_type"] = "error"
+        return RedirectResponse(f"/auth/reset-password?token={token}", status_code=302)
+
+    pw_hash = hash_password(password_raw)
+    success = consume_reset_token(db, token, pw_hash)
+    if not success:
+        request.session["flash"] = "This reset link is invalid or has expired. Please request a new one."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/auth/forgot-password", status_code=302)
+
+    request.session["flash"] = "Password updated. Please sign in with your new password."
     return RedirectResponse("/login", status_code=302)
 
 

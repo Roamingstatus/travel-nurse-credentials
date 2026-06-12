@@ -58,10 +58,20 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    google_sub = Column(String, unique=True, nullable=False, index=True)
+    google_sub = Column(String, unique=True, nullable=True, index=True)
     email = Column(String, nullable=False)
     name = Column(String, nullable=True)
     picture = Column(String, nullable=True)
+    # Email/password auth fields (nullable; only set for email-auth users)
+    password_hash = Column(String, nullable=True)
+    auth_provider = Column(String, default="google", nullable=False, server_default="google")
+    # Brute-force protection
+    failed_login_count = Column(Integer, default=0, nullable=False, server_default="0")
+    failed_login_reset_at = Column(DateTime, nullable=True)
+    lockout_until = Column(DateTime, nullable=True)
+    # Password reset
+    password_reset_token = Column(String, nullable=True, index=True)
+    password_reset_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     subscription_tier = Column(String, default="free", nullable=False)
     stripe_customer_id = Column(String, nullable=True, index=True)
@@ -355,6 +365,24 @@ def _ensure_sqlite_columns() -> None:
                     conn.execute(text("ALTER TABLE users ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0"))
                 if "trial_banner_seen_days" not in cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN trial_banner_seen_days INTEGER NOT NULL DEFAULT 0"))
+                # Email/password auth columns
+                if "password_hash" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR"))
+                if "auth_provider" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR NOT NULL DEFAULT 'google'"))
+                # Brute-force protection columns
+                if "failed_login_count" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN failed_login_count INTEGER NOT NULL DEFAULT 0"))
+                if "failed_login_reset_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN failed_login_reset_at DATETIME"))
+                if "lockout_until" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN lockout_until DATETIME"))
+                # Password reset columns
+                if "password_reset_token" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_token VARCHAR"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_pw_reset_token ON users (password_reset_token)"))
+                if "password_reset_expires_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_expires_at DATETIME"))
                 if _backfill_trial:
                     conn.execute(text(
                         "UPDATE users SET trial_eligible = 1, trial_offer_expires_at = '2026-07-16 06:59:59' "

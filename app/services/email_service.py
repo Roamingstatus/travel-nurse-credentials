@@ -170,6 +170,66 @@ def send_test_email(user) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+def send_password_reset_email(to_email: str, display_name: str, reset_url: str) -> dict:
+    """Send a password-reset link to the user.
+
+    If Resend is not configured the call is a no-op and returns ok=False —
+    callers should handle this gracefully (the reset token is still valid;
+    the user can also be shown the link in development).
+    """
+    if not _resend_configured():
+        _LOG.warning("[email] send_password_reset_email: Resend not configured; skipping.")
+        return {"ok": False, "error": "provider_not_configured"}
+
+    try:
+        import resend as _resend
+    except ImportError:
+        return {"ok": False, "error": "resend_not_installed"}
+
+    _resend.api_key = os.environ["RESEND_API_KEY"]
+    from_email = os.environ.get("RESEND_FROM_EMAIL", "noreply@credanta.com")
+    first_name = (display_name or "").split()[0] if display_name else "there"
+
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 16px;color:#1f2937">
+  <img src="https://credanta.com/static/credanta-logo-full.png" alt="Credanta" style="height:32px;margin-bottom:24px"/>
+  <h2 style="margin:0 0 12px;font-size:20px">Reset your Credanta password</h2>
+  <p style="color:#4b5563;line-height:1.6">Hi {first_name},</p>
+  <p style="color:#4b5563;line-height:1.6">We received a request to reset your password.
+     Click the button below to choose a new one. This link expires in 1 hour.</p>
+  <div style="text-align:center;margin:28px 0">
+    <a href="{reset_url}"
+       style="background:#4f46e5;color:#fff;padding:12px 28px;border-radius:8px;
+              text-decoration:none;font-weight:600;font-size:15px;display:inline-block">
+      Reset password
+    </a>
+  </div>
+  <p style="color:#6b7280;font-size:13px;line-height:1.6">
+    If you didn't request this, you can safely ignore this email — your password will not change.
+  </p>
+  <p style="color:#9ca3af;font-size:12px;margin-top:24px">
+    Credanta &middot; <a href="https://credanta.com" style="color:#9ca3af">credanta.com</a>
+  </p>
+</body>
+</html>"""
+
+    try:
+        resp = _resend.Emails.send({
+            "from": from_email,
+            "to": [to_email],
+            "subject": "Reset your Credanta password",
+            "html": html,
+        })
+        _LOG.info("[email] password reset sent to %s", to_email)
+        return {"ok": True, "message_id": resp.get("id") if isinstance(resp, dict) else getattr(resp, "id", None)}
+    except Exception as exc:
+        _LOG.error("[email] password reset failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
 def _app_url() -> str:
     return (
         os.environ.get("APP_BASE_URL")

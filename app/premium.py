@@ -47,8 +47,15 @@ def is_admin(user: "User | None") -> bool:
 
 
 # ── Beta mode ────────────────────────────────────────────────────────────────
-# Set env var BETA_MODE=true to grant all signed-in users Premium Plus for free.
-_BETA_MODE: bool = os.environ.get("BETA_MODE", "false").lower() == "true"
+# BETA_MODE=true  — legacy flag; same effect as BETA_UNLOCK_ALL_FEATURES.
+# BETA_UNLOCK_ALL_FEATURES=true — public beta flag per spec; grants every
+#   logged-in user full Premium Plus access without a Stripe subscription.
+#   Stripe code and premium gating logic are preserved for future use; this
+#   flag bypasses the gating only while the beta is active.
+_BETA_MODE: bool = (
+    os.environ.get("BETA_MODE", "false").lower() == "true"
+    or os.environ.get("BETA_UNLOCK_ALL_FEATURES", "false").lower() == "true"
+)
 # ─────────────────────────────────────────────────────────────────────────────
 
 PREMIUM_FEATURES = [
