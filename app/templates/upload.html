@@ -532,13 +532,37 @@
         });
 
         xhr.addEventListener("load", function() {
-          if (xhr.status >= 200 && xhr.status < 400) {
+          var parsed = null;
+          try { parsed = JSON.parse(xhr.responseText); } catch (e) {}
+
+          if (parsed && parsed.ok) {
             if (sub) sub.textContent = "Saved!";
             setTimeout(function(){ window.location.href = "/documents"; }, 400);
-          } else {
-            overlay.classList.remove("is-active");
-            submitBtn.disabled = false;
-            submitBtn.textContent = "Save to vault";
+            return;
+          }
+
+          /* Server returned a JSON error — show it in the overlay */
+          var msg = (parsed && parsed.error) ? parsed.error : "Something went wrong — please try again.";
+          var icon = document.getElementById("scan-result-icon");
+          var text = document.getElementById("scan-result-text");
+          scanResult.classList.add("is-active");
+          if (icon) { icon.textContent = "⚠️"; }
+          if (text) {
+            text.textContent = "Upload failed";
+            text.className = "scan-result-text scan-result-text--fail";
+          }
+          if (sub) sub.textContent = msg;
+          if (!scanResult.querySelector(".scan-result-btn")) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "scan-result-btn scan-result-btn--fail";
+            btn.textContent = "Try again";
+            btn.addEventListener("click", function() {
+              overlay.classList.remove("is-active");
+              submitBtn.disabled = false;
+              submitBtn.textContent = "Save to vault";
+            });
+            scanResult.appendChild(btn);
           }
         });
 
@@ -549,6 +573,7 @@
         });
 
         xhr.open("POST", form.action);
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
         var csrfMeta = document.querySelector('meta[name="csrf-token"]');
         if (csrfMeta) xhr.setRequestHeader("X-CSRF-Token", csrfMeta.content);
         xhr.send(data);

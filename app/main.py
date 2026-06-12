@@ -762,6 +762,10 @@ def _parse_date(value: str) -> Optional[datetime]:
         return None
 
 
+def _is_xhr(request: Request) -> bool:
+    return request.headers.get("X-Requested-With", "").lower() == "xmlhttprequest"
+
+
 async def _read_limited(file: UploadFile, max_bytes: int) -> bytes:
     """Read an UploadFile in chunks, raising HTTP 413 if content exceeds max_bytes.
 
@@ -838,17 +842,26 @@ async def upload_submit(
         if not verify_turnstile(cf_turnstile_response, ip):
             log_event("upload_blocked_turnstile", user_id=user.id, ok=False, db=db)
             log_security_event("turnstile_failed", "medium", request, user, {"context": "upload"})
-            request.session["flash"] = "Bot-protection check failed — please try again."
+            _msg = "Bot-protection check failed — please try again."
+            if _is_xhr(request):
+                return JSONResponse({"ok": False, "error": _msg}, status_code=400)
+            request.session["flash"] = _msg
             request.session["flash_type"] = "error"
             return RedirectResponse("/documents/upload", status_code=302)
     try:
         raw = await _read_limited(file, 25 * 1024 * 1024)
     except HTTPException:
-        request.session["flash"] = "Files must be 25 MB or smaller."
+        _msg = "Files must be 25 MB or smaller."
+        if _is_xhr(request):
+            return JSONResponse({"ok": False, "error": _msg}, status_code=400)
+        request.session["flash"] = _msg
         request.session["flash_type"] = "error"
         return RedirectResponse("/documents/upload", status_code=302)
     if not raw:
-        request.session["flash"] = "Please choose a file to upload."
+        _msg = "Please choose a file to upload."
+        if _is_xhr(request):
+            return JSONResponse({"ok": False, "error": _msg}, status_code=400)
+        request.session["flash"] = _msg
         request.session["flash_type"] = "error"
         return RedirectResponse("/documents/upload", status_code=302)
 
@@ -859,7 +872,10 @@ async def upload_submit(
         .first()
     )
     if dup:
-        request.session["flash"] = "Duplicate file: this upload matches an existing document (same contents)."
+        _msg = "Duplicate file: this upload matches an existing document (same contents)."
+        if _is_xhr(request):
+            return JSONResponse({"ok": False, "error": _msg}, status_code=409)
+        request.session["flash"] = _msg
         request.session["flash_type"] = "error"
         return RedirectResponse("/documents", status_code=302)
 
@@ -878,6 +894,8 @@ async def upload_submit(
                 log_security_event("upload_abuse_detected", "high", request, user)
         except Exception:
             pass
+        if _is_xhr(request):
+            return JSONResponse({"ok": False, "error": exc.detail}, status_code=400)
         request.session["flash"] = exc.detail
         request.session["flash_type"] = "error"
         return RedirectResponse("/documents/upload", status_code=302)
@@ -945,6 +963,8 @@ async def upload_submit(
         check_and_send_immediate_expired_alert(user, doc, db)
     except Exception as exc:
         logger.warning("[upload] Immediate alert check failed: %s", exc)
+    if _is_xhr(request):
+        return JSONResponse({"ok": True}, status_code=200)
     request.session["flash"] = f"Saved \"{doc.title}\"."
     request.session["flash_type"] = "success"
     return RedirectResponse("/documents", status_code=302)
