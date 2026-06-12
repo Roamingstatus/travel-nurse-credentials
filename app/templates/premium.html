@@ -17,6 +17,41 @@
   </button>
 </div>
 
+<!-- ── Trial offer card ─────────────────────────── -->
+{% if trial_active %}
+<div class="trial-status-card trial-status-card--active anim-fade-up">
+  <span class="trial-status-icon">✨</span>
+  <div>
+    <strong>Premium Trial Active</strong>
+    {% if trial_ends_at %}
+    <span class="trial-status-sub">Ends on {{ trial_ends_at.strftime('%B %d, %Y') }}</span>
+    {% endif %}
+  </div>
+  <a href="/billing/checkout" class="btn small primary">Keep Premium</a>
+</div>
+{% elif show_trial_banner %}
+<div class="trial-status-card anim-fade-up">
+  <span class="trial-status-icon">✨</span>
+  <div class="trial-status-text">
+    <strong>7-Day Premium Trial</strong>
+    <span class="trial-status-sub">New users can try Premium free for 7 days until July 15, 2026. No card required.</span>
+  </div>
+  <button type="button" class="btn primary small" id="premium-page-trial-btn">Start Free Trial</button>
+</div>
+<script>
+document.getElementById('premium-page-trial-btn') && document.getElementById('premium-page-trial-btn').addEventListener('click', function(){
+  var btn = this; btn.disabled = true; btn.textContent = 'Starting…';
+  fetch('/api/trial/start', { method: 'POST' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.ok) { window.location.reload(); }
+      else { btn.textContent = d.error || 'Not available'; btn.disabled = false; }
+    })
+    .catch(function(){ btn.textContent = 'Error — try again'; btn.disabled = false; });
+});
+</script>
+{% endif %}
+
 <!-- ── Pricing cards ────────────────────────────── -->
 <div class="pricing-cards anim-fade-up d1">
 

@@ -73,6 +73,13 @@ class User(Base):
     phone_number = Column(String, nullable=True)
     phone_verified = Column(Boolean, default=False, nullable=False, server_default="0")
     calendar_token = Column(String, nullable=True, unique=True, index=True)
+    subscription_status = Column(String, default="none", nullable=False, server_default="none")
+    trial_eligible = Column(Boolean, default=False, nullable=False, server_default="0")
+    trial_started_at = Column(DateTime, nullable=True)
+    trial_ends_at = Column(DateTime, nullable=True)
+    trial_used = Column(Boolean, default=False, nullable=False, server_default="0")
+    trial_offer_expires_at = Column(DateTime, nullable=True)
+    trial_banner_seen_days = Column(Integer, default=0, nullable=False, server_default="0")
 
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     share_links = relationship("ShareLink", back_populates="user", cascade="all, delete-orphan")
@@ -333,6 +340,27 @@ def _ensure_sqlite_columns() -> None:
                 if "calendar_token" not in cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN calendar_token VARCHAR"))
                     conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_calendar_token ON users (calendar_token)"))
+                if "subscription_status" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN subscription_status VARCHAR DEFAULT 'none'"))
+                _backfill_trial = "trial_eligible" not in cols
+                if "trial_offer_expires_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN trial_offer_expires_at DATETIME"))
+                if "trial_eligible" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN trial_eligible INTEGER NOT NULL DEFAULT 0"))
+                if "trial_started_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN trial_started_at DATETIME"))
+                if "trial_ends_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN trial_ends_at DATETIME"))
+                if "trial_used" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0"))
+                if "trial_banner_seen_days" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN trial_banner_seen_days INTEGER NOT NULL DEFAULT 0"))
+                if _backfill_trial:
+                    conn.execute(text(
+                        "UPDATE users SET trial_eligible = 1, trial_offer_expires_at = '2026-07-16 06:59:59' "
+                        "WHERE (subscription_tier = 'free' OR subscription_tier IS NULL) "
+                        "AND COALESCE(trial_used, 0) = 0"
+                    ))
 
         if "documents" in tables:
             cols = {c["name"] for c in insp.get_columns("documents")}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Trial Dashboard · Admin · Credanta{% endblock %}
+{% block content %}
+<div class="page-head-min">
+  <div>
+    <h1>Trial Dashboard</h1>
+    <p class="subnote">7-day Premium trial overview · {{ now }}</p>
+  </div>
+  <a href="{{ admin_route }}" class="btn ghost small">← Admin</a>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:32px;">
+  <div class="panel panel-min" style="text-align:center;padding:18px;">
+    <div style="font-size:28px;font-weight:700;color:var(--accent);">{{ active_count }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Active trials</div>
+  </div>
+  <div class="panel panel-min" style="text-align:center;padding:18px;">
+    <div style="font-size:28px;font-weight:700;">{{ eligible_count }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Eligible (not started)</div>
+  </div>
+  <div class="panel panel-min" style="text-align:center;padding:18px;">
+    <div style="font-size:28px;font-weight:700;">{{ started_today }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Started today</div>
+  </div>
+  <div class="panel panel-min" style="text-align:center;padding:18px;">
+    <div style="font-size:28px;font-weight:700;">{{ used_count }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Total trials used</div>
+  </div>
+  <div class="panel panel-min" style="text-align:center;padding:18px;">
+    <div style="font-size:28px;font-weight:700;">{{ expired_count }}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:4px;">Expired (→ free)</div>
+  </div>
+</div>
+
+<div class="panel panel-min" style="margin-bottom:16px;">
+  <header style="display:flex;justify-content:space-between;align-items:center;">
+    <h2>Offer status</h2>
+    {% if offer_active %}
+    <span class="pill good">Active</span>
+    {% else %}
+    <span class="pill bad">Closed</span>
+    {% endif %}
+  </header>
+  <div class="body">
+    <p style="font-size:13px;color:var(--muted);margin:0;">
+      Offer deadline: <strong>{{ deadline }}</strong>
+    </p>
+  </div>
+</div>
+
+{% if recent %}
+<div class="panel panel-min">
+  <header><h2>Recent trial starts</h2></header>
+  <div class="body tight">
+    <table class="table-min">
+      <thead>
+        <tr><th>Email</th><th>Started</th><th>Ends</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for u in recent %}
+        <tr>
+          <td>{{ u.email }}</td>
+          <td>{{ u.trial_started_at.strftime('%Y-%m-%d %H:%M') if u.trial_started_at else '—' }}</td>
+          <td>{{ u.trial_ends_at.strftime('%Y-%m-%d') if u.trial_ends_at else '—' }}</td>
+          <td>
+            {% if u.subscription_status == 'trialing' %}
+            <span class="pill good">Active</span>
+            {% else %}
+            <span class="pill bad">Expired</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="empty-card"><p class="empty-card-text">No trials started yet.</p></div>
+{% endif %}
+{% endblock %}

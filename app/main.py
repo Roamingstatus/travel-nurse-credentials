@@ -127,6 +127,30 @@ from .mfa import (
 
 logger = logging.getLogger(__name__)
 
+# ── 7-day trial offer constants ───────────────────────────────────────────
+# July 15 2026 23:59 PST = July 16 2026 06:59:59 UTC
+_TRIAL_OFFER_DEADLINE = datetime(2026, 7, 16, 6, 59, 59)
+
+
+def is_trial_offer_active() -> bool:
+    """Return True while the limited-time 7-day trial is still on offer."""
+    return datetime.utcnow() <= _TRIAL_OFFER_DEADLINE
+
+
+def _expire_trial_if_needed(db_user, db: Session) -> None:
+    """Expire a trialing user whose 7-day window has elapsed."""
+    if getattr(db_user, "subscription_status", None) != "trialing":
+        return
+    ends = getattr(db_user, "trial_ends_at", None)
+    if ends and datetime.utcnow() > ends:
+        db_user.subscription_tier = "free"
+        db_user.subscription_status = "none"
+        db.commit()
+        try:
+            log_event("trial_expired", user_id=db_user.id, db=db)
+        except Exception:
+            pass
+
 AUTO_CATEGORY = "__auto__"
 
 BASE_DIR = Path(__file__).parent
@@ -487,6 +511,24 @@ def render(request: Request, template: str, **ctx) -> HTMLResponse:
     ctx.setdefault("cf_turnstile_site_key", os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""))
     ctx.setdefault("admin_route", ADMIN_ROUTE)
     ctx.setdefault("csrf_token", get_csrf_token(request.session))
+    # ── Trial banner context ──────────────────────────────────────────────
+    if u and not ctx.get("public_view"):
+        _tier = (getattr(u, "subscription_tier", "free") or "free")
+        _show_banner = (
+            is_trial_offer_active()
+            and bool(getattr(u, "trial_eligible", False))
+            and not bool(getattr(u, "trial_used", False))
+            and _tier == "free"
+            and (getattr(u, "trial_banner_seen_days", 0) or 0) < 3
+            and not request.session.get("trial_banner_dismissed_today", False)
+        )
+        ctx.setdefault("show_trial_banner", _show_banner)
+        ctx.setdefault("trial_active", getattr(u, "subscription_status", None) == "trialing")
+        ctx.setdefault("trial_ends_at", getattr(u, "trial_ends_at", None))
+    else:
+        ctx.setdefault("show_trial_banner", False)
+        ctx.setdefault("trial_active", False)
+        ctx.setdefault("trial_ends_at", None)
     return templates.TemplateResponse(request, template, ctx)
 
 
@@ -632,6 +674,29 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
     is_new = user.id is None
     db.commit()
     log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
+
+    # ── Trial: eligibility + banner day tracking ──────────────────────────
+    db_user = db.get(User, user.id)
+    if db_user and is_trial_offer_active():
+        _changed = False
+        # Grant eligibility to brand-new users
+        if is_new and not getattr(db_user, "trial_eligible", False):
+            db_user.trial_eligible = True
+            db_user.trial_offer_expires_at = _TRIAL_OFFER_DEADLINE
+            _changed = True
+        # Increment banner-seen-days once per login (up to 3)
+        if (getattr(db_user, "trial_eligible", False)
+                and not getattr(db_user, "trial_used", False)
+                and (getattr(db_user, "subscription_tier", "free") or "free") == "free"):
+            _seen = getattr(db_user, "trial_banner_seen_days", 0) or 0
+            if _seen < 3:
+                db_user.trial_banner_seen_days = _seen + 1
+                _changed = True
+        if _changed:
+            db.commit()
+    # Reset per-session dismissal on fresh login
+    request.session.pop("trial_banner_dismissed_today", None)
+
     if getattr(user, "mfa_enabled", False):
         request.session.clear()
         request.session["mfa_pending_user_id"] = user.id
@@ -655,6 +720,9 @@ def logout(request: Request):
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
+    db_user = db.get(User, user.id)
+    if db_user:
+        _expire_trial_if_needed(db_user, db)
     docs = (
         db.query(Document)
         .filter_by(user_id=user.id)
@@ -2975,6 +3043,97 @@ def admin_testing_run(request: Request, db: Session = Depends(get_session)):
         return JSONResponse({"ok": True, **result})
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# Trial — start + dismiss-banner
+# ---------------------------------------------------------------------------
+
+@app.post("/api/trial/start")
+def trial_start(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    db_user = db.get(User, user.id)
+    if not db_user:
+        return JSONResponse({"ok": False, "error": "User not found."}, status_code=404)
+    if not is_trial_offer_active():
+        return JSONResponse({"ok": False, "error": "This trial is no longer available."})
+    tier = (getattr(db_user, "subscription_tier", "free") or "free")
+    if tier in ("premium", "premium_plus"):
+        return JSONResponse({"ok": False, "error": "You already have a Premium subscription."})
+    if getattr(db_user, "trial_used", False):
+        return JSONResponse({"ok": False, "error": "This trial is no longer available."})
+    if not getattr(db_user, "trial_eligible", False):
+        return JSONResponse({"ok": False, "error": "This trial is no longer available."})
+    now = datetime.utcnow()
+    db_user.subscription_tier = "premium"
+    db_user.subscription_status = "trialing"
+    db_user.trial_started_at = now
+    db_user.trial_ends_at = now + timedelta(days=7)
+    db_user.trial_used = True
+    db_user.trial_eligible = False
+    db.commit()
+    log_event("trial_started", user_id=db_user.id,
+              meta={"trial_ends_at": db_user.trial_ends_at.isoformat()}, db=db)
+    return JSONResponse({
+        "ok": True,
+        "trial_ends_at": db_user.trial_ends_at.strftime("%B %d, %Y"),
+    })
+
+
+@app.post("/api/trial/dismiss-banner")
+def trial_dismiss_banner(request: Request):
+    require_user(request)
+    request.session["trial_banner_dismissed_today"] = True
+    return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Admin — Trials dashboard
+# ---------------------------------------------------------------------------
+
+@app.get(f"{ADMIN_ROUTE}/trials", response_class=HTMLResponse)
+def admin_trials(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    _admin_gate(request, user, db, "trials")
+    from sqlalchemy import func as _func
+    eligible_count = db.query(User).filter(
+        User.trial_eligible == True  # noqa: E712
+    ).count()
+    active_count = db.query(User).filter(
+        User.subscription_status == "trialing"
+    ).count()
+    used_count = db.query(User).filter(
+        User.trial_used == True  # noqa: E712
+    ).count()
+    expired_count = db.query(User).filter(
+        User.trial_used == True,  # noqa: E712
+        User.subscription_status != "trialing",
+        User.trial_started_at.isnot(None),
+    ).count()
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    started_today = db.query(User).filter(
+        User.trial_started_at >= today_start
+    ).count()
+    recent = (
+        db.query(User)
+        .filter(User.trial_started_at.isnot(None))
+        .order_by(User.trial_started_at.desc())
+        .limit(20)
+        .all()
+    )
+    return admin_render(
+        request,
+        "admin_trials.html",
+        offer_active=is_trial_offer_active(),
+        deadline=_TRIAL_OFFER_DEADLINE.strftime("%Y-%m-%d %H:%M UTC"),
+        eligible_count=eligible_count,
+        active_count=active_count,
+        used_count=used_count,
+        expired_count=expired_count,
+        started_today=started_today,
+        recent=recent,
+        now=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+    )
 
 
 @app.get(f"{ADMIN_ROUTE}/testing/export")

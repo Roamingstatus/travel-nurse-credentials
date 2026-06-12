@@ -4167,3 +4167,133 @@ body.dpm-open { overflow: hidden; }
 .doc-mob-bar-item:hover { color: var(--accent); text-decoration: none; }
 .doc-mob-bar-item svg  { width: 20px; height: 20px; }
 .doc-mob-bar-item--upload { color: var(--accent); }
+
+/* ── 7-day trial pill + modal ───────────────────────────────────────────── */
+.trial-pill {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8000;
+  max-width: 600px;
+  width: calc(100% - 32px);
+  background: linear-gradient(135deg, var(--accent, #4f46e5) 0%, #7c3aed 100%);
+  color: #fff;
+  border-radius: 40px;
+  box-shadow: 0 4px 24px rgba(79,70,229,.35);
+  padding: 10px 16px;
+  animation: trial-slide-in .3s ease;
+}
+@keyframes trial-slide-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.trial-pill-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.trial-pill-icon { font-size: 18px; flex-shrink: 0; }
+.trial-pill-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+}
+.trial-pill-text strong { font-weight: 700; font-size: 13px; }
+.trial-pill-sub { font-size: 11px; opacity: .82; }
+.trial-pill-cta {
+  background: #fff;
+  color: var(--accent, #4f46e5);
+  border: none;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity .15s;
+  flex-shrink: 0;
+}
+.trial-pill-cta:hover { opacity: .88; }
+.trial-pill-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.75);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.trial-pill-close:hover { color: #fff; }
+
+/* Trial confirmation modal */
+.trial-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 8500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.trial-modal-overlay[hidden] { display: none; }
+.trial-modal {
+  background: var(--card, #fff);
+  border-radius: 16px;
+  max-width: 420px;
+  width: 100%;
+  padding: 32px 28px 24px;
+  position: relative;
+  box-shadow: 0 8px 40px rgba(0,0,0,.18);
+  text-align: center;
+}
+.trial-modal-close {
+  position: absolute;
+  top: 14px; right: 16px;
+  background: none; border: none;
+  font-size: 18px; cursor: pointer;
+  color: var(--muted); line-height: 1;
+}
+.trial-modal-icon { font-size: 36px; margin-bottom: 12px; }
+.trial-modal-title { font-size: 20px; font-weight: 700; margin: 0 0 10px; color: var(--text); }
+.trial-modal-body { font-size: 14px; color: var(--muted); line-height: 1.6; margin: 0 0 16px; }
+.trial-modal-list {
+  list-style: none;
+  padding: 0; margin: 0 0 20px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.trial-modal-err {
+  font-size: 13px;
+  color: var(--danger, #dc2626);
+  margin-top: 10px;
+}
+
+/* Trial status card on premium page */
+.trial-status-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card, #fff);
+  border: 1.5px solid var(--accent, #4f46e5);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.trial-status-card--active {
+  background: linear-gradient(135deg, rgba(79,70,229,.06) 0%, rgba(124,58,237,.06) 100%);
+}
+.trial-status-icon { font-size: 22px; flex-shrink: 0; }
+.trial-status-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.trial-status-sub { font-size: 12px; color: var(--muted); }
