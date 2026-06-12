@@ -31,8 +31,15 @@ log = logging.getLogger("migrate")
 
 try:
     from replit.object_storage import Client  # type: ignore
-    client = Client()
-    log.info("Connected to Replit Object Storage")
+    bucket_id = os.environ.get("DEFAULT_OBJECT_STORAGE_BUCKET_ID") or None
+    if not bucket_id:
+        log.error("DEFAULT_OBJECT_STORAGE_BUCKET_ID is not set.")
+        log.error("Ensure the Replit Object Storage bucket is configured for this project.")
+        sys.exit(1)
+    client = Client(bucket_id=bucket_id)
+    # Verify connectivity with a lightweight probe
+    client.exists("__migration_probe__")
+    log.info("Connected to Replit Object Storage (bucket: %s)", bucket_id)
 except Exception as exc:
     log.error("Cannot connect to Replit Object Storage: %s", exc)
     log.error("Ensure you are running this in the deployment environment with a bucket configured.")

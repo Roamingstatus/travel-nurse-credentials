@@ -63,24 +63,31 @@ Added `replit-object-storage>=1.0.0`.
 
 ## Migration of Existing Files
 
-6 local files were present at audit time across 3 user directories.  
-They remain readable because `download_file()` falls back to the local filesystem
-when a file is not found in object storage.
+**Status: Complete — all 6 pre-existing local files migrated.**
 
-To fully migrate them to object storage, run **once** from the project root
-(in the deployment environment where the bucket is accessible):
+Migration run output:
+
+```
+Connected to Replit Object Storage (bucket: replit-objstore-07204bc7-...)
+[ok] users/1/documents/xJjdTVVpGo5wO7XK3TFFOQ.pdf (205,345 bytes)
+[ok] users/2/documents/E-NQRAzy36WIa9OXyFcAdg.pdf (205,345 bytes)
+[ok] users/2/documents/g_tbYBEbcpjfn7zk4eqyrA.pdf (600,723 bytes)
+[ok] users/2/documents/gwMcbDBWV7RtYESAhocXMw.pdf (62,528 bytes)
+[ok] users/3/documents/MUH3gitnJ47f5yXN57wD6A.pdf (600,723 bytes)
+[ok] users/3/documents/bSMarDYITbw2Bhb0hkF6Hg.pdf (205,345 bytes)
+
+Migrated: 6 / Errors: 0
+```
+
+All 6 `Document` rows now have `storage_provider = "replit_object_storage"`. New uploads and all future downloads go directly to the bucket; the local files under `app/uploads/` are no longer the source of truth.
+
+The script is idempotent — safe to re-run if needed:
 
 ```bash
 python scripts/migrate_uploads_to_object_storage.py
 ```
 
-The script:
-1. Finds every file under `app/uploads/<user_id>/`
-2. Matches it to a Document DB row
-3. Uploads to `users/{user_id}/documents/{filename}` in the bucket
-4. Updates `storage_provider = "replit_object_storage"` in the DB
-5. Is idempotent — safe to re-run; already-migrated files are skipped
-6. Does NOT delete local files
+**Note on bucket configuration:** `_get_client()` passes `DEFAULT_OBJECT_STORAGE_BUCKET_ID` explicitly to `Client(bucket_id=...)` rather than relying on the sidecar endpoint, which returns an empty bucket ID in the development environment. This ensures the same code works in both dev and production.
 
 ---
 

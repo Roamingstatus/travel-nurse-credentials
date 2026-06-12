@@ -40,13 +40,19 @@ def _get_client():
 
     Returns None when:
     - The package is not installed
-    - No default bucket is configured (local dev environment)
+    - No bucket ID is configured
     - Any other initialisation / auth error
+
+    Reads the bucket ID from DEFAULT_OBJECT_STORAGE_BUCKET_ID (set by
+    Replit's Object Storage integration) and passes it explicitly to
+    Client() so we never depend on the sidecar returning a non-empty value.
     """
     global _client_unavailable_logged
     try:
+        import os
         from replit.object_storage import Client  # type: ignore
-        return Client()
+        bucket_id = os.environ.get("DEFAULT_OBJECT_STORAGE_BUCKET_ID") or None
+        return Client(bucket_id=bucket_id)
     except Exception as exc:
         if not _client_unavailable_logged:
             logger.warning(
