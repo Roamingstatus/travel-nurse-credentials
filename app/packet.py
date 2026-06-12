@@ -4,7 +4,7 @@ import zipfile
 from datetime import datetime
 
 from .db import Document, User
-from .storage import file_path
+from .services.storage_service import download_file as _store_download, file_exists as _store_exists
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,11 @@ def build_zip(user: User, documents: list[Document]) -> bytes:
                 f"[{d.category}] {d.title}\n  Issued: {iss}  Expires: {exp}\n  File: {d.original_filename}\n"
             )
             try:
-                src = file_path(user.id, d.stored_filename)
-                if src.exists():
+                provider = getattr(d, "storage_provider", None)
+                if _store_exists(user.id, d.stored_filename, provider):
                     folder = _safe(d.category)
                     fname = f"{_safe(d.title)}__{_safe(d.original_filename)}"
-                    zf.writestr(f"{folder}/{fname}", src.read_bytes())
+                    zf.writestr(f"{folder}/{fname}", _store_download(user.id, d.stored_filename, provider))
             except Exception as exc:
                 logger.warning("[packet] Skipping %r — failed to read file: %s", d.stored_filename, exc)
                 continue

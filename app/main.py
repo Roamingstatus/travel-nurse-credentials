@@ -90,7 +90,7 @@ from .premium import (
 from .reminders import build_expiring_ics
 from .expiration_rules import apply_custom_expiration_rules
 from .smart_categorize import extract_document_metadata, extract_document_text, infer_category, infer_expiry_from_text
-from .storage import delete_file, file_path, save_upload
+from .services import storage_service as _ss
 from .security import (
     RequestBodyLimitMiddleware,
     SecurityHeadersMiddleware,
@@ -945,7 +945,16 @@ async def upload_submit(
     )
 
     suffix = Path(fname).suffix
-    stored, size = save_upload(user.id, raw, suffix)
+    try:
+        stored, size, provider = _ss.upload_file(user.id, raw, suffix)
+    except Exception as exc:
+        logger.error("[upload] Storage backend failure: %s", exc)
+        _msg = "Document storage is temporarily unavailable — please try again."
+        if _is_xhr(request):
+            return JSONResponse({"ok": False, "error": _msg}, status_code=503)
+        request.session["flash"] = _msg
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/documents/upload", status_code=302)
     doc = Document(
         user_id=user.id,
         profile_id=None,
@@ -962,6 +971,7 @@ async def upload_submit(
         expiration_rule_applied=rule_applied,
         expiration_source=rule_source,
         issuing_state=state_clean,
+        storage_provider=provider,
     )
     db.add(doc)
     db.commit()
@@ -989,11 +999,12 @@ def document_thumb(doc_id: int, request: Request, db: Session = Depends(get_sess
     mime = doc.mime_type or ""
     if not mime.startswith("image/"):
         raise HTTPException(404, "No thumbnail for this file type.")
-    p = file_path(user.id, doc.stored_filename)
-    if not p.exists():
+    try:
+        data = _ss.download_file(user.id, doc.stored_filename, doc.storage_provider)
+    except FileNotFoundError:
         raise HTTPException(404, "File missing.")
     return Response(
-        content=p.read_bytes(),
+        content=data,
         media_type=mime,
         headers={"Cache-Control": "private, max-age=86400"},
     )
@@ -1068,7 +1079,7 @@ def delete_document(doc_id: int, request: Request, db: Session = Depends(get_ses
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "delete"}, db=db)
         log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "delete"})
         raise HTTPException(404)
-    delete_file(user.id, doc.stored_filename)
+    _ss.delete_file(user.id, doc.stored_filename, doc.storage_provider)
     db.delete(doc)
     db.commit()
     request.session["flash"] = f"Deleted {doc.title}."
@@ -1084,13 +1095,14 @@ def view_document(doc_id: int, request: Request, db: Session = Depends(get_sessi
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "view"}, db=db)
         log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "view"})
         raise HTTPException(404)
-    p = file_path(user.id, doc.stored_filename)
-    if not p.exists():
+    try:
+        data = _ss.download_file(user.id, doc.stored_filename, doc.storage_provider)
+    except FileNotFoundError:
         raise HTTPException(404, "File missing.")
     mime = doc.mime_type or "application/octet-stream"
     disposition = "inline" if mime in INLINE_SAFE_MIMES else "attachment"
     return Response(
-        content=p.read_bytes(),
+        content=data,
         media_type=mime,
         headers={
             "Content-Disposition": f'{disposition}; filename="{doc.original_filename}"',
@@ -1109,11 +1121,12 @@ def download_document(doc_id: int, request: Request, db: Session = Depends(get_s
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "download"}, db=db)
         log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "download"})
         raise HTTPException(404)
-    p = file_path(user.id, doc.stored_filename)
-    if not p.exists():
+    try:
+        data = _ss.download_file(user.id, doc.stored_filename, doc.storage_provider)
+    except FileNotFoundError:
         raise HTTPException(404, "File missing.")
     return Response(
-        content=p.read_bytes(),
+        content=data,
         media_type=doc.mime_type or "application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{doc.original_filename}"'},
     )
@@ -1499,12 +1512,13 @@ def share_download(token: str, doc_id: int, request: Request, dl: str = "", db: 
         log_event("share_download_denied", user_id=owner.id, ok=False,
                   meta={"doc_id": doc_id, "reason": "wrong_owner"}, db=db)
         raise HTTPException(404)
-    p = file_path(owner.id, doc.stored_filename)
-    if not p.exists():
+    try:
+        data = _ss.download_file(owner.id, doc.stored_filename, doc.storage_provider)
+    except FileNotFoundError:
         raise HTTPException(404)
     log_event("share_download", user_id=owner.id, meta={"doc_id": doc_id, "share_token": token[:8]}, db=db)
     return Response(
-        content=p.read_bytes(),
+        content=data,
         media_type=doc.mime_type or "application/octet-stream",
         headers={
             "Content-Disposition": f'attachment; filename="{doc.original_filename}"',
