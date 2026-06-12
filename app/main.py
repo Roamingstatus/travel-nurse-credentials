@@ -105,6 +105,8 @@ from .security import (
     preview_limiter,
     feedback_limiter,
     admin_limiter,
+    analyze_limiter,
+    reminder_test_limiter,
     verify_turnstile,
     make_download_token,
     verify_download_token,
@@ -733,6 +735,7 @@ async def analyze_document(
     file: UploadFile = File(...),
 ):
     require_user(request)
+    analyze_limiter.check(request)
     raw = await file.read(5 * 1024 * 1024)
     meta = extract_document_metadata(raw, file.content_type, file.filename or "")
     return JSONResponse(meta)
@@ -798,6 +801,7 @@ async def scan_upload(
 ):
     """Pre-upload threat scan. Returns JSON so the client can animate the result."""
     require_user(request)
+    analyze_limiter.check(request)
     from .security import scan_file, validate_upload
     try:
         raw = await _read_limited(file, 25 * 1024 * 1024)
@@ -1593,8 +1597,14 @@ def reminders_settings_post(
     # SMS only for premium_plus
     want_sms = sms_enabled in ("1", "on", "true")
     settings.sms_enabled = 1 if (want_sms and has_premium_plus(user)) else 0
-    settings.reminder_email = reminder_email.strip() or user.email
-    settings.phone_number = phone_number.strip() or None
+    # Restrict reminder_email to the authenticated user's own address to prevent
+    # the app being used as a spam relay targeting arbitrary mailboxes.
+    _req_email = reminder_email.strip().lower()
+    settings.reminder_email = user.email if (not _req_email or _req_email != (user.email or "").lower()) else reminder_email.strip()
+    # Phone number ownership cannot be verified without an OTP flow, so we do
+    # not persist attacker-supplied numbers. Preserve whatever verified value is
+    # already stored (None until a proper verification flow is implemented).
+    # settings.phone_number is intentionally left unchanged here.
     settings.reminder_days = reminder_days.strip() or "30,14,7,0"
     settings.updated_at = datetime.utcnow()
     db.commit()
@@ -1608,6 +1618,7 @@ def reminders_settings_post(
 def reminders_test_email(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
     require_premium(user)
+    reminder_test_limiter.check(request)
     result = send_test_email(user)
     return JSONResponse(result)
 
@@ -1616,6 +1627,7 @@ def reminders_test_email(request: Request, db: Session = Depends(get_session)):
 def reminders_test_sms(request: Request, db: Session = Depends(get_session)):
     user = require_user(request)
     require_premium_plus(user)
+    reminder_test_limiter.check(request)
     result = send_test_sms(user)
     return JSONResponse(result)
 

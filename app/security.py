@@ -506,12 +506,14 @@ class _RateLimiter:
             self._buckets[key] = hits
 
 
-upload_limiter    = _RateLimiter(max_calls=10, window_seconds=60,   name="upload")
-auth_limiter      = _RateLimiter(max_calls=20, window_seconds=60,   name="auth")
-share_limiter     = _RateLimiter(max_calls=15, window_seconds=60,   name="share")
-preview_limiter   = _RateLimiter(max_calls=60, window_seconds=60,   name="preview")
-feedback_limiter  = _RateLimiter(max_calls=5,  window_seconds=60,   name="feedback")
-admin_limiter     = _RateLimiter(max_calls=30, window_seconds=900,  name="admin")
+upload_limiter        = _RateLimiter(max_calls=10, window_seconds=60,   name="upload")
+auth_limiter          = _RateLimiter(max_calls=20, window_seconds=60,   name="auth")
+share_limiter         = _RateLimiter(max_calls=15, window_seconds=60,   name="share")
+preview_limiter       = _RateLimiter(max_calls=60, window_seconds=60,   name="preview")
+feedback_limiter      = _RateLimiter(max_calls=5,  window_seconds=60,   name="feedback")
+admin_limiter         = _RateLimiter(max_calls=30, window_seconds=900,  name="admin")
+analyze_limiter       = _RateLimiter(max_calls=10, window_seconds=60,   name="analyze")
+reminder_test_limiter = _RateLimiter(max_calls=3,  window_seconds=300,  name="reminder_test")
 
 
 # ---------------------------------------------------------------------------
