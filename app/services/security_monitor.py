@@ -51,11 +51,28 @@ _srv_errors:   dict[str, list[float]] = defaultdict(list)  # route → timestamp
 # Helpers
 # ---------------------------------------------------------------------------
 
+_IP_DANGEROUS_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_ip(raw: str) -> str:
+    """Strip formula-injection leading characters from a raw IP string.
+
+    Stored IP addresses must not start with spreadsheet formula starters so
+    that a later CSV export cannot inject attacker-controlled formulas into
+    an administrator's spreadsheet client.
+    """
+    raw = raw.strip()
+    while raw and raw[0] in _IP_DANGEROUS_PREFIXES:
+        raw = raw[1:].strip()
+    return raw or "unknown"
+
+
 def _client_ip(request: Request) -> str:
     fwd = request.headers.get("X-Forwarded-For", "")
-    return fwd.split(",")[0].strip() if fwd else (
+    raw = fwd.split(",")[0].strip() if fwd else (
         request.client.host if request.client else "unknown"
     )
+    return _sanitize_ip(raw)
 
 
 def _safe_meta(meta: dict[str, Any]) -> dict[str, Any]:

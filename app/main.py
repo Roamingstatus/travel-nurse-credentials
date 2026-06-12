@@ -2984,9 +2984,15 @@ def admin_security_events_export(request: Request, db: Session = Depends(get_ses
     w.writerow(["ID", "Created At", "Severity", "Event Type", "User ID", "Email", "IP", "Route", "Method", "Resolved"])
     for ev in events:
         w.writerow([
-            ev.id, ev.created_at, ev.severity, ev.event_type,
-            ev.user_id or "", ev.email or "", ev.ip_address or "",
-            ev.route or "", ev.method or "", ev.resolved,
+            ev.id, ev.created_at,
+            sanitize_csv_cell(ev.severity or ""),
+            sanitize_csv_cell(ev.event_type or ""),
+            ev.user_id or "",
+            sanitize_csv_cell(ev.email or ""),
+            sanitize_csv_cell(ev.ip_address or ""),
+            sanitize_csv_cell(ev.route or ""),
+            sanitize_csv_cell(ev.method or ""),
+            ev.resolved,
         ])
     return Response(
         content=buf.getvalue(),
