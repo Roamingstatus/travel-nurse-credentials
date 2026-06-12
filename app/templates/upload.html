@@ -427,6 +427,15 @@
       text.textContent = "All clear — no threats found";
       text.className   = "scan-result-text scan-result-text--ok";
       sub.textContent  = "Uploading your document…";
+
+      var navBtn = document.createElement("a");
+      navBtn.href = "/documents";
+      navBtn.className = "scan-result-btn scan-result-btn--ok";
+      navBtn.id = "scan-nav-btn";
+      navBtn.textContent = "View my documents →";
+      navBtn.style.display = "none";
+      navBtn.style.textDecoration = "none";
+      scanResult.appendChild(navBtn);
     } else {
       icon.textContent = "⛔";
       text.textContent = "Threat detected — upload blocked";
@@ -537,7 +546,9 @@
 
           if (parsed && parsed.ok) {
             if (sub) sub.textContent = "Saved!";
-            setTimeout(function(){ window.location.href = "/documents"; }, 400);
+            var nb = document.getElementById("scan-nav-btn");
+            if (nb) nb.style.display = "";
+            setTimeout(function(){ window.location.href = "/documents"; }, 800);
             return;
           }
 
