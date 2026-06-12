@@ -528,6 +528,35 @@
 
       runScanUI(input.files[0], function() {
         /* Scan passed — do the real XHR upload */
+
+        /* Guard: if Turnstile is on the page but hasn't solved yet,
+           the cf-turnstile-response field will be empty and the server
+           will reject the upload immediately. Detect this early and
+           show a clear message rather than a cryptic server error. */
+        var tsField = form.querySelector('[name="cf-turnstile-response"]');
+        if (tsField && !tsField.value) {
+          var sub2 = document.getElementById("scan-result-sub");
+          var icon2 = document.getElementById("scan-result-icon");
+          var text2 = document.getElementById("scan-result-text");
+          scanResult.classList.add("is-active");
+          if (icon2) icon2.textContent = "⚠️";
+          if (text2) { text2.textContent = "Upload failed"; text2.className = "scan-result-text scan-result-text--fail"; }
+          if (sub2) sub2.textContent = "Bot-protection is still loading — please wait a moment and try again.";
+          if (!scanResult.querySelector(".scan-result-btn")) {
+            var btn2 = document.createElement("button");
+            btn2.type = "button";
+            btn2.className = "scan-result-btn scan-result-btn--fail";
+            btn2.textContent = "Try again";
+            btn2.addEventListener("click", function() {
+              overlay.classList.remove("is-active");
+              submitBtn.disabled = false;
+              submitBtn.textContent = "Save to vault";
+            });
+            scanResult.appendChild(btn2);
+          }
+          return;
+        }
+
         var data = new FormData(form);
         var xhr = new XMLHttpRequest();
 
@@ -551,6 +580,11 @@
             setTimeout(function(){ window.location.href = "/documents"; }, 800);
             return;
           }
+
+          /* Reset Turnstile immediately so any retry gets a fresh token.
+             Cloudflare tokens are single-use — reusing a consumed token
+             always fails the server-side verification. */
+          if (window.turnstile) { window.turnstile.reset(); }
 
           /* Server returned a JSON error — show it in the overlay */
           var msg = (parsed && parsed.error) ? parsed.error : "Something went wrong — please try again.";
@@ -578,6 +612,7 @@
         });
 
         xhr.addEventListener("error", function() {
+          if (window.turnstile) { window.turnstile.reset(); }
           overlay.classList.remove("is-active");
           submitBtn.disabled = false;
           submitBtn.textContent = "Save to vault";
