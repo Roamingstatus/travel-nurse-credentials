@@ -72,6 +72,7 @@ from .events import log_event, require_admin
 from .packet import build_zip
 from .packet_pdf import build_manifest_pdf
 from .premium import (
+    BETA_PLAN_FEATURES,
     PREMIUM_FEATURES,
     PREMIUM_PLUS_FEATURES,
     can_access_admin_testing,
@@ -2743,6 +2744,7 @@ def account_page(request: Request, db: Session = Depends(get_session)):
         last_login=last_login,
         reminder_settings=reminder_settings,
         active_share_links_count=active_share_links_count,
+        beta_plan_features=BETA_PLAN_FEATURES,
     )
 
 

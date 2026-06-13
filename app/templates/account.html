@@ -52,6 +52,33 @@
   </div>
 
   <!-- Subscription -->
+  {% if beta_unlock %}
+  {# ── Open Beta plan card — preserved for future monetization. Disabled during open beta. #}
+  <div class="acct-card acct-beta-plan-card">
+    <div class="acct-beta-plan-header">
+      <div class="acct-beta-plan-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </div>
+      <div>
+        <div class="acct-beta-plan-name">Open Beta</div>
+        <div class="acct-beta-plan-sub">All features included · No credit card needed</div>
+      </div>
+      <span class="acct-beta-badge">Active</span>
+    </div>
+    <ul class="acct-beta-features">
+      {%- for feat in beta_plan_features %}
+      <li class="acct-beta-feat">
+        <span class="acct-beta-feat-icon">{{ feat.icon | safe }}</span>
+        <span class="acct-beta-feat-name">{{ feat.name }}</span>
+      </li>
+      {%- endfor %}
+    </ul>
+    <div class="acct-actions" style="margin-top:1rem;">
+      <a href="/feature-hub" class="btn primary small">Manage Features</a>
+    </div>
+  </div>
+  {% else %}
+  {# ── Subscription card — preserved for future monetization. Disabled during open beta. #}
   <div class="acct-card">
     <h2 class="acct-card-title">Subscription</h2>
     <div class="acct-rows">
@@ -79,6 +106,7 @@
       {%- endif %}
     </div>
   </div>
+  {% endif %}
 
   <!-- Storage -->
   <div class="acct-card">
