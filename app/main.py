@@ -30,7 +30,15 @@ from starlette.middleware.sessions import SessionMiddleware
 from collections import defaultdict
 
 from .ai_docs import ai_enabled, ai_refine_category_expiry, extract_text_sample
-from .auth import current_user, google_configured, oauth, require_user
+from .auth import (
+    apple_configured,
+    current_user,
+    generate_apple_client_secret,
+    google_configured,
+    microsoft_configured,
+    oauth,
+    require_user,
+)
 from .stripe_billing import (
     _secret_key as _stripe_secret_key,
     construct_webhook_event,
@@ -635,6 +643,8 @@ def index(request: Request):
         request,
         "login.html",
         google_ready=google_configured(),
+        microsoft_ready=microsoft_configured(),
+        apple_ready=apple_configured(),
     )
 
 
@@ -646,7 +656,42 @@ def login(request: Request):
         request,
         "login.html",
         google_ready=google_configured(),
+        microsoft_ready=microsoft_configured(),
+        apple_ready=apple_configured(),
     )
+
+
+def _finish_oauth_login(
+    request: Request, db: Session, user: "User", is_new: bool
+) -> RedirectResponse:
+    """Shared post-OAuth session finalisation: trial tracking, MFA, flash, redirect."""
+    db_user = db.get(User, user.id)
+    if db_user and is_trial_offer_active():
+        _changed = False
+        if is_new and not getattr(db_user, "trial_eligible", False):
+            db_user.trial_eligible = True
+            db_user.trial_offer_expires_at = _TRIAL_OFFER_DEADLINE
+            _changed = True
+        if (
+            getattr(db_user, "trial_eligible", False)
+            and not getattr(db_user, "trial_used", False)
+            and (getattr(db_user, "subscription_tier", "free") or "free") == "free"
+        ):
+            _seen = getattr(db_user, "trial_banner_seen_days", 0) or 0
+            if _seen < 3:
+                db_user.trial_banner_seen_days = _seen + 1
+                _changed = True
+        if _changed:
+            db.commit()
+    request.session.pop("trial_banner_dismissed_today", None)
+    if getattr(user, "mfa_enabled", False):
+        request.session.clear()
+        request.session["mfa_pending_user_id"] = user.id
+        request.session["mfa_next"] = "/dashboard"
+        return RedirectResponse("/security/mfa/challenge", status_code=302)
+    request.session["user_id"] = user.id
+    request.session["flash"] = f"Signed in as {user.email}"
+    return RedirectResponse("/dashboard", status_code=302)
 
 
 @app.get("/auth/google")
@@ -657,7 +702,6 @@ async def google_start(request: Request):
     redirect_uri = str(request.url_for("google_callback"))
     if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
         redirect_uri = "https://" + redirect_uri[len("http://"):]
-    import logging
     logging.warning(f"[OAuth] redirect_uri being sent to Google: {redirect_uri}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
@@ -668,8 +712,7 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
-        import logging
-        logging.warning(f"[OAuth] callback error: {e}")
+        logging.warning(f"[OAuth] Google callback error: {e}")
         try:
             _is_brute = record_login_failure(request)
             log_security_event(
@@ -680,61 +723,298 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
             )
         except Exception:
             pass
-        request.session["flash"] = f"Google sign-in failed: {e}"
+        request.session["flash"] = "Google sign-in failed. Please try again."
+        request.session["flash_type"] = "error"
         return RedirectResponse("/login", status_code=302)
+
     info = token.get("userinfo") or {}
     sub = info.get("sub")
-    email = info.get("email")
+    email = (info.get("email") or "").lower().strip()
     if not sub or not email:
-        raise HTTPException(400, "Google did not return a profile.")
+        request.session["flash"] = "Google did not return a valid profile."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
     user = db.query(User).filter_by(google_sub=sub).one_or_none()
+    is_new = False
     if not user:
-        user = User(
-            google_sub=sub,
-            email=email,
-            name=info.get("name"),
-            picture=info.get("picture"),
-            subscription_tier="free",
-        )
-        db.add(user)
+        # Link to any existing account that shares this email address
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            user.google_sub = sub
+            user.picture = info.get("picture") or user.picture
+            user.name = info.get("name") or user.name
+        else:
+            user = User(
+                google_sub=sub,
+                email=email,
+                name=info.get("name"),
+                picture=info.get("picture"),
+                subscription_tier="free",
+            )
+            db.add(user)
+            is_new = True
     else:
         user.email = email
         user.name = info.get("name") or user.name
         user.picture = info.get("picture") or user.picture
-    is_new = user.id is None
+
     db.commit()
     log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
+    return _finish_oauth_login(request, db, user, is_new)
 
-    # ── Trial: eligibility + banner day tracking ──────────────────────────
-    db_user = db.get(User, user.id)
-    if db_user and is_trial_offer_active():
-        _changed = False
-        # Grant eligibility to brand-new users
-        if is_new and not getattr(db_user, "trial_eligible", False):
-            db_user.trial_eligible = True
-            db_user.trial_offer_expires_at = _TRIAL_OFFER_DEADLINE
-            _changed = True
-        # Increment banner-seen-days once per login (up to 3)
-        if (getattr(db_user, "trial_eligible", False)
-                and not getattr(db_user, "trial_used", False)
-                and (getattr(db_user, "subscription_tier", "free") or "free") == "free"):
-            _seen = getattr(db_user, "trial_banner_seen_days", 0) or 0
-            if _seen < 3:
-                db_user.trial_banner_seen_days = _seen + 1
-                _changed = True
-        if _changed:
-            db.commit()
-    # Reset per-session dismissal on fresh login
-    request.session.pop("trial_banner_dismissed_today", None)
 
-    if getattr(user, "mfa_enabled", False):
-        request.session.clear()
-        request.session["mfa_pending_user_id"] = user.id
-        request.session["mfa_next"] = "/dashboard"
-        return RedirectResponse("/security/mfa/challenge", status_code=302)
-    request.session["user_id"] = user.id
-    request.session["flash"] = f"Signed in as {user.email}"
-    return RedirectResponse("/dashboard", status_code=302)
+# ---------------------------------------------------------------------------
+# Microsoft OAuth
+# ---------------------------------------------------------------------------
+
+@app.get("/auth/microsoft")
+async def microsoft_start(request: Request):
+    auth_limiter.check(request)
+    if not microsoft_configured():
+        raise HTTPException(503, "Microsoft sign-in is not configured.")
+    redirect_uri = str(request.url_for("microsoft_callback"))
+    if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
+        redirect_uri = "https://" + redirect_uri[len("http://"):]
+    return await oauth.microsoft.authorize_redirect(request, redirect_uri)
+
+
+@app.get("/auth/microsoft/callback", name="microsoft_callback")
+async def microsoft_callback(request: Request, db: Session = Depends(get_session)):
+    auth_limiter.check(request)
+    try:
+        token = await oauth.microsoft.authorize_access_token(request)
+    except Exception as e:
+        logging.warning(f"[OAuth] Microsoft callback error: {e}")
+        request.session["flash"] = "Microsoft sign-in failed. Please try again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    info = token.get("userinfo") or {}
+
+    # Microsoft's stable per-user identifier is 'oid' (Object ID).
+    # authlib may return it directly in userinfo; if not, decode the id_token.
+    oid = info.get("oid") or info.get("sub")
+    if not oid:
+        id_token_str = token.get("id_token", "")
+        if id_token_str:
+            try:
+                import base64 as _b64, json as _js
+                parts = id_token_str.split(".")
+                if len(parts) >= 2:
+                    padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
+                    claims = _js.loads(_b64.urlsafe_b64decode(padded))
+                    oid = claims.get("oid") or claims.get("sub")
+            except Exception:
+                pass
+
+    email = (info.get("email") or info.get("preferred_username") or "").lower().strip()
+    name = info.get("name") or None
+
+    if not oid or not email:
+        request.session["flash"] = "Microsoft did not return a valid profile."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    user = db.query(User).filter(User.microsoft_id == oid).one_or_none()
+    is_new = False
+    if not user:
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            user.microsoft_id = oid
+            user.name = name or user.name
+        else:
+            user = User(
+                google_sub=f"microsoft:{uuid.uuid4()}",
+                microsoft_id=oid,
+                email=email,
+                name=name,
+                picture=None,
+                auth_provider="microsoft",
+                subscription_tier="free",
+            )
+            db.add(user)
+            is_new = True
+    else:
+        user.email = email
+        user.name = name or user.name
+
+    db.commit()
+    log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
+    log_security_event("oauth_login", "low", request, user, metadata={"provider": "microsoft"})
+    return _finish_oauth_login(request, db, user, is_new)
+
+
+# ---------------------------------------------------------------------------
+# Apple OAuth  (manual OIDC — Apple uses POST callbacks, not GET)
+# ---------------------------------------------------------------------------
+
+@app.get("/auth/apple")
+async def apple_start(request: Request):
+    auth_limiter.check(request)
+    if not apple_configured():
+        raise HTTPException(503, "Apple sign-in is not configured.")
+
+    state = secrets.token_urlsafe(32)
+    request.session["_apple_oauth_state"] = state
+
+    redirect_uri = os.environ.get("APPLE_REDIRECT_URI", "")
+    if not redirect_uri:
+        redirect_uri = str(request.url_for("apple_callback"))
+        if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
+            redirect_uri = "https://" + redirect_uri[len("http://"):]
+
+    from urllib.parse import urlencode
+    params = urlencode({
+        "client_id": os.environ.get("APPLE_CLIENT_ID", ""),
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "name email",
+        "response_mode": "form_post",
+        "state": state,
+    })
+    return RedirectResponse(f"https://appleid.apple.com/auth/authorize?{params}")
+
+
+@app.post("/auth/apple/callback", name="apple_callback")
+async def apple_callback(request: Request, db: Session = Depends(get_session)):
+    import base64 as _b64
+    import json as _json
+    import httpx as _httpx
+    from authlib.jose import JsonWebKey, jwt as _ajwt
+
+    auth_limiter.check(request)
+
+    form_data = await request.form()
+    error_param = str(form_data.get("error", "") or "")
+    if error_param:
+        logging.warning(f"[OAuth] Apple returned error: {error_param}")
+        request.session["flash"] = "Apple sign-in was cancelled or failed."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    code = str(form_data.get("code", "") or "")
+    state_from_apple = str(form_data.get("state", "") or "")
+    user_json_str = str(form_data.get("user", "") or "")
+
+    stored_state = request.session.pop("_apple_oauth_state", None)
+    if not stored_state or stored_state != state_from_apple:
+        logging.warning("[OAuth] Apple state mismatch")
+        request.session["flash"] = "Sign-in session expired. Please try again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    if not code:
+        request.session["flash"] = "Apple sign-in failed. Please try again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    try:
+        apple_secret = generate_apple_client_secret()
+        redirect_uri = os.environ.get("APPLE_REDIRECT_URI", "")
+        if not redirect_uri:
+            redirect_uri = str(request.url_for("apple_callback"))
+            if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
+                redirect_uri = "https://" + redirect_uri[len("http://"):]
+
+        async with _httpx.AsyncClient(timeout=15.0) as http_client:
+            token_resp = await http_client.post(
+                "https://appleid.apple.com/auth/token",
+                data={
+                    "client_id": os.environ.get("APPLE_CLIENT_ID", ""),
+                    "client_secret": apple_secret,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": redirect_uri,
+                },
+            )
+            token_resp.raise_for_status()
+            token_data = token_resp.json()
+
+        id_token_str = token_data.get("id_token", "")
+        if not id_token_str:
+            raise ValueError("Apple did not return an id_token")
+
+        async with _httpx.AsyncClient(timeout=10.0) as http_client:
+            jwks_resp = await http_client.get("https://appleid.apple.com/auth/keys")
+            jwks_resp.raise_for_status()
+            jwks_data = jwks_resp.json()
+
+        key_set = JsonWebKey.import_key_set(jwks_data)
+        claims = _ajwt.decode(id_token_str, key_set)
+        claims.validate()
+
+    except Exception as exc:
+        logging.warning(f"[OAuth] Apple token exchange/verify failed: {exc}")
+        request.session["flash"] = "Apple sign-in failed. Please try again."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    apple_sub = str(claims.get("sub") or "")
+    email = str(claims.get("email") or "").lower().strip()
+
+    # Apple sends name only on the very first sign-in (in the form POST)
+    name: str | None = None
+    if user_json_str:
+        try:
+            user_info = _json.loads(user_json_str)
+            name_parts = user_info.get("name") or {}
+            first = str(name_parts.get("firstName") or "").strip()
+            last = str(name_parts.get("lastName") or "").strip()
+            combined = f"{first} {last}".strip()
+            if combined:
+                name = combined
+        except Exception:
+            pass
+
+    if not apple_sub:
+        request.session["flash"] = "Apple did not return a valid profile."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/login", status_code=302)
+
+    user = db.query(User).filter(User.apple_id == apple_sub).one_or_none()
+    is_new = False
+    if not user:
+        if email:
+            user = db.query(User).filter(User.email == email).first()
+            if user:
+                user.apple_id = apple_sub
+                user.name = name or user.name
+            else:
+                user = User(
+                    google_sub=f"apple:{uuid.uuid4()}",
+                    apple_id=apple_sub,
+                    email=email,
+                    name=name,
+                    picture=None,
+                    auth_provider="apple",
+                    subscription_tier="free",
+                )
+                db.add(user)
+                is_new = True
+        else:
+            # Apple private relay — no email provided; create minimal account
+            user = User(
+                google_sub=f"apple:{uuid.uuid4()}",
+                apple_id=apple_sub,
+                email=f"apple-private-{apple_sub[:12]}@privaterelay.appleid.com",
+                name=name,
+                picture=None,
+                auth_provider="apple",
+                subscription_tier="free",
+            )
+            db.add(user)
+            is_new = True
+    else:
+        if email:
+            user.email = email
+        if name and not user.name:
+            user.name = name
+
+    db.commit()
+    log_event("user_signup" if is_new else "user_login", user_id=user.id, db=db)
+    log_security_event("oauth_login", "low", request, user, metadata={"provider": "apple"})
+    return _finish_oauth_login(request, db, user, is_new)
 
 
 @app.post("/logout")
@@ -860,6 +1140,8 @@ def register_page(request: Request):
         request,
         "register.html",
         google_ready=google_configured(),
+        microsoft_ready=microsoft_configured(),
+        apple_ready=apple_configured(),
         cf_turnstile_site_key=os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY", ""),
     )
 

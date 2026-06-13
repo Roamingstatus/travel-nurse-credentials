@@ -4430,6 +4430,26 @@ body.dpm-open { overflow: hidden; }
   border-color: #4285f4;
 }
 
+.auth-provider-btn--microsoft:hover {
+  background: #f0f4ff;
+  border-color: #0078d4;
+  box-shadow: 0 0 0 3px rgba(0,120,212,.12);
+}
+[data-theme="dark"] .auth-provider-btn--microsoft:hover {
+  background: rgba(0,120,212,.08);
+  border-color: #0078d4;
+}
+
+.auth-provider-btn--apple:hover {
+  background: #f5f5f5;
+  border-color: #555;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+}
+[data-theme="dark"] .auth-provider-btn--apple:hover {
+  background: rgba(255,255,255,.06);
+  border-color: #aaa;
+}
+
 .auth-provider-btn--disabled {
   opacity: .55;
   cursor: not-allowed;
@@ -4611,6 +4631,15 @@ body.dpm-open { overflow: hidden; }
   line-height: 1.45;
 }
 .auth-notice svg { flex-shrink: 0; margin-top: 1px; }
+
+/* ── Any-email helper text ───────────────────────────────────── */
+.auth-any-email-note {
+  text-align: center;
+  font-size: .78rem;
+  color: var(--muted);
+  margin-top: 12px;
+  line-height: 1.5;
+}
 
 /* ── Beta note ───────────────────────────────────────────────── */
 .auth-beta-note {

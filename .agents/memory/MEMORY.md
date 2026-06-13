@@ -2,3 +2,4 @@
 - [CSRF middleware body consumption](csrf-body-consumption.md) — BaseHTTPMiddleware + await request.form() consumed the ASGI receive stream; fixed with pure ASGI body-replay pattern
 - [Persistent storage migration](persistent-storage.md) — documents now route through app/services/storage_service.py (Replit Object Storage + local fallback); storage_provider column in documents table
 - [Trial feature architecture](trial-feature.md) — 7-day trial: DB columns on users table, banner_seen_days incremented on login, render() injects show_trial_banner, trial expires via _expire_trial_if_needed on dashboard load
+- [Multi-provider OAuth architecture](multi-provider-oauth.md) — Microsoft uses authlib OIDC (oid claim); Apple uses manual OIDC (POST callback, httpx token exchange, JWK verify); google_sub col holds "provider:uuid" placeholders

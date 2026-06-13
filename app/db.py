@@ -59,6 +59,8 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     google_sub = Column(String, unique=True, nullable=True, index=True)
+    microsoft_id = Column(String, unique=True, nullable=True, index=True)
+    apple_id = Column(String, unique=True, nullable=True, index=True)
     email = Column(String, nullable=False)
     name = Column(String, nullable=True)
     picture = Column(String, nullable=True)
@@ -397,6 +399,13 @@ def _ensure_sqlite_columns() -> None:
                     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_pw_reset_token ON users (password_reset_token)"))
                 if "password_reset_expires_at" not in cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_expires_at DATETIME"))
+                # Multi-provider OAuth columns
+                if "microsoft_id" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN microsoft_id VARCHAR"))
+                    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_microsoft_id ON users (microsoft_id)"))
+                if "apple_id" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN apple_id VARCHAR"))
+                    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_apple_id ON users (apple_id)"))
                 if _backfill_trial:
                     conn.execute(text(
                         "UPDATE users SET trial_eligible = 1, trial_offer_expires_at = '2026-07-16 06:59:59' "
