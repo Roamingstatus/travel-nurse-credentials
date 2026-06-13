@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Feature Hub · Credanta{% endblock %}
+{% block content %}
+<div class="fh-page">
+
+  <div class="fh-header">
+    <div class="fh-header-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="6" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><rect x="2" y="10" width="6" height="6" rx="1"/><rect x="9" y="10" width="6" height="6" rx="1"/><rect x="16" y="10" width="6" height="6" rx="1"/><rect x="2" y="17" width="6" height="6" rx="1"/><rect x="9" y="17" width="6" height="6" rx="1"/></svg>
+    </div>
+    <div>
+      <h1 class="fh-title">Feature Hub</h1>
+      <p class="fh-sub">Choose the tools you want to use while Credanta is in beta.</p>
+    </div>
+  </div>
+
+  <div class="fh-beta-note">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Credanta is currently in open beta. All features are available while we improve reliability, usability, and workflows.
+  </div>
+
+  <div class="fh-grid" id="fh-grid">
+    {% for feat in features %}
+    <div class="fh-card {% if prefs.get(feat.key, True) %}fh-card--on{% else %}fh-card--off{% endif %}" id="fh-card-{{ feat.key }}" data-key="{{ feat.key }}">
+      <div class="fh-card-top">
+        <div class="fh-card-icon">{{ feat.icon | safe }}</div>
+        <div class="fh-card-meta">
+          <span class="fh-badge">Beta</span>
+        </div>
+      </div>
+      <h2 class="fh-card-title">{{ feat.title }}</h2>
+      <p class="fh-card-desc">{{ feat.description }}</p>
+      <div class="fh-card-foot">
+        <label class="fh-toggle" title="{{ 'Disable' if prefs.get(feat.key, True) else 'Enable' }} {{ feat.title }}">
+          <input
+            type="checkbox"
+            class="fh-toggle-input"
+            data-key="{{ feat.key }}"
+            {% if prefs.get(feat.key, True) %}checked{% endif %}
+            aria-label="{{ 'Disable' if prefs.get(feat.key, True) else 'Enable' }} {{ feat.title }}"
+          />
+          <span class="fh-toggle-track">
+            <span class="fh-toggle-thumb"></span>
+          </span>
+          <span class="fh-toggle-label">{{ 'Enabled' if prefs.get(feat.key, True) else 'Disabled' }}</span>
+        </label>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+  document.querySelectorAll('.fh-toggle-input').forEach(function (checkbox) {
+    checkbox.addEventListener('change', function () {
+      var key = this.dataset.key;
+      var enabled = this.checked;
+      var card = document.getElementById('fh-card-' + key);
+      var label = card ? card.querySelector('.fh-toggle-label') : null;
+
+      if (card) {
+        card.classList.toggle('fh-card--on', enabled);
+        card.classList.toggle('fh-card--off', !enabled);
+      }
+      if (label) label.textContent = enabled ? 'Enabled' : 'Disabled';
+
+      fetch('/feature-hub/toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf,
+        },
+        body: JSON.stringify({ feature_key: key, enabled: enabled }),
+      })
+        .then(function (r) {
+          if (!r.ok) {
+            // Revert on server error
+            checkbox.checked = !enabled;
+            if (card) {
+              card.classList.toggle('fh-card--on', !enabled);
+              card.classList.toggle('fh-card--off', enabled);
+            }
+            if (label) label.textContent = !enabled ? 'Enabled' : 'Disabled';
+          }
+        })
+        .catch(function () {
+          // Revert on network error
+          checkbox.checked = !enabled;
+          if (card) {
+            card.classList.toggle('fh-card--on', !enabled);
+            card.classList.toggle('fh-card--off', enabled);
+          }
+          if (label) label.textContent = !enabled ? 'Enabled' : 'Disabled';
+        });
+    });
+  });
+})();
+</script>
+{% endblock %}

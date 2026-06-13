@@ -63,6 +63,7 @@ from .db import (
     SessionLocal,
     ShareLink,
     User,
+    UserFeaturePreference,
     engine,
     get_session,
     init_db,
@@ -739,6 +740,111 @@ async def google_callback(request: Request, db: Session = Depends(get_session)):
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
+
+
+# ---------------------------------------------------------------------------
+# Feature Hub  (open beta — all features enabled for every logged-in user)
+# Preserved for future monetization. Disabled during open beta.
+# ---------------------------------------------------------------------------
+
+_FEATURE_HUB_FEATURES = [
+    {
+        "key": "expiration_reminders",
+        "title": "Expiration Reminders",
+        "description": "Track renewal dates and get alerts when documents need attention.",
+        "icon": '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+    },
+    {
+        "key": "submission_packets",
+        "title": "Submission Packets",
+        "description": "Create organized document packets for recruiters or onboarding teams.",
+        "icon": '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    },
+    {
+        "key": "recruiter_share_links",
+        "title": "Recruiter Share Links",
+        "description": "Share selected documents through a secure link.",
+        "icon": '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    },
+    {
+        "key": "resume_enhancer",
+        "title": "Resume Enhancer",
+        "description": "Improve resume wording and create stronger versions.",
+        "icon": '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
+    },
+    {
+        "key": "smart_checklist",
+        "title": "Smart Checklist",
+        "description": "Build a checklist of commonly needed documents.",
+        "icon": '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    },
+    {
+        "key": "feedback_mode",
+        "title": "Feedback Mode",
+        "description": "Help shape Credanta by reporting bugs and suggesting improvements.",
+        "icon": '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    },
+]
+
+_FEATURE_HUB_KEYS = frozenset(f["key"] for f in _FEATURE_HUB_FEATURES)
+
+
+def _get_feature_prefs(db: Session, user_id: int) -> dict[str, bool]:
+    """Return {feature_key: enabled} dict for a user; defaults to True for missing keys."""
+    rows = db.query(UserFeaturePreference).filter(
+        UserFeaturePreference.user_id == user_id
+    ).all()
+    prefs = {r.feature_key: bool(r.enabled) for r in rows}
+    # Default: all features enabled for new users
+    for key in _FEATURE_HUB_KEYS:
+        prefs.setdefault(key, True)
+    return prefs
+
+
+@app.get("/feature-hub", response_class=HTMLResponse)
+def feature_hub_page(request: Request, db: Session = Depends(get_session)):
+    user = require_user(request)
+    prefs = _get_feature_prefs(db, user.id)
+    return render(request, "feature_hub.html", user=user, features=_FEATURE_HUB_FEATURES, prefs=prefs)
+
+
+@app.post("/feature-hub/toggle")
+async def feature_hub_toggle(
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    user = require_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    feature_key = str(body.get("feature_key", "")).strip()
+    enabled = bool(body.get("enabled", True))
+
+    if feature_key not in _FEATURE_HUB_KEYS:
+        raise HTTPException(400, "Unknown feature key")
+
+    pref = db.query(UserFeaturePreference).filter(
+        UserFeaturePreference.user_id == user.id,
+        UserFeaturePreference.feature_key == feature_key,
+    ).first()
+
+    if pref:
+        pref.enabled = enabled
+        pref.updated_at = datetime.utcnow()
+    else:
+        pref = UserFeaturePreference(
+            user_id=user.id,
+            feature_key=feature_key,
+            enabled=enabled,
+        )
+        db.add(pref)
+
+    db.commit()
+    log_event("feature_hub_toggle", user_id=user.id,
+              meta={"feature_key": feature_key, "enabled": enabled}, db=db)
+    return {"ok": True, "feature_key": feature_key, "enabled": enabled}
 
 
 # ---------------------------------------------------------------------------

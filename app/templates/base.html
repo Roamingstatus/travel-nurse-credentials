@@ -74,6 +74,22 @@
         Resume Enhancer
       </a>
 
+      {% if beta_unlock %}
+      {# Preserved for future monetization. Disabled during open beta. #}
+      <a href="/share" class="sidebar-link {% if request.url.path.startswith('/share') %}active{% endif %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Shared Links
+      </a>
+      <a href="/packet" class="sidebar-link {% if request.url.path == '/packet' %}active{% endif %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Packet
+      </a>
+      <a href="/feature-hub" class="sidebar-link {% if request.url.path == '/feature-hub' %}active{% endif %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="5" height="5" rx="1"/><rect x="9.5" y="3" width="5" height="5" rx="1"/><rect x="17" y="3" width="5" height="5" rx="1"/><rect x="2" y="10" width="5" height="5" rx="1"/><rect x="9.5" y="10" width="5" height="5" rx="1"/><rect x="2" y="17" width="5" height="5" rx="1"/></svg>
+        Feature Hub
+      </a>
+      {% else %}
+      {# Premium gating — preserved for future monetization. Disabled during open beta. #}
       {% if is_premium_plus %}
       <a href="/share" class="sidebar-link {% if request.url.path.startswith('/share') %}active{% endif %}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -102,6 +118,7 @@
         Premium
       </a>
       {% endif %}
+      {% endif %}
       <a href="/account" class="sidebar-link {% if request.url.path.startswith('/account') %}active{% endif %}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Account
@@ -110,6 +127,10 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         Security
       </a>
+      <button type="button" class="sidebar-link sidebar-link--btn" id="sidebar-feedback-btn" title="Send feedback">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Feedback
+      </button>
     </nav>
     <nav class="sidebar-info-links">
       <a href="/about">About</a>
@@ -183,8 +204,8 @@
 
 {# ─── mobile bottom nav ────────────────────────────── #}
 {% if user and not public_view %}
-<!-- ── 7-day trial banner ── -->
-{% if show_trial_banner %}
+<!-- ── 7-day trial banner — preserved for future monetization, hidden during open beta ── -->
+{% if show_trial_banner and not beta_unlock %}
 <div id="trial-pill" class="trial-pill" role="alert">
   <div class="trial-pill-content">
     <span class="trial-pill-icon">✨</span>
@@ -375,6 +396,8 @@
   }
 
   fab.addEventListener("click", open);
+  var sidebarFbBtn = document.getElementById("sidebar-feedback-btn");
+  if (sidebarFbBtn) { sidebarFbBtn.addEventListener("click", open); }
   document.getElementById("fb-close").addEventListener("click", close);
   document.getElementById("fb-cancel").addEventListener("click", close);
   document.getElementById("fb-done").addEventListener("click", close);
@@ -429,7 +452,14 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
     Portfolio
   </a>
-  {% if not is_premium_plus %}
+  {% if beta_unlock %}
+  {# Preserved for future monetization. Disabled during open beta. #}
+  <a href="/feature-hub" class="bottom-nav-item {% if request.url.path == '/feature-hub' %}active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="5" height="5" rx="1"/><rect x="9.5" y="3" width="5" height="5" rx="1"/><rect x="17" y="3" width="5" height="5" rx="1"/><rect x="2" y="10" width="5" height="5" rx="1"/><rect x="9.5" y="10" width="5" height="5" rx="1"/><rect x="2" y="17" width="5" height="5" rx="1"/></svg>
+    Hub
+  </a>
+  {% elif not is_premium_plus %}
+  {# Premium link — preserved for future monetization. Disabled during open beta. #}
   <a href="/premium" class="bottom-nav-item {% if request.url.path == '/premium' %}active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
     {% if is_premium %}Premium+{% else %}Premium{% endif %}

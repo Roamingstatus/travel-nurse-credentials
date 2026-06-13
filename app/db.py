@@ -96,6 +96,7 @@ class User(Base):
     reminder_settings = relationship("ReminderSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
     reminder_logs = relationship("ReminderLog", foreign_keys="ReminderLog.user_id", cascade="all, delete-orphan")
     checklist_results = relationship("ChecklistResult", back_populates="user", cascade="all, delete-orphan")
+    feature_preferences = relationship("UserFeaturePreference", back_populates="user", cascade="all, delete-orphan")
 
 
 class Document(Base):
@@ -180,6 +181,19 @@ class Event(Base):
     meta = Column(Text, nullable=True)
     ok = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class UserFeaturePreference(Base):
+    """Per-user feature toggle for the Feature Hub (open beta)."""
+    __tablename__ = "user_feature_preferences"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    feature_key = Column(String, nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False, server_default="1")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="feature_preferences")
 
 
 class ChecklistResult(Base):
@@ -544,6 +558,21 @@ def _ensure_sqlite_columns() -> None:
                 ))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_email ON admin_access_logs (email)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_access_logs_created_at ON admin_access_logs (created_at)"))
+
+        if "user_feature_preferences" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS user_feature_preferences ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+                    "  feature_key VARCHAR NOT NULL,"
+                    "  enabled INTEGER NOT NULL DEFAULT 1,"
+                    "  created_at DATETIME DEFAULT (datetime('now')),"
+                    "  updated_at DATETIME DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ufp_user_id ON user_feature_preferences (user_id)"))
+                conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_ufp_user_feature ON user_feature_preferences (user_id, feature_key)"))
 
         if "security_events" not in tables:
             with engine.begin() as conn:
