@@ -120,6 +120,7 @@ from .security import (
     validate_password_strength,
     sanitize_csv_cell,
     mfa_limiter,
+    scan_file,
 )
 from .email_auth import (
     hash_password,
@@ -1112,7 +1113,12 @@ async def analyze_document(
     require_user(request)
     analyze_limiter.check(request)
     raw = await file.read(5 * 1024 * 1024)
-    meta = extract_document_metadata(raw, file.content_type, file.filename or "")
+    fname = file.filename or ""
+    try:
+        effective_mime = validate_upload(raw, fname, file.content_type)
+    except HTTPException as exc:
+        return JSONResponse({"error": exc.detail}, status_code=400)
+    meta = extract_document_metadata(raw, effective_mime, fname)
     return JSONResponse(meta)
 
 
@@ -1177,7 +1183,6 @@ async def scan_upload(
     """Pre-upload threat scan. Returns JSON so the client can animate the result."""
     require_user(request)
     analyze_limiter.check(request)
-    from .security import scan_file, validate_upload
     try:
         raw = await _read_limited(file, 25 * 1024 * 1024)
     except HTTPException:
@@ -1278,6 +1283,23 @@ async def upload_submit(
         request.session["flash"] = exc.detail
         request.session["flash_type"] = "error"
         return RedirectResponse("/documents/upload", status_code=302)
+
+    scan_result = scan_file(raw, fname, effective_mime)
+    if not scan_result["clean"]:
+        _threat = scan_result.get("threat") or "Potentially dangerous file content detected."
+        try:
+            log_security_event(
+                "upload_scan_blocked", "high", request, user,
+                metadata={"threat": _threat[:200], "filename": fname[:100]},
+            )
+        except Exception:
+            pass
+        if _is_xhr(request):
+            return JSONResponse({"ok": False, "error": f"Upload blocked: {_threat}"}, status_code=400)
+        request.session["flash"] = f"Upload blocked: {_threat}"
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/documents/upload", status_code=302)
+
     title_clean = title.strip()
     cat = category.strip()
     if cat == AUTO_CATEGORY or not cat:

@@ -1,9 +1,156 @@
 """Lightweight heuristics (no external API). Premium tier can swap in real AI parsing."""
 
 import io
+import logging as _logging
+import multiprocessing as _mp
 import re
+import threading as _threading
 from datetime import datetime
 from pathlib import Path
+
+_logger = _logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Process-isolated parser infrastructure
+# ---------------------------------------------------------------------------
+# All heavy parsers (pypdf, python-docx, PIL/tesseract) run in isolated worker
+# processes so that:
+#   1. A hard timeout can be enforced via process.terminate() / process.kill()
+#      (Python threads cannot be forcibly cancelled).
+#   2. Parser-bomb inputs that consume unbounded CPU/memory are killed at the
+#      OS level and cannot leak resources into the parent server process.
+#   3. A global semaphore caps concurrent parse processes so an attacker cannot
+#      spawn an unlimited number of them through repeated requests.
+
+# Max concurrent heavyweight parse processes across all requests.
+_PARSE_BUDGET = _threading.Semaphore(4)
+
+# Use 'fork' on Linux (faster child startup; child inherits parent modules).
+# Fall back to 'spawn' on platforms where 'fork' is unavailable.
+try:
+    _MP_CTX = _mp.get_context("fork")
+except ValueError:
+    _MP_CTX = _mp.get_context("spawn")
+
+
+def _bounded_parse(worker_fn, raw: bytes, timeout: float) -> str:
+    """Run worker_fn(raw) in an isolated process, hard-killing it on timeout.
+
+    Returns the worker's string result, or '' on timeout / budget-exceeded /
+    any error.  The worker process is always reaped so resources are freed
+    whether it finishes normally, times out, or raises an exception.
+    """
+    acquired = _PARSE_BUDGET.acquire(blocking=False)
+    if not acquired:
+        _logger.warning("[parser] Parse concurrency budget exhausted; skipping extraction.")
+        return ""
+
+    q: "_mp.Queue[str]" = _MP_CTX.Queue(maxsize=1)
+
+    def _target() -> None:
+        try:
+            q.put(worker_fn(raw))
+        except Exception:
+            q.put("")
+
+    proc = _MP_CTX.Process(target=_target, daemon=True)
+    try:
+        proc.start()
+        proc.join(timeout=timeout)
+        if proc.is_alive():
+            _logger.warning(
+                "[parser] Parse worker exceeded %.0f s; terminating process.", timeout
+            )
+            proc.terminate()
+            proc.join(timeout=2)
+            if proc.is_alive():
+                proc.kill()
+                proc.join(timeout=2)
+            return ""
+        return q.get_nowait() if not q.empty() else ""
+    except Exception:
+        return ""
+    finally:
+        if proc.is_alive():
+            proc.kill()
+        _PARSE_BUDGET.release()
+
+
+# ---------------------------------------------------------------------------
+# Module-level parse workers (must be at module scope to be picklable for
+# 'spawn' context; with 'fork' closures also work, but this is safer).
+# ---------------------------------------------------------------------------
+
+def _pdf_parse_worker(raw: bytes) -> str:
+    import io as _io
+    from pypdf import PdfReader
+    reader = PdfReader(_io.BytesIO(raw))
+    if len(reader.pages) > 50:
+        return ""
+    parts: list[str] = []
+    for page in reader.pages[:8]:
+        try:
+            parts.append(page.extract_text() or "")
+        except Exception:
+            pass
+    try:
+        fields = reader.get_fields() or {}
+        field_lines: list[str] = []
+        for fn, fdata in fields.items():
+            val = ""
+            if hasattr(fdata, "value"):
+                val = str(fdata.value or "").strip()
+            elif isinstance(fdata, dict):
+                val = str(fdata.get("/V") or fdata.get("value") or "").strip()
+            if val and val not in ("/Off", "Off", "None"):
+                field_lines.append(f"{fn}: {val}")
+        if field_lines:
+            parts.append("\n".join(field_lines))
+    except Exception:
+        pass
+    return "\n".join(parts)[:15000]
+
+
+def _pdf_title_worker(raw: bytes) -> str:
+    import io as _io
+    from pypdf import PdfReader
+    reader = PdfReader(_io.BytesIO(raw))
+    info = reader.metadata
+    if info and hasattr(info, "title") and info.title:
+        t = str(info.title).strip()
+        if 3 < len(t) < 200 and not t.startswith("%"):
+            return t
+    return ""
+
+
+def _docx_parse_worker(raw: bytes) -> str:
+    import io as _io
+    import zipfile
+    import docx as _docx
+    _MAX_UNCOMPRESSED = 50 * 1024 * 1024
+    try:
+        with zipfile.ZipFile(_io.BytesIO(raw)) as zf:
+            if sum(info.file_size for info in zf.infolist()) > _MAX_UNCOMPRESSED:
+                return ""
+    except zipfile.BadZipFile:
+        pass  # old binary .doc — not a ZIP; let Document() handle it
+    doc = _docx.Document(_io.BytesIO(raw))
+    parts = [p.text for p in doc.paragraphs[:500] if p.text.strip()]
+    return "\n".join(parts)[:15000]
+
+
+def _ocr_parse_worker(raw: bytes) -> str:
+    import io as _io
+    from PIL import Image
+    import pytesseract
+    _MAX_PIXELS = 4096 * 4096  # ~16 MP
+    img = Image.open(_io.BytesIO(raw))
+    w, h = img.size
+    if w * h > _MAX_PIXELS:
+        return ""
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    return pytesseract.image_to_string(img)[:15000]
 
 # Keywords → category (first match wins; order matters)
 _LICENSE_CERT_KEYS = (
@@ -281,45 +428,11 @@ def _extract_text(raw: bytes, mime_type: str, filename: str) -> str:
         except Exception:
             return ''
     if mt == 'application/pdf' or fn.endswith('.pdf'):
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(io.BytesIO(raw))
-            parts: list[str] = []
-            for page in reader.pages[:8]:
-                try:
-                    parts.append(page.extract_text() or '')
-                except Exception:
-                    pass
-            # Also read AcroForm field values (e.g. AHA ACLS/BLS digital cards
-            # store Issue Date / Renew By as form fields, not as page text)
-            try:
-                fields = reader.get_fields() or {}
-                field_lines: list[str] = []
-                for fname, fdata in fields.items():
-                    val = ''
-                    if hasattr(fdata, 'value'):
-                        val = str(fdata.value or '').strip()
-                    elif isinstance(fdata, dict):
-                        val = str(fdata.get('/V') or fdata.get('value') or '').strip()
-                    if val and val not in ('/Off', 'Off', 'None'):
-                        field_lines.append(f"{fname}: {val}")
-                if field_lines:
-                    parts.append('\n'.join(field_lines))
-            except Exception:
-                pass
-            return '\n'.join(parts)[:15000]
-        except Exception:
-            return ''
+        return _bounded_parse(_pdf_parse_worker, raw, timeout=10)
     if (mt in ('application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 'application/msword')
             or fn.endswith(('.docx', '.doc'))):
-        try:
-            import docx as _docx
-            doc = _docx.Document(io.BytesIO(raw))
-            parts = [p.text for p in doc.paragraphs if p.text.strip()]
-            return '\n'.join(parts)[:15000]
-        except Exception:
-            return ''
+        return _bounded_parse(_docx_parse_worker, raw, timeout=15)
     if mt == 'application/rtf' or fn.endswith('.rtf'):
         try:
             import re as _re
@@ -331,16 +444,7 @@ def _extract_text(raw: bytes, mime_type: str, filename: str) -> str:
         except Exception:
             return ''
     if mt.startswith('image/') or fn.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.bmp', '.tiff')):
-        try:
-            import pytesseract
-            from PIL import Image
-            img = Image.open(io.BytesIO(raw))
-            if img.mode not in ('RGB', 'L'):
-                img = img.convert('RGB')
-            text = pytesseract.image_to_string(img)
-            return text[:15000]
-        except Exception:
-            return ''
+        return _bounded_parse(_ocr_parse_worker, raw, timeout=20)
     return ''
 
 
@@ -348,16 +452,8 @@ def _extract_pdf_title(raw: bytes, mime_type: str, filename: str) -> str | None:
     mt = (mime_type or '').lower()
     fn = (filename or '').lower()
     if mt == 'application/pdf' or fn.endswith('.pdf'):
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(io.BytesIO(raw))
-            info = reader.metadata
-            if info and hasattr(info, 'title') and info.title:
-                t = str(info.title).strip()
-                if 3 < len(t) < 200 and not t.startswith('%'):
-                    return t
-        except Exception:
-            pass
+        result = _bounded_parse(_pdf_title_worker, raw, timeout=5)
+        return result if result else None
     return None
 
 
