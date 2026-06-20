@@ -4,7 +4,7 @@
 
 <div class="page-head-min">
   <h1>Resume Enhancer</h1>
-  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">Rule-based analysis — no AI needed. Works on every resume.</p>
+  <p style="color:var(--muted);font-size:14px;margin:4px 0 0;">AI-assisted versions with the standard rule-based enhancer still available.</p>
 </div>
 
 {# ── Input panel ─────────────────────────────────────────────────────── #}
@@ -52,12 +52,43 @@
                   placeholder="Paste your full resume text here…" style="resize:vertical;font-family:inherit;font-size:13px;"></textarea>
       </div>
 
-      <div>
-        <button type="submit" id="re-submit" class="btn primary">
-          <span id="re-submit-label">Analyse Resume</span>
-        </button>
+      <div class="re-ai-note">
+        <span class="re-ai-badge">AI Beta</span>
+        <span>AI suggestions should be reviewed before submitting. Only use content that accurately reflects your experience.</span>
       </div>
+
+      <div class="re-submit-row">
+        <button type="submit" id="re-submit" class="btn primary">
+          <span id="re-submit-label">Generate AI Resume Versions</span>
+        </button>
+        <button type="button" id="re-standard-submit" class="btn ghost">Use Standard Resume Enhancer</button>
+      </div>
+      <div id="re-ai-status" class="re-ai-status" role="status" aria-live="polite" hidden></div>
     </form>
+  </div>
+</section>
+
+<section class="panel panel-min re-ai-results" id="re-ai-results" hidden>
+  <header>
+    <h2>AI Resume Versions <span class="re-ai-badge">AI Beta</span></h2>
+  </header>
+  <div class="body">
+    <div class="re-ai-score-panel">
+      <div class="re-ai-score" id="re-ai-score">Resume Score: AI Beta</div>
+      <div class="re-ai-columns">
+        <div>
+          <div class="re-ai-section-title">Suggested Keywords</div>
+          <ul class="re-list" id="re-ai-keywords"></ul>
+        </div>
+        <div>
+          <div class="re-ai-section-title">Improvement Notes</div>
+          <ul class="re-list" id="re-ai-notes"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="re-vtabs re-ai-vtabs" id="re-ai-tabs" role="tablist" aria-label="AI resume versions"></div>
+    <div id="re-ai-panels"></div>
   </div>
 </section>
 
@@ -359,6 +390,23 @@ function reDownload() {
 .re-tab-panel { display:flex; flex-direction:column; gap:6px; }
 
 #re-submit { min-width:140px; }
+.re-submit-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.re-ai-note { display:flex; align-items:flex-start; gap:8px; font-size:12px; line-height:1.45; color:var(--muted); background:var(--surface-alt,#f8fafc); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+.re-ai-badge { display:inline-flex; align-items:center; white-space:nowrap; padding:2px 7px; border-radius:999px; background:#e0f2fe; color:#0369a1; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+[data-theme="dark"] .re-ai-badge { background:rgba(14,165,233,.18); color:#7dd3fc; }
+.re-ai-status { font-size:13px; line-height:1.45; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:var(--surface-alt,#f8fafc); }
+.re-ai-status--error { color:#b91c1c; background:#fee2e2; border-color:#fecaca; }
+[data-theme="dark"] .re-ai-status--error { color:#fecaca; background:rgba(239,68,68,.16); border-color:rgba(239,68,68,.35); }
+.re-ai-results { margin-top:18px; }
+.re-ai-results header h2 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.re-ai-score-panel { display:flex; flex-direction:column; gap:12px; border:1px solid var(--border); border-radius:8px; padding:14px; background:var(--surface-alt,#f8fafc); }
+.re-ai-score { font-size:15px; font-weight:800; color:var(--text); }
+.re-ai-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.re-ai-section-title { font-size:11px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.05em; margin-bottom:7px; }
+.re-ai-vtabs { flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin; }
+.re-ai-vtabs .re-vtab { flex:0 0 auto; }
+.re-ai-panel { margin-top:12px; }
+.re-ai-panel[hidden] { display:none !important; }
 
 /* Results layout */
 .re-results { display:flex; flex-direction:column; gap:16px; margin-top:20px; }
@@ -435,6 +483,16 @@ function reDownload() {
 .re-vdesc { font-size:13px; color:var(--muted); margin:0 0 10px; line-height:1.45; }
 .re-vtext { display:block; width:100%; min-height:260px; max-height:500px; font-family:ui-monospace,"SF Mono","Fira Code",monospace; font-size:12px; line-height:1.65; padding:14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); resize:vertical; box-sizing:border-box; }
 .re-vactions { display:flex; gap:8px; margin-top:10px; }
+
+@media (max-width:480px) {
+  .re-submit-row { flex-direction:column; align-items:stretch; }
+  .re-submit-row .btn { width:100%; justify-content:center; }
+  .re-ai-note { align-items:flex-start; }
+  .re-ai-columns { grid-template-columns:1fr; }
+  .re-vactions { flex-direction:column; }
+  .re-vactions .btn { width:100%; justify-content:center; }
+  .re-vtext { min-height:220px; font-size:12px; }
+}
 </style>
 
 <script>
@@ -449,14 +507,241 @@ function reDownload() {
     });
   });
 
-  // Loading state
+  function setAiStatus(message, isError) {
+    var status = document.getElementById("re-ai-status");
+    if (!status) return;
+    status.textContent = message || "";
+    status.hidden = !message;
+    status.classList.toggle("re-ai-status--error", !!isError);
+  }
+
+  function setAiLoading(isLoading) {
+    var btn = document.getElementById("re-submit");
+    var lbl = document.getElementById("re-submit-label");
+    var standard = document.getElementById("re-standard-submit");
+    if (btn) btn.disabled = !!isLoading;
+    if (standard) standard.disabled = !!isLoading;
+    if (lbl) lbl.textContent = isLoading ? "Creating resume versions..." : "Generate AI Resume Versions";
+  }
+
+  function trackResumeAi(eventName, tab) {
+    fetch("/api/resume/ai-event", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({event:eventName, tab:tab || ""})
+    }).catch(function(){});
+  }
+
+  function resumeAiMessage(status) {
+    if (status === 400) return "Please provide a valid resume.";
+    if (status === 401) return "Please sign in to use AI Resume Enhancer.";
+    if (status === 429) return "You have reached today's AI enhancement limit.";
+    if (status >= 500) return "AI enhancement is temporarily unavailable.";
+    return "AI enhancement is temporarily unavailable.";
+  }
+
+  function normalizeAiVersions(data) {
+    var versions = [
+      {key:"professional", label:"Professional", value:data.professionalVersion},
+      {key:"recruiter", label:"Recruiter", value:data.recruiterVersion},
+      {key:"impact", label:"Impact", value:data.impactVersion}
+    ];
+    if (data.healthcareVersion) {
+      versions.push({key:"healthcare", label:"Healthcare", value:data.healthcareVersion});
+    }
+    return versions.filter(function(v){ return (v.value || "").trim(); });
+  }
+
+  function fillList(el, items, emptyText) {
+    if (!el) return;
+    el.innerHTML = "";
+    var list = Array.isArray(items) ? items : [];
+    if (!list.length) {
+      var empty = document.createElement("li");
+      empty.textContent = emptyText;
+      el.appendChild(empty);
+      return;
+    }
+    list.forEach(function(item){
+      var li = document.createElement("li");
+      li.textContent = item;
+      el.appendChild(li);
+    });
+  }
+
+  function activateAiTab(key) {
+    document.querySelectorAll("[data-ai-tab]").forEach(function(tab){
+      tab.classList.toggle("active", tab.dataset.aiTab === key);
+    });
+    document.querySelectorAll("[data-ai-panel]").forEach(function(panel){
+      panel.hidden = panel.dataset.aiPanel !== key;
+    });
+  }
+
+  function renderAiResults(data) {
+    var root = document.getElementById("re-ai-results");
+    var tabs = document.getElementById("re-ai-tabs");
+    var panels = document.getElementById("re-ai-panels");
+    var score = document.getElementById("re-ai-score");
+    if (!root || !tabs || !panels) return;
+
+    var versions = normalizeAiVersions(data || {});
+    tabs.innerHTML = "";
+    panels.innerHTML = "";
+    if (score) score.textContent = data.resumeScore ? ("Resume Score: " + data.resumeScore) : "Resume Score: AI Beta";
+    fillList(document.getElementById("re-ai-keywords"), data.suggestedKeywords, "No keywords returned.");
+    fillList(document.getElementById("re-ai-notes"), data.improvementNotes, "No improvement notes returned.");
+
+    versions.forEach(function(version, index){
+      var tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "re-vtab" + (index === 0 ? " active" : "");
+      tab.dataset.aiTab = version.key;
+      tab.textContent = version.label;
+      tab.addEventListener("click", function(){ activateAiTab(version.key); });
+      tabs.appendChild(tab);
+
+      var panel = document.createElement("div");
+      panel.className = "re-ai-panel";
+      panel.dataset.aiPanel = version.key;
+      panel.hidden = index !== 0;
+
+      var textarea = document.createElement("textarea");
+      textarea.className = "re-vtext";
+      textarea.readOnly = true;
+      textarea.value = version.value || "";
+      panel.appendChild(textarea);
+
+      var actions = document.createElement("div");
+      actions.className = "re-vactions";
+
+      var copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "btn ghost";
+      copy.style.fontSize = "12px";
+      copy.style.padding = "6px 14px";
+      copy.textContent = "Copy";
+      copy.addEventListener("click", function(){
+        navigator.clipboard.writeText(textarea.value || "").then(function(){
+          copy.textContent = "Copied!";
+          trackResumeAi("resume_ai_copy", version.key);
+          setTimeout(function(){ copy.textContent = "Copy"; }, 2000);
+        });
+      });
+      actions.appendChild(copy);
+
+      var download = document.createElement("button");
+      download.type = "button";
+      download.className = "btn ghost";
+      download.style.fontSize = "12px";
+      download.style.padding = "6px 14px";
+      download.textContent = "Download TXT";
+      download.addEventListener("click", function(){
+        var blob = new Blob([textarea.value || ""], {type:"text/plain"});
+        var link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "resume-" + version.key + ".txt";
+        link.click();
+        URL.revokeObjectURL(link.href);
+        trackResumeAi("resume_ai_download", version.key);
+      });
+      actions.appendChild(download);
+
+      panel.appendChild(actions);
+      panels.appendChild(panel);
+    });
+
+    root.hidden = false;
+    setTimeout(function(){ root.scrollIntoView({behavior:"smooth", block:"start"}); }, 50);
+  }
+
+  function submitStandardEnhancer() {
+    var form = document.getElementById("re-form");
+    if (!form) return;
+    var btn = document.getElementById("re-submit");
+    var lbl = document.getElementById("re-submit-label");
+    var standard = document.getElementById("re-standard-submit");
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+
+    if (btn) btn.disabled = true;
+    if (standard) standard.disabled = true;
+    if (lbl) lbl.textContent = "Analysing...";
+    setAiStatus("Running standard resume enhancer...", false);
+
+    fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      credentials: "same-origin",
+      headers: {"X-CSRF-Token": csrf}
+    }).then(function(response){
+      if (response.redirected) {
+        window.location.href = response.url;
+        return "";
+      }
+      return response.text().then(function(html){
+        if (!response.ok) throw new Error("standard-enhancer-failed");
+        return html;
+      });
+    }).then(function(html){
+      if (!html) return;
+      document.open();
+      document.write(html);
+      document.close();
+    }).catch(function(){
+      setAiStatus("Standard Resume Enhancer could not run. Please reload the page and try again.", true);
+      if (btn) btn.disabled = false;
+      if (standard) standard.disabled = false;
+      if (lbl) lbl.textContent = "Generate AI Resume Versions";
+    });
+  }
+
+  var standardBtn = document.getElementById("re-standard-submit");
+  if (standardBtn) {
+    standardBtn.addEventListener("click", submitStandardEnhancer);
+  }
+
+  // AI submit flow with local fallback preserved.
   var form = document.getElementById("re-form");
   if (form) {
-    form.addEventListener("submit", function(){
-      var btn = document.getElementById("re-submit");
-      var lbl = document.getElementById("re-submit-label");
-      btn.disabled = true;
-      lbl.textContent = "Analysing…";
+    form.addEventListener("submit", function(event){
+      event.preventDefault();
+      var resumeText = (document.getElementById("resume_text") || {}).value || "";
+      var targetRole = (document.getElementById("re-role") || {}).value || "";
+      resumeText = resumeText.trim();
+      targetRole = targetRole.trim();
+
+      if (!resumeText) {
+        setAiStatus("Please paste resume text to generate AI versions, or use Standard Resume Enhancer for file uploads.", true);
+        return;
+      }
+
+      setAiLoading(true);
+      setAiStatus("Creating resume versions...", false);
+      trackResumeAi("resume_ai_requested");
+
+      fetch("/api/resume/enhance-ai", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({resumeText:resumeText, targetRole:targetRole})
+      }).then(function(response){
+        return response.json().catch(function(){ return {}; }).then(function(body){
+          return {ok:response.ok, status:response.status, body:body};
+        });
+      }).then(function(result){
+        if (!result.ok || !result.body.success) {
+          trackResumeAi("resume_ai_failure");
+          setAiStatus(resumeAiMessage(result.status) + " Use Standard Resume Enhancer if you want to continue locally.", true);
+          return;
+        }
+        renderAiResults(result.body.data || {});
+        setAiStatus("", false);
+        trackResumeAi("resume_ai_success");
+      }).catch(function(){
+        trackResumeAi("resume_ai_failure");
+        setAiStatus("AI enhancement is temporarily unavailable. Use Standard Resume Enhancer if you want to continue locally.", true);
+      }).finally(function(){
+        setAiLoading(false);
+      });
     });
   }
 

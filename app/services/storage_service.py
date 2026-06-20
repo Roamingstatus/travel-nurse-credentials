@@ -13,6 +13,7 @@ Provider constants: PROVIDER_LOCAL  = "local"
                     PROVIDER_REPLIT = "replit_object_storage"
 """
 import logging
+import os
 import secrets
 from pathlib import Path
 from typing import Optional
@@ -48,8 +49,9 @@ def _get_client():
     Client() so we never depend on the sidecar returning a non-empty value.
     """
     global _client_unavailable_logged
+    if os.environ.get("CREDANTA_FORCE_LOCAL_STORAGE", "").lower() == "true":
+        return None
     try:
-        import os
         from replit.object_storage import Client  # type: ignore
         bucket_id = os.environ.get("DEFAULT_OBJECT_STORAGE_BUCKET_ID") or None
         return Client(bucket_id=bucket_id)

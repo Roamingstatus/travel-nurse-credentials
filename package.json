@@ -6,7 +6,9 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:openai-service": "node server/services/openaiService.test.ts",
+    "test:e2e": "playwright test"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +20,10 @@
     "@uppy/core": "^5.2.0",
     "@uppy/dashboard": "^5.1.1",
     "@uppy/react": "^5.2.0",
-    "google-auth-library": "^10.7.0"
+    "google-auth-library": "^10.7.0",
+    "openai": "^6.42.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
   }
 }

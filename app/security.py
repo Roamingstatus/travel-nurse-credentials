@@ -52,10 +52,11 @@ def validate_env() -> None:
     ──────────────
     FATAL   (raises RuntimeError in production, warning in dev):
       SESSION_SECRET, GOOGLE_CLIENT_ID/SECRET, CLOUDFLARE_TURNSTILE_*
+      OPENAI_API_KEY
       — the app is unusable without these in production.
 
     ERROR   (logs ERROR in production, WARNING in dev — app still starts):
-      Stripe, Resend (email), Twilio (SMS), OpenAI, Admin config
+      Stripe, Resend (email), Twilio (SMS), Admin config
       — features degrade gracefully when these are absent.
     """
     env = (os.environ.get("APP_ENV") or os.environ.get("ENV", "development")).lower()
@@ -143,12 +144,9 @@ def validate_env() -> None:
             "— SMS reminders will not be sent."
         )
 
-    # ── OpenAI — AI document features (optional integration) ──────────────────
+    # ── OpenAI — required for AI resume features in production ────────────────
     if not os.environ.get("OPENAI_API_KEY"):
-        _error(
-            "OPENAI_API_KEY not set — AI-assisted document categorisation and "
-            "resume enhancer will be unavailable."
-        )
+        _fatal("OPENAI_API_KEY is missing")
 
     # ── Admin configuration ───────────────────────────────────────────────────
     if not os.environ.get("ADMIN_ROUTE"):
@@ -483,6 +481,8 @@ class _RateLimiter:
 
     def check(self, request: Request) -> None:
         """Raise HTTP 429 if this IP has exceeded the rate limit."""
+        if os.environ.get("CREDANTA_DISABLE_RATE_LIMITS", "").lower() == "true":
+            return
         key = self._ip(request)
         now = time.monotonic()
         cutoff = now - self._window
@@ -537,6 +537,8 @@ class _EmailRateLimiter:
 
     def check(self, email: str) -> None:
         """Raise HTTP 429 if this email has exceeded the rate limit."""
+        if os.environ.get("CREDANTA_DISABLE_RATE_LIMITS", "").lower() == "true":
+            return
         key = email.lower().strip()
         now = time.monotonic()
         cutoff = now - self._window

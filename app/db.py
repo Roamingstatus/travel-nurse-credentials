@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -22,7 +23,8 @@ _log = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "app.db"
+DB_PATH = Path(os.environ.get("CREDANTA_DB_PATH", DATA_DIR / "app.db"))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
@@ -250,6 +252,16 @@ class ResumeAnalysis(Base):
     created_at     = Column(DateTime, default=datetime.utcnow)
 
 
+class ResumeAIUsage(Base):
+    __tablename__ = "resume_ai_usage"
+
+    id          = Column(Integer, primary_key=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_role = Column(String, nullable=True)
+    model_used  = Column(String, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class BetaFeedback(Base):
     __tablename__ = "beta_feedback"
 
@@ -452,6 +464,20 @@ def _ensure_sqlite_columns() -> None:
                     ")"
                 ))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_resume_analyses_user_id ON resume_analyses (user_id)"))
+
+        if "resume_ai_usage" not in tables:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "CREATE TABLE IF NOT EXISTS resume_ai_usage ("
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+                    "  target_role VARCHAR,"
+                    "  model_used VARCHAR,"
+                    "  created_at DATETIME NOT NULL DEFAULT (datetime('now'))"
+                    ")"
+                ))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_resume_ai_usage_user_id ON resume_ai_usage (user_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_resume_ai_usage_created_at ON resume_ai_usage (created_at)"))
 
         if "beta_feedback" not in tables:
             with engine.begin() as conn:

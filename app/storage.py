@@ -1,10 +1,11 @@
 import logging
+import os
 import secrets
 from pathlib import Path
 
 logger = logging.getLogger("credanta.storage")
 
-UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR = Path(os.environ.get("CREDANTA_UPLOAD_DIR", Path(__file__).parent / "uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

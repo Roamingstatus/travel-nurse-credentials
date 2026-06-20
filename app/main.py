@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import time
 import uuid
@@ -52,6 +53,13 @@ from .categories import CATEGORY_ORDER, CREDENTIAL_CATEGORIES, US_STATES, normal
 from .dashboard import days_until, status_for, summarize, ui_status_label
 from .services.email_service import get_email_status, send_test_email
 from .services.sms_service import get_sms_status, send_test_sms
+from .services.openai_service import (
+    CredantaAIError,
+    DEFAULT_MODEL as OPENAI_DEFAULT_MODEL,
+    MAX_RESUME_INPUT_CHARS as AI_RESUME_MAX_CHARS,
+    generate_resume_versions,
+    is_openai_configured,
+)
 from .services.reminder_scheduler import start_scheduler, stop_scheduler
 from .services.security_monitor import (
     log_security_event,
@@ -67,6 +75,7 @@ from .db import (
     Event,
     ReminderLog,
     ReminderSettings,
+    ResumeAIUsage,
     SecurityEvent,
     SessionLocal,
     ShareLink,
@@ -156,6 +165,17 @@ from .mfa import (
 )
 
 logger = logging.getLogger(__name__)
+
+RESUME_AI_DAILY_LIMIT = 3
+RESUME_AI_TARGET_ROLE_MAX_CHARS = 100
+_HTML_PAYLOAD_RE = re.compile(r"<\s*/?\s*[a-zA-Z][^>]*>|javascript\s*:", re.IGNORECASE)
+_RESUME_AI_ANALYTICS_EVENTS = frozenset({
+    "resume_ai_requested",
+    "resume_ai_success",
+    "resume_ai_failure",
+    "resume_ai_copy",
+    "resume_ai_download",
+})
 
 # ── 7-day trial offer constants ───────────────────────────────────────────
 # July 15 2026 23:59 PST = July 16 2026 06:59:59 UTC
@@ -2544,6 +2564,137 @@ def resume_enhancer_alias(request: Request):
     return RedirectResponse("/premium/resume/enhance", status_code=301)
 
 
+def _resume_ai_error(message: str, status_code: int) -> JSONResponse:
+    return JSONResponse(
+        {"success": False, "message": message},
+        status_code=status_code,
+    )
+
+
+def _contains_script_or_html(value: str) -> bool:
+    return bool(_HTML_PAYLOAD_RE.search(value or ""))
+
+
+def _validate_resume_ai_payload(payload: Any) -> tuple[str, str]:
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object.")
+
+    resume_text_raw = payload.get("resumeText")
+    target_role_raw = payload.get("targetRole", "")
+
+    if not isinstance(resume_text_raw, str):
+        raise ValueError("resumeText is required.")
+    if target_role_raw is None:
+        target_role_raw = ""
+    if not isinstance(target_role_raw, str):
+        raise ValueError("targetRole must be a string.")
+
+    resume_text = resume_text_raw.strip()
+    target_role = target_role_raw.strip()
+
+    if not resume_text:
+        raise ValueError("resumeText is required.")
+    if len(resume_text) > AI_RESUME_MAX_CHARS:
+        raise ValueError(f"resumeText must be {AI_RESUME_MAX_CHARS} characters or fewer.")
+    if len(target_role) > RESUME_AI_TARGET_ROLE_MAX_CHARS:
+        raise ValueError(f"targetRole must be {RESUME_AI_TARGET_ROLE_MAX_CHARS} characters or fewer.")
+    if _contains_script_or_html(resume_text) or _contains_script_or_html(target_role):
+        raise ValueError("HTML or script content is not allowed.")
+
+    return resume_text, target_role
+
+
+def _resume_ai_daily_count(db: Session, user_id: int) -> int:
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    return int(
+        db.query(func.count(ResumeAIUsage.id))
+        .filter(
+            ResumeAIUsage.user_id == user_id,
+            ResumeAIUsage.created_at >= today_start,
+        )
+        .scalar()
+        or 0
+    )
+
+
+@app.post("/api/resume/enhance-ai")
+async def resume_enhance_ai(request: Request, db: Session = Depends(get_session)):
+    try:
+        user = require_user(request)
+    except HTTPException:
+        return _resume_ai_error("Authentication required.", status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        payload = await request.json()
+        resume_text, target_role = _validate_resume_ai_payload(payload)
+    except Exception:
+        return _resume_ai_error("Please provide valid resume text.", status.HTTP_400_BAD_REQUEST)
+
+    if _resume_ai_daily_count(db, user.id) >= RESUME_AI_DAILY_LIMIT:
+        logger.info("[resume_ai] rate limit reached user_id=%s", user.id)
+        return _resume_ai_error(
+            "Daily AI resume enhancement limit reached. Please try again tomorrow.",
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    try:
+        result = generate_resume_versions(
+            resume_text=resume_text,
+            target_role=target_role or None,
+            model=OPENAI_DEFAULT_MODEL,
+        )
+    except CredantaAIError as exc:
+        logger.warning("[resume_ai] OpenAI unavailable user_id=%s code=%s", user.id, exc.code)
+        return _resume_ai_error(
+            "Unable to enhance resume right now. Please try again.",
+            status.HTTP_502_BAD_GATEWAY,
+        )
+    except Exception as exc:
+        logger.warning("[resume_ai] enhancement failed user_id=%s error=%s", user.id, type(exc).__name__)
+        return _resume_ai_error(
+            "Unable to enhance resume right now. Please try again.",
+            status.HTTP_502_BAD_GATEWAY,
+        )
+
+    db.add(
+        ResumeAIUsage(
+            user_id=user.id,
+            target_role=target_role or None,
+            model_used=OPENAI_DEFAULT_MODEL,
+        )
+    )
+    db.commit()
+    log_event("resume_ai_enhanced", user_id=user.id, meta={
+        "target_role": target_role or None,
+        "model": OPENAI_DEFAULT_MODEL,
+    }, db=db)
+    logger.info("[resume_ai] success user_id=%s model=%s", user.id, OPENAI_DEFAULT_MODEL)
+
+    return JSONResponse({"success": True, "data": result})
+
+
+@app.post("/api/resume/ai-event")
+async def resume_ai_event(request: Request, db: Session = Depends(get_session)):
+    try:
+        user = require_user(request)
+    except HTTPException:
+        return JSONResponse({"success": False}, status_code=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    event_name = str((payload or {}).get("event") or "").strip()
+    if event_name not in _RESUME_AI_ANALYTICS_EVENTS:
+        return JSONResponse({"success": False}, status_code=status.HTTP_400_BAD_REQUEST)
+
+    tab = str((payload or {}).get("tab") or "").strip()[:32]
+    meta = {"tab": tab} if tab else {}
+    log_event(event_name, user_id=user.id, meta=meta, db=db)
+    return JSONResponse({"success": True})
+
+
 @app.get("/premium/resume/enhance", response_class=HTMLResponse)
 def resume_enhance_get(request: Request):
     from .resume_enhancer import TARGET_ROLES, TONES
@@ -3242,6 +3393,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_session)):
         recent=recent_events(db),
         failed=failed_events(db),
         misc=misc_metrics(db),
+        openai_status="Configured" if is_openai_configured() else "Missing API Key",
     )
 
 
