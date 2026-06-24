@@ -59,7 +59,7 @@
 
 ### CRIT-02 — SESSION_SECRET not set causes session invalidation on every restart
 **Status:** ✅ RESOLVED (`app/security.py` — `validate_env()` now reads `APP_ENV` first, then `ENV`, matching `is_production()`)  
-`validate_env()` previously checked only `ENV=production` while `is_production()` checked `APP_ENV`. The env var detection is now aligned: both read `APP_ENV` first and fall back to `ENV`. Setting `APP_ENV=production` in Replit Secrets now correctly enforces the SESSION_SECRET requirement at startup. **Action still required:** set `SESSION_SECRET` as a Replit Secret (32+ random characters).
+`validate_env()` previously checked only `ENV=production` while `is_production()` checked `APP_ENV`. The env var detection is now aligned: both read `APP_ENV` first and fall back to `ENV`. Setting `APP_ENV=production` now correctly enforces the SESSION_SECRET requirement at startup. **Action still required:** set `SESSION_SECRET` as an environment variable (32+ random characters).
 
 ---
 
@@ -119,7 +119,7 @@ Also add a startup warning: `if _BETA_MODE and is_production(): raise RuntimeErr
 **Status:** 🟡 WARNING  
 **Location:** `app/stripe_billing.py:138–139`  
 **Risk:** `stripe.Webhook.construct_event(payload, sig, "")` raises `SignatureVerificationError` when the secret is an empty string. All subscription lifecycle events (`checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`) silently fail — users who pay won't be upgraded; users who cancel won't be downgraded.  
-**Recommended fix:** Set `STRIPE_WEBHOOK_SECRET` in Replit Secrets. Add a startup validation:
+**Recommended fix:** Set `STRIPE_WEBHOOK_SECRET` as an environment variable. Add a startup validation:
 ```python
 if is_production() and not os.environ.get("STRIPE_WEBHOOK_SECRET"):
     logging.critical("[stripe] STRIPE_WEBHOOK_SECRET is not set — webhooks will fail")
@@ -143,7 +143,7 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 **Status:** 🟡 WARNING  
 **Location:** `app/events.py:55–58`  
 **Risk:** In production, if `ADMIN_EMAILS` is empty or not set, `require_admin` raises HTTP 403 for every admin request. The admin dashboard, analytics, feedback, and testing panels become completely inaccessible. A warning is logged at startup but the app does not fail — leaving an operator unaware that they have no admin access.  
-**Recommended fix:** Set `ADMIN_EMAILS=your@email.com` in Replit Secrets before deploying. Also set `ADMIN_ROUTE` to a secret path (not `/admin`). If neither is set in production, the admin panel is permanently locked.
+**Recommended fix:** Set `ADMIN_EMAILS=your@email.com` as an environment variable before deploying. Also set `ADMIN_ROUTE` to a secret path (not `/admin`). If neither is set in production, the admin panel is permanently locked.
 
 ---
 
@@ -168,7 +168,7 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 ### MED-02 — APScheduler runs in-process (duplicate reminders if multi-worker)
 **Status:** 🟡 WARNING  
 **Location:** `app/services/reminder_scheduler.py`  
-**Risk:** `APScheduler`'s `BackgroundScheduler` runs inside the same Python process. If Replit deploys with multiple worker processes (e.g., via gunicorn with multiple workers), every worker spawns its own scheduler, firing reminders N × per day. Replit's current single-process `uvicorn` setup avoids this, but it becomes a problem if the deployment config changes.  
+**Risk:** `APScheduler`'s `BackgroundScheduler` runs inside the same Python process. If your deployment uses multiple worker processes (e.g., via gunicorn with multiple workers), every worker spawns its own scheduler, firing reminders N × per day. A single-process setup avoids this, but it becomes a problem if the deployment config changes.  
 **Recommended fix:** For the current single-worker deployment, this is acceptable. Document the single-worker requirement. Long-term, consider `APScheduler`'s `SQLAlchemyJobStore` for distributed-safe scheduling or use a dedicated task queue.
 
 ---
@@ -177,14 +177,14 @@ if is_production() and not os.environ.get("CLOUDFLARE_TURNSTILE_SECRET_KEY"):
 **Status:** 🟡 WARNING  
 **Location:** `app/services/email_service.py:31` — default `"reminders@credanta.com"`  
 **Risk:** Resend requires the sender domain to be verified in the dashboard. If `credanta.com` is not verified with Resend's DNS records, all reminder emails will be rejected/bounced. The app will report success (Resend API call returns 200) but the email never reaches the recipient.  
-**Recommended fix:** Verify `credanta.com` (or your chosen sender domain) in the Resend dashboard and confirm DNS records are live. Set `RESEND_FROM_EMAIL` explicitly in Replit Secrets.
+**Recommended fix:** Verify `credanta.com` (or your chosen sender domain) in the Resend dashboard and confirm DNS records are live. Set `RESEND_FROM_EMAIL` explicitly as an environment variable.
 
 ---
 
 ### MED-04 — Duplicate Stripe API key assignment in webhook handler
 **Status:** ✅ RESOLVED  
 **Location:** `app/main.py` — `billing_webhook` handler  
-**Resolution:** Replaced `_stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")` with `_stripe.api_key = _stripe_secret_key()` (imported as `_secret_key as _stripe_secret_key` from `stripe_billing`). The handler now goes through the same credential path as every other billing function — Replit Connector first, `STRIPE_SECRET_KEY` env var as fallback. Also removed the redundant inline `import logging` inside the function and converted all f-string `logging.*` calls to use the module-level `logger` with `%s` formatting.
+**Resolution:** Replaced `_stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")` with `_stripe.api_key = _stripe_secret_key()` (imported as `_secret_key as _stripe_secret_key` from `stripe_billing`). The handler now goes through the same credential path as every other billing function — environment variables with fallback. Also removed the redundant inline `import logging` inside the function and converted all f-string `logging.*` calls to use the module-level `logger` with `%s` formatting.
 
 ---
 

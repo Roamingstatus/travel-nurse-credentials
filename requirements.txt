@@ -1,5 +1,4 @@
 fastapi>=0.115
-replit-object-storage>=1.0.0
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 authlib>=1.6.9

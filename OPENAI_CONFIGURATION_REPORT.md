@@ -16,7 +16,7 @@
 
 - `OPENAI_API_KEY`
 
-The real key must be provided only through Replit Secrets, server-side environment variables, or production deployment secrets.
+The real key must be provided only through server-side environment variables or production deployment secrets.
 
 ## Startup Validation Added
 
@@ -63,4 +63,4 @@ Scan result:
 
 - Do not store a real OpenAI key in this repository.
 - Do not paste real keys into source, reports, test fixtures, or frontend files.
-- Keep the real key in Replit Secrets or production server environment variables only.
+- Keep the real key in production server environment variables only.

@@ -46,13 +46,6 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
-.cache/
-.local/
-.env
-.env.*
-!.env.example
-
 # Python
 __pycache__/
 *.pyc
@@ -62,4 +55,8 @@ __pycache__/
 # App data
 app/data/
 app/uploads/
-.replit
+
+# Environment
+.env
+.env.*
+!.env.example

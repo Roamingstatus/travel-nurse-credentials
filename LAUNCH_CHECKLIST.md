@@ -23,7 +23,7 @@ These items block launch. Complete all of them first.
 
 ### 🔐 Secrets & Environment Variables
 
-Set each of these in **Replit Secrets** (lock icon → Secrets). None should be hardcoded in code or `.env` files.
+Set each of these as environment variables in your deployment platform. None should be hardcoded in code or `.env` files.
 
 | # | Secret Name | Status | Notes |
 |---|---|---|---|
@@ -45,7 +45,7 @@ Set each of these in **Replit Secrets** (lock icon → Secrets). None should be 
 | 16 | `TWILIO_ACCOUNT_SID` | ⬜ Verify | From Twilio console |
 | 17 | `TWILIO_AUTH_TOKEN` | ⬜ Verify | From Twilio console |
 | 18 | `TWILIO_FROM_NUMBER` | ⬜ Set it | Your Twilio phone number in E.164 format (e.g. `+15551234567`) |
-| 19 | `APP_BASE_URL` | ⬜ Set it | Your public URL e.g. `https://credanta.replit.app` — used in email/SMS links |
+| 19 | `APP_BASE_URL` | ⬜ Set it | Your public URL e.g. `https://credanta.example.com` — used in email/SMS links |
 | 20 | `APP_ENV` | ⬜ Set it | Set to `production` |
 | 21 | `BETA_MODE` | ⬜ Verify NOT set | Must **not** be set to `true` in production — bypasses all billing |
 
@@ -67,7 +67,7 @@ Set each of these in **Replit Secrets** (lock icon → Secrets). None should be 
 ### ☁️ Google OAuth — Callback URL
 
 - [ ] Open [Google Cloud Console](https://console.cloud.google.com) → Your OAuth app → Credentials
-- [ ] Add your production callback URL: `https://your-domain.replit.app/auth/google/callback`
+- [ ] Add your production callback URL: `https://your-domain.example.com/auth/google/callback`
 - [ ] Confirm test users list includes all beta testers (if app is in "Testing" mode)
 - [ ] If publishing publicly: submit for OAuth verification (required for non-test users)
 
@@ -76,11 +76,11 @@ Set each of these in **Replit Secrets** (lock icon → Secrets). None should be 
 ### 💳 Stripe Setup
 
 - [ ] Run `python scripts/seed_stripe_products.py` to create products and price IDs
-- [ ] Copy output price IDs into Replit Secrets (items 8–11 above)
-- [ ] Create a webhook endpoint in Stripe Dashboard pointing to: `https://your-domain.replit.app/billing/webhook`
+- [ ] Copy output price IDs into your environment variables (items 8–11 above)
+- [ ] Create a webhook endpoint in Stripe Dashboard pointing to: `https://your-domain.example.com/billing/webhook`
 - [ ] Enable these webhook events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
 - [ ] Copy the webhook signing secret into `STRIPE_WEBHOOK_SECRET`
-- [ ] Test with Stripe CLI: `stripe listen --forward-to your-domain.replit.app/billing/webhook`
+- [ ] Test with Stripe CLI: `stripe listen --forward-to your-domain.example.com/billing/webhook`
 - [ ] Confirm a test purchase upgrades the user tier in the database
 
 ---
@@ -97,7 +97,7 @@ Set each of these in **Replit Secrets** (lock icon → Secrets). None should be 
 ### 📱 SMS Setup (Twilio)
 
 - [ ] Confirm Twilio account is fully verified (not trial — trial accounts have restrictions)
-- [ ] Set `TWILIO_FROM_NUMBER` in Replit Secrets
+- [ ] Set `TWILIO_FROM_NUMBER` as an environment variable
 - [ ] Send a test SMS and confirm delivery
 
 ---
@@ -234,7 +234,7 @@ Required for bot protection:
   CLOUDFLARE_TURNSTILE_SECRET_KEY
 
 Required for correct links in emails/SMS:
-  APP_BASE_URL           ← e.g. https://credanta.replit.app
+  APP_BASE_URL           ← e.g. https://credanta.example.com
 
 Must NOT be set in production:
   BETA_MODE              ← Bypasses all billing
