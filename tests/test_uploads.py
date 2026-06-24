@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.storage import delete_file, file_path, save_upload, user_dir
+from app.storage import delete_upload, file_path, save_upload, user_dir, verify_upload_ownership
 
 
 class TestUserDir:
@@ -71,11 +71,25 @@ class TestDeleteFile:
         name, _ = save_upload(7, b"delete me", ".txt")
         p = file_path(7, name)
         assert p.exists()
-        delete_file(7, name)
+        delete_upload(7, name)
         assert not p.exists()
 
     def test_no_error_on_missing_file(self, tmp_upload_dir):
-        delete_file(7, "nonexistent_file.pdf")  # should not raise
+        delete_upload(7, "nonexistent_file.pdf")  # should not raise
+
+
+class TestVerifyUploadOwnership:
+    def test_owned_file(self, tmp_upload_dir):
+        name, _ = save_upload(3, b"secret", ".pdf")
+        assert verify_upload_ownership(3, name) is True
+
+    def test_wrong_user(self, tmp_upload_dir):
+        name, _ = save_upload(3, b"secret", ".pdf")
+        assert verify_upload_ownership(4, name) is False
+
+    def test_path_traversal_rejected(self, tmp_upload_dir):
+        save_upload(3, b"secret", ".pdf")
+        assert verify_upload_ownership(3, "../other/evil.pdf") is False
 
 
 class TestContentHashDeduplication:

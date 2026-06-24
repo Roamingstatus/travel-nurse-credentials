@@ -88,6 +88,10 @@ def validate_env() -> None:
     elif secret.lower() in _WEAK_SECRETS:
         _fatal("SESSION_SECRET looks like a known placeholder. Replace it with a random value.")
 
+    # ── Railway PostgreSQL ────────────────────────────────────────────────────
+    if is_prod and not os.environ.get("DATABASE_URL", "").strip():
+        _fatal("DATABASE_URL is required in production — attach Railway PostgreSQL.")
+
     # ── Google OAuth (optional — email/password auth is also available) ──────
     from .auth import google_client_id, google_client_secret, log_google_oauth_diagnostics
 
@@ -163,6 +167,14 @@ def validate_env() -> None:
             "ADMIN_EMAILS not set — no users will have admin access. "
             "Set to a comma-separated list of admin email addresses."
         )
+
+    from .storage import ensure_upload_storage_ready
+
+    try:
+        upload_root = ensure_upload_storage_ready(require_writable=is_prod)
+        logger.warning("[storage] Upload directory ready: %s", upload_root)
+    except RuntimeError as exc:
+        _fatal(str(exc))
 
     logger.info("[security] Environment validation complete (env=%s).", env)
 
@@ -515,6 +527,8 @@ auth_limiter           = _RateLimiter(max_calls=20, window_seconds=60,   name="a
 share_limiter          = _RateLimiter(max_calls=15, window_seconds=60,   name="share")
 preview_limiter        = _RateLimiter(max_calls=60, window_seconds=60,   name="preview")
 feedback_limiter       = _RateLimiter(max_calls=5,  window_seconds=60,   name="feedback")
+beta_feedback_limiter  = _RateLimiter(max_calls=10, window_seconds=3600, name="beta_feedback")
+reset_password_limiter = _RateLimiter(max_calls=10, window_seconds=900,  name="reset_password")
 admin_limiter          = _RateLimiter(max_calls=30, window_seconds=900,  name="admin")
 analyze_limiter        = _RateLimiter(max_calls=10, window_seconds=60,   name="analyze")
 reminder_test_limiter  = _RateLimiter(max_calls=3,  window_seconds=300,  name="reminder_test")
@@ -640,6 +654,17 @@ def sanitize_csv_cell(value: str) -> str:
     if value[0] in _CSV_DANGEROUS_PREFIXES:
         return f"'{value}"
     return value
+
+
+def safe_content_disposition_filename(name: str, fallback: str = "download") -> str:
+    """Strip path/control characters from a user-supplied download filename."""
+    clean = Path(name or "").name.replace('"', "").replace("\r", "").replace("\n", "").strip()
+    return clean or fallback
+
+
+def turnstile_required_for_upload() -> bool:
+    """Logged-in uploads skip Turnstile when REQUIRE_TURNSTILE_FOR_UPLOADS=false."""
+    return os.environ.get("REQUIRE_TURNSTILE_FOR_UPLOADS", "true").lower() != "false"
 
 
 # ---------------------------------------------------------------------------

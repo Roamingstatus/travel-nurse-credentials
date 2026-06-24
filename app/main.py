@@ -82,6 +82,8 @@ from .db import (
     ShareLink,
     User,
     UserFeaturePreference,
+    check_database_connection,
+    database_backend_label,
     engine,
     get_session,
     init_db,
@@ -111,6 +113,7 @@ from .reminders import build_expiring_ics
 from .expiration_rules import apply_custom_expiration_rules
 from .smart_categorize import extract_document_metadata, extract_document_text, infer_category, infer_expiry_from_text
 from .services import storage_service as _ss
+from .storage import get_upload_directory
 from .security import (
     RequestBodyLimitMiddleware,
     SecurityHeadersMiddleware,
@@ -139,8 +142,12 @@ from .security import (
     validate_name,
     validate_password_strength,
     sanitize_csv_cell,
+    safe_content_disposition_filename,
     mfa_limiter,
     scan_file,
+    beta_feedback_limiter,
+    reset_password_limiter,
+    turnstile_required_for_upload,
 )
 from .email_auth import (
     hash_password,
@@ -273,6 +280,7 @@ _CSRF_SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS", "TRACE
 _CSRF_EXEMPT_PREFIXES: tuple[str, ...] = (
     "/billing/webhook",
     "/auth/google",
+    "/auth/apple/callback",
     "/s/",          # public recruiter share view (no session)
     "/healthz",
 )
@@ -451,6 +459,9 @@ async def generic_exception_handler(request: Request, exc: Exception) -> HTMLRes
 @app.on_event("startup")
 def _startup() -> None:
     validate_env()
+    check_database_connection()
+    logging.warning("[startup] Database: Connected (%s)", database_backend_label())
+    logging.warning("[startup] Upload Storage: Ready (%s)", get_upload_directory())
     init_db()
     start_scheduler()
 
@@ -709,10 +720,28 @@ def _finish_oauth_login(
         request.session.clear()
         request.session["mfa_pending_user_id"] = user.id
         request.session["mfa_next"] = "/dashboard"
+        get_csrf_token(request.session)
         return RedirectResponse("/security/mfa/challenge", status_code=302)
-    request.session["user_id"] = user.id
-    request.session["flash"] = f"Signed in as {user.email}"
+    _establish_authenticated_session(
+        request, user.id, flash=f"Signed in as {user.email}"
+    )
     return RedirectResponse("/dashboard", status_code=302)
+
+
+def _establish_authenticated_session(
+    request: Request,
+    user_id: int,
+    *,
+    flash: str | None = None,
+    flash_type: str = "info",
+) -> None:
+    """Clear prior session keys (including MFA state) and bind a new user."""
+    request.session.clear()
+    request.session["user_id"] = user_id
+    get_csrf_token(request.session)
+    if flash:
+        request.session["flash"] = flash
+        request.session["flash_type"] = flash_type
 
 
 @app.get("/auth/google")
@@ -1248,8 +1277,11 @@ async def register_submit(
         user.trial_offer_expires_at = _TRIAL_OFFER_DEADLINE
         db.commit()
 
-    request.session["user_id"] = user.id
-    request.session["flash"] = f"Welcome to Credanta, {user.name or user.email}!"
+    _establish_authenticated_session(
+        request,
+        user.id,
+        flash=f"Welcome to Credanta, {user.name or user.email}!",
+    )
     return RedirectResponse("/dashboard", status_code=302)
 
 
@@ -1316,10 +1348,12 @@ async def login_email_submit(
         request.session.clear()
         request.session["mfa_pending_user_id"] = user.id
         request.session["mfa_next"] = "/dashboard"
+        get_csrf_token(request.session)
         return RedirectResponse("/security/mfa/challenge", status_code=302)
 
-    request.session["user_id"] = user.id
-    request.session["flash"] = f"Signed in as {user.email}"
+    _establish_authenticated_session(
+        request, user.id, flash=f"Signed in as {user.email}"
+    )
     return RedirectResponse("/dashboard", status_code=302)
 
 
@@ -1396,6 +1430,7 @@ async def reset_password_submit(
     request: Request,
     db: Session = Depends(get_session),
 ):
+    reset_password_limiter.check(request)
     _form = await request.form()
     token = str(_form.get("token", "") or "")
     password_raw = str(_form.get("password", "") or "")
@@ -1529,6 +1564,13 @@ async def analyze_document(
         effective_mime = validate_upload(raw, fname, file.content_type)
     except HTTPException as exc:
         return JSONResponse({"error": exc.detail}, status_code=400)
+    scan = scan_file(raw, fname, effective_mime)
+    if not scan.get("clean", True):
+        log_security_event(
+            "upload_scan_blocked", "medium", request,
+            metadata={"context": "analyze", "threat": str(scan.get("threat", ""))[:120]},
+        )
+        return JSONResponse({"error": "File failed security scan."}, status_code=400)
     meta = extract_document_metadata(raw, effective_mime, fname)
     return JSONResponse(meta)
 
@@ -1627,7 +1669,7 @@ async def upload_submit(
 ):
     user = require_user(request)
     upload_limiter.check(request)
-    if not has_premium(user):
+    if turnstile_required_for_upload() and not has_premium(user):
         # Cloudflare Turnstile injects a field named "cf-turnstile-response" (hyphenated).
         # FastAPI Form() parameters cannot have hyphens in their names and do NOT
         # auto-convert, so we must read the token directly from the cached form data.
@@ -1798,6 +1840,7 @@ def document_thumb(doc_id: int, request: Request, db: Session = Depends(get_sess
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != user.id:
         log_event("document_access_denied", user_id=user.id, ok=False, meta={"doc_id": doc_id, "route": "thumb"}, db=db)
+        log_security_event("unauthorized_data_access", "medium", request, user, {"doc_id": doc_id, "route": "thumb"})
         raise HTTPException(404)
     mime = doc.mime_type or ""
     if not mime.startswith("image/"):
@@ -1908,7 +1951,7 @@ def view_document(doc_id: int, request: Request, db: Session = Depends(get_sessi
         content=data,
         media_type=mime,
         headers={
-            "Content-Disposition": f'{disposition}; filename="{doc.original_filename}"',
+            "Content-Disposition": f'{disposition}; filename="{safe_content_disposition_filename(doc.original_filename)}"',
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, no-store",
         },
@@ -1931,7 +1974,7 @@ def download_document(doc_id: int, request: Request, db: Session = Depends(get_s
     return Response(
         content=data,
         media_type=doc.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{doc.original_filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_content_disposition_filename(doc.original_filename)}"'},
     )
 
 
@@ -2306,9 +2349,13 @@ def share_view(token: str, request: Request, db: Session = Depends(get_session))
 def share_download(token: str, doc_id: int, request: Request, dl: str = "", db: Session = Depends(get_session)):
     preview_limiter.check(request)
     link, owner = _resolve_share(token, db, request)
-    if dl and not verify_download_token(dl, doc_id, token):
+    if not dl or not verify_download_token(dl, doc_id, token):
         log_event("share_download_denied", user_id=owner.id, ok=False,
-                  meta={"doc_id": doc_id, "reason": "invalid_dl_token"}, db=db)
+                  meta={"doc_id": doc_id, "reason": "invalid_or_missing_dl_token"}, db=db)
+        log_security_event(
+            "share_token_invalid", "medium", request,
+            metadata={"doc_id": doc_id, "reason": "missing_dl_token"},
+        )
         raise HTTPException(403, "This download link has expired. Reload the share page to get a fresh link.")
     doc = db.get(Document, doc_id)
     if not doc or doc.user_id != owner.id:
@@ -2324,7 +2371,7 @@ def share_download(token: str, doc_id: int, request: Request, dl: str = "", db: 
         content=data,
         media_type=doc.mime_type or "application/octet-stream",
         headers={
-            "Content-Disposition": f'attachment; filename="{doc.original_filename}"',
+            "Content-Disposition": f'attachment; filename="{safe_content_disposition_filename(doc.original_filename)}"',
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, no-store",
         },
@@ -2728,6 +2775,23 @@ async def resume_enhance_post(
             return RedirectResponse("/premium/resume/enhance", status_code=302)
         mime  = file.content_type or ""
         fname = file.filename or "resume"
+        try:
+            effective_mime = validate_upload(raw, fname, mime)
+            scan = scan_file(raw, fname, effective_mime)
+            if not scan.get("clean", True):
+                request.session["flash"] = "Resume file failed security scan."
+                request.session["flash_type"] = "error"
+                return RedirectResponse("/premium/resume/enhance", status_code=302)
+            mime = effective_mime
+        except HTTPException as exc:
+            request.session["flash"] = str(exc.detail)
+            request.session["flash_type"] = "error"
+            return RedirectResponse("/premium/resume/enhance", status_code=302)
+
+    if resume_text.strip() and len(resume_text) > AI_RESUME_MAX_CHARS:
+        request.session["flash"] = f"Resume text must be {AI_RESUME_MAX_CHARS} characters or fewer."
+        request.session["flash_type"] = "error"
+        return RedirectResponse("/premium/resume/enhance", status_code=302)
 
     if not raw and not resume_text.strip():
         request.session["flash"] = "Please upload a file or paste your resume text."
@@ -3611,8 +3675,13 @@ _FEATURE_AREAS   = ("Uploads", "Previews", "Expiration Tracking", "Packet Genera
 _SEVERITIES      = ("Low", "Medium", "High")
 _FEEDBACK_STATUS = ("new", "reviewing", "fixed", "closed")
 
-_FEEDBACK_DIR = BASE_DIR / "uploads" / "feedback"
-_FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
+def _feedback_dir() -> Path:
+    d = get_upload_directory() / "feedback"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+_MAX_FEEDBACK_MESSAGE = 5000
 
 
 @app.post("/feedback")
@@ -3629,6 +3698,7 @@ async def submit_feedback(
     db: Session = Depends(get_session),
 ):
     from .db import BetaFeedback
+    beta_feedback_limiter.check(request)
     user = require_user(request)
 
     if feedback_type not in _FEEDBACK_TYPES:
@@ -3640,17 +3710,38 @@ async def submit_feedback(
     message = (message or "").strip()
     if not message:
         return JSONResponse({"ok": False, "error": "Message is required."}, status_code=400)
+    if len(message) > _MAX_FEEDBACK_MESSAGE:
+        return JSONResponse(
+            {"ok": False, "error": f"Message must be {_MAX_FEEDBACK_MESSAGE} characters or fewer."},
+            status_code=400,
+        )
 
     screenshot_filename = None
     if screenshot and screenshot.filename:
         raw = await screenshot.read(5 * 1024 * 1024)
         if raw:
+            try:
+                ss_name = screenshot.filename or "screenshot.png"
+                effective_mime = validate_upload(raw, ss_name, screenshot.content_type)
+                scan = scan_file(raw, ss_name, effective_mime)
+                if not scan.get("clean", True):
+                    log_security_event(
+                        "upload_scan_blocked", "medium", request, user,
+                        metadata={"context": "beta_feedback_screenshot"},
+                    )
+                    return JSONResponse({"ok": False, "error": "Screenshot failed security scan."}, status_code=400)
+            except HTTPException as exc:
+                log_security_event(
+                    "upload_rejected", "low", request, user,
+                    metadata={"context": "beta_feedback_screenshot", "reason": str(exc.detail)[:120]},
+                )
+                return JSONResponse({"ok": False, "error": str(exc.detail)}, status_code=400)
             import secrets as _sec
             ext = Path(screenshot.filename).suffix.lower()
             if ext not in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
                 ext = ".png"
             fname = _sec.token_urlsafe(12) + ext
-            (_FEEDBACK_DIR / fname).write_bytes(raw)
+            (_feedback_dir() / fname).write_bytes(raw)
             screenshot_filename = fname
 
     fb = BetaFeedback(
@@ -3747,7 +3838,7 @@ def admin_feedback_screenshot(fb_id: int, request: Request, db: Session = Depend
     fb = db.get(BetaFeedback, fb_id)
     if not fb or not fb.screenshot_filename:
         raise HTTPException(404)
-    p = _FEEDBACK_DIR / Path(fb.screenshot_filename).name
+    p = _feedback_dir() / Path(fb.screenshot_filename).name
     if not p.exists():
         raise HTTPException(404)
     mime = "image/png"

@@ -176,10 +176,15 @@ def _record_failed_login(db: Session, user: User) -> None:
 _RESET_TOKEN_TTL_MIN = 60  # token valid for 1 hour
 
 
+def _hash_reset_token(raw: str) -> str:
+    import hashlib
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def create_reset_token(db: Session, user: User) -> str:
     """Generate a secure reset token, store a hash of it, and return the raw token."""
     raw_token = secrets.token_urlsafe(48)
-    user.password_reset_token = raw_token
+    user.password_reset_token = _hash_reset_token(raw_token)
     user.password_reset_expires_at = datetime.utcnow() + timedelta(minutes=_RESET_TOKEN_TTL_MIN)
     db.commit()
     return raw_token
@@ -189,8 +194,17 @@ def consume_reset_token(db: Session, raw_token: str, new_password_hash: str) -> 
     """Verify token, update the password, invalidate the token.
 
     Returns True on success, False if token is missing or expired.
+    Accepts legacy plaintext tokens stored before hashing migration.
     """
-    user = db.query(User).filter(User.password_reset_token == raw_token).first()
+    token_hash = _hash_reset_token(raw_token)
+    user = (
+        db.query(User)
+        .filter(
+            (User.password_reset_token == token_hash)
+            | (User.password_reset_token == raw_token)
+        )
+        .first()
+    )
     if not user:
         return False
     expires = getattr(user, "password_reset_expires_at", None)

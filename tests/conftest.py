@@ -105,7 +105,7 @@ def make_share(db, user):
 
 @pytest.fixture
 def tmp_upload_dir(tmp_path, monkeypatch):
-    """Redirect storage.UPLOAD_DIR to a temp path for the duration of the test."""
+    """Redirect upload root to a temp path for the duration of the test."""
     import app.storage as storage
-    monkeypatch.setattr(storage, "UPLOAD_DIR", tmp_path)
+    monkeypatch.setattr(storage, "_upload_root", tmp_path)
     return tmp_path

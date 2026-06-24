@@ -196,7 +196,7 @@ class TestPacketIsolation:
     def test_packet_does_not_include_other_users_docs(self, tmp_path, monkeypatch):
         """The ZIP packet for User A must not contain User B's files."""
         import app.storage as storage
-        monkeypatch.setattr(storage, "UPLOAD_DIR", tmp_path)
+        monkeypatch.setattr(storage, "_upload_root", tmp_path)
 
         doc_a = _make_doc_for(_USER_A, "User A Exclusive")
 

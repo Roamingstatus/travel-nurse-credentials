@@ -26,26 +26,27 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = Path(os.environ.get("CREDANTA_DB_PATH", DATA_DIR / "app.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-engine = create_engine(
-    f"sqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False},
-    future=True,
-)
+_database_url = os.environ.get("DATABASE_URL", "").strip()
+if _database_url.startswith("postgres://"):
+    _database_url = "postgresql://" + _database_url[len("postgres://") :]
+
+if _database_url:
+    engine = create_engine(_database_url, future=True, pool_pre_ping=True)
+    _log.info("[db] Using DATABASE_URL backend (PostgreSQL)")
+else:
+    engine = create_engine(
+        f"sqlite:///{DB_PATH}",
+        connect_args={"check_same_thread": False},
+        future=True,
+    )
+    _log.info("[db] Using SQLite at %s", DB_PATH)
 
 
 @event.listens_for(engine, "connect")
 def _set_sqlite_pragmas(dbapi_conn, _connection_record):
-    """Apply per-connection SQLite settings.
-
-    WAL mode:       Allows concurrent readers during a write — no more
-                    "database is locked" errors when the scheduler and a
-                    web request hit the DB at the same time.
-    synchronous=NORMAL: Safe with WAL (the WAL file ensures durability at
-                    checkpoint time) and meaningfully faster than FULL.
-    foreign_keys:   SQLite ignores FK constraints unless this is set per
-                    connection; enabling it catches referential errors that
-                    the ORM cascade rules might otherwise mask.
-    """
+    """Apply per-connection SQLite settings (no-op on PostgreSQL)."""
+    if engine.dialect.name != "sqlite":
+        return
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA synchronous=NORMAL")
@@ -310,14 +311,27 @@ class SecurityEvent(Base):
     created_at       = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+def database_backend_label() -> str:
+    return engine.dialect.name
+
+
+def check_database_connection() -> None:
+    """Verify the database accepts connections. Never logs credentials."""
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
-    _ensure_sqlite_columns()
-    _verify_wal_mode()
+    if engine.dialect.name == "sqlite":
+        _ensure_sqlite_columns()
+        _verify_wal_mode()
 
 
 def _verify_wal_mode() -> None:
-    """Log the active journal mode so WAL activation is visible at startup."""
+    """Log the active journal mode so WAL activation is visible at startup (SQLite only)."""
+    if engine.dialect.name != "sqlite":
+        return
     try:
         with engine.connect() as conn:
             mode = conn.execute(text("PRAGMA journal_mode")).scalar()
@@ -334,6 +348,8 @@ def _verify_wal_mode() -> None:
 
 
 def _ensure_sqlite_columns() -> None:
+    if engine.dialect.name != "sqlite":
+        return
     try:
         insp = inspect(engine)
         tables = insp.get_table_names()
