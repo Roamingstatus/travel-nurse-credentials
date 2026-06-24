@@ -34,6 +34,7 @@ from .ai_docs import ai_enabled, ai_refine_category_expiry, extract_text_sample
 from .auth import (
     apple_configured,
     current_user,
+    expected_google_callback_url,
     generate_apple_client_secret,
     google_configured,
     microsoft_configured,
@@ -722,7 +723,8 @@ async def google_start(request: Request):
     redirect_uri = str(request.url_for("google_callback"))
     if redirect_uri.startswith("http://") and "localhost" not in redirect_uri and "127.0.0.1" not in redirect_uri:
         redirect_uri = "https://" + redirect_uri[len("http://"):]
-    logging.warning(f"[OAuth] redirect_uri being sent to Google: {redirect_uri}")
+    logging.warning("[oauth] redirect_uri sent to Google: %s", redirect_uri)
+    logging.warning("[oauth] APP_BASE_URL callback hint: %s", expected_google_callback_url())
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 

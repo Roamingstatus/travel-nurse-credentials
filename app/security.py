@@ -89,10 +89,14 @@ def validate_env() -> None:
         _fatal("SESSION_SECRET looks like a known placeholder. Replace it with a random value.")
 
     # ── Google OAuth (optional — email/password auth is also available) ──────
-    if not os.environ.get("GOOGLE_CLIENT_ID"):
+    from .auth import google_client_id, google_client_secret, log_google_oauth_diagnostics
+
+    if not google_client_id():
         _error("GOOGLE_CLIENT_ID not set — Google sign-in will not appear on the login page. Email/password auth is still available.")
-    if not os.environ.get("GOOGLE_CLIENT_SECRET"):
+    if not google_client_secret():
         _error("GOOGLE_CLIENT_SECRET not set — Google sign-in will not appear on the login page. Email/password auth is still available.")
+
+    log_google_oauth_diagnostics()
 
     # ── Cloudflare Turnstile (bot protection — fatal in production) ───────────
     if not os.environ.get("CLOUDFLARE_TURNSTILE_SITE_KEY"):
